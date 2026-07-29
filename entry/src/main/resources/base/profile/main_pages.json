@@ -1,0 +1,9 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/WelcomePage",
+    "pages/SelectRolePage",
+    "pages/LoginPage",
+    "pages/RegisterPage"
+  ]
+}
