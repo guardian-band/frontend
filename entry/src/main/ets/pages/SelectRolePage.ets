@@ -141,7 +141,7 @@ struct SelectRolePage {
           .shadow({ radius: 10, color: 'rgba(0, 0, 0, 0.04)', offsetX: 0, offsetY: 4 })
           .margin({ bottom: 16 })
           .onClick(() => {
-            promptAction.showToast({ message: 'Patient role selected! Registration complete.' })
+            promptAction.showToast({ message: 'Patient role selected! Welcome to GuardianBand.' })
             router.pushUrl({ url: 'pages/HomePage' })
           })
 
@@ -183,7 +183,7 @@ struct SelectRolePage {
           .shadow({ radius: 10, color: 'rgba(0, 0, 0, 0.04)', offsetX: 0, offsetY: 4 })
           .margin({ bottom: 16 })
           .onClick(() => {
-            promptAction.showToast({ message: 'Family Member role selected! Registration complete.' })
+            promptAction.showToast({ message: 'Family Member role selected! Welcome to GuardianBand.' })
             router.pushUrl({ url: 'pages/HomePage' })
           })
 
@@ -225,7 +225,7 @@ struct SelectRolePage {
           .shadow({ radius: 10, color: 'rgba(0, 0, 0, 0.04)', offsetX: 0, offsetY: 4 })
           .margin({ bottom: 16 })
           .onClick(() => {
-            promptAction.showToast({ message: 'Emergency Responder role selected! Registration complete.' })
+            promptAction.showToast({ message: 'Emergency Responder role selected! Welcome to GuardianBand.' })
             router.pushUrl({ url: 'pages/HomePage' })
           })
         }

@@ -1,95 +1,124 @@
 import { http } from '@kit.NetworkKit';
-import { promptAction } from '@kit.ArkUI';
 
 export class ApiService {
-  // IMPORTANT: Since your backend runs in Docker on your local computer, 
-  // 'localhost' or '127.0.0.1' inside the simulator refers to the simulator itself.
-  // Replace this IP with your computer's local network IP (e.g., 'http://192.168.1.100:8080')
-  // or use the emulator host loopback address: 'http://10.0.2.2:8080'.
-  private static readonly BASE_URL = 'http://10.0.2.2:3000';
+  // Use 10.0.2.2 to point to host PC's localhost from Android/HarmonyOS emulator.
+  // If running on a real device, change this to the host machine's actual LAN IP address.
+  private static readonly BASE_URL: string = 'http://localhost:3000';
 
   /**
-   * Helper to perform POST requests.
-   * @param path API endpoint path (e.g. '/api/auth/register')
-   * @param body JSON request payload
+   * Register a user on the Docker backend
    */
-  static async post(path: string, body: object): Promise<string> {
-    const httpRequest = http.createHttp();
-    const url = `${ApiService.BASE_URL}${path}`;
-
-    return new Promise((resolve, reject) => {
-      httpRequest.request(
-        url,
+  public static async register(username: string, password: string): Promise<void> {
+    let httpRequest = http.createHttp();
+    try {
+      let response = await httpRequest.request(
+        `${ApiService.BASE_URL}/api/register`,
         {
           method: http.RequestMethod.POST,
           header: {
             'Content-Type': 'application/json'
           },
-          extraData: JSON.stringify(body),
+          extraData: JSON.stringify({
+            username: username,
+            password: password
+          }),
           expectDataType: http.HttpDataType.STRING,
           readTimeout: 10000,
           connectTimeout: 10000
-        },
-        (err, data) => {
-          if (!err) {
-            if (data.responseCode >= 200 && data.responseCode < 300) {
-              resolve(data.result as string);
-            } else {
-              promptAction.showToast({ message: `HTTP Error: ${data.responseCode}` });
-              reject(new Error(`HTTP Error: ${data.responseCode}`));
-            }
-          } else {
-            promptAction.showToast({ message: 'Network connection failed' });
-            reject(err);
-          }
-          // Destroy connection to release resources
-          httpRequest.destroy();
         }
       );
-    });
+
+      if (response.responseCode === 201) {
+        return;
+      } else if (response.responseCode === 409) {
+        throw new Error('User already exists');
+      } else if (response.responseCode === 400) {
+        throw new Error('Invalid registration data');
+      } else {
+        throw new Error(`Registration failed (Code ${response.responseCode})`);
+      }
+    } catch (err) {
+      const error = err as Error;
+      throw new Error(error.message || 'Network request failed');
+    } finally {
+      httpRequest.destroy();
+    }
   }
 
   /**
-   * Helper to perform GET requests.
-   * @param path API endpoint path (e.g. '/api/users/profile')
-   * @param token Optional authorization bearer token
+   * Log in a user on the Docker backend and return their JWT token
    */
-  static async get(path: string, token?: string): Promise<string> {
-    const httpRequest = http.createHttp();
-    const url = `${ApiService.BASE_URL}${path}`;
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    return new Promise((resolve, reject) => {
-      httpRequest.request(
-        url,
+  public static async login(username: string, password: string): Promise<string> {
+    let httpRequest = http.createHttp();
+    try {
+      let response = await httpRequest.request(
+        `${ApiService.BASE_URL}/api/login`,
         {
-          method: http.RequestMethod.GET,
-          header: headers,
+          method: http.RequestMethod.POST,
+          header: {
+            'Content-Type': 'application/json'
+          },
+          extraData: JSON.stringify({
+            username: username,
+            password: password
+          }),
           expectDataType: http.HttpDataType.STRING,
           readTimeout: 10000,
           connectTimeout: 10000
-        },
-        (err, data) => {
-          if (!err) {
-            if (data.responseCode >= 200 && data.responseCode < 300) {
-              resolve(data.result as string);
-            } else {
-              promptAction.showToast({ message: `HTTP Error: ${data.responseCode}` });
-              reject(new Error(`HTTP Error: ${data.responseCode}`));
-            }
-          } else {
-            promptAction.showToast({ message: 'Network connection failed' });
-            reject(err);
-          }
-          // Destroy connection to release resources
-          httpRequest.destroy();
         }
       );
-    });
+
+      if (response.responseCode === 201) {
+        const resultJson = JSON.parse(response.result as string) as Record<string, string>;
+        if (resultJson && resultJson.token) {
+          return resultJson.token;
+        } else {
+          throw new Error('Invalid token response structure');
+        }
+      } else if (response.responseCode === 401) {
+        throw new Error('Invalid credentials');
+      } else {
+        throw new Error(`Login failed (Code ${response.responseCode})`);
+      }
+    } catch (err) {
+      const error = err as Error;
+      throw new Error(error.message || 'Network request failed');
+    } finally {
+      httpRequest.destroy();
+    }
+  }
+
+  /**
+   * Access sample protected endpoint using bearer token authentication
+   */
+  public static async getProtected(token: string): Promise<string> {
+    let httpRequest = http.createHttp();
+    try {
+      let response = await httpRequest.request(
+        `${ApiService.BASE_URL}/api/protected`,
+        {
+          method: http.RequestMethod.GET,
+          header: {
+            'Authorization': `Bearer ${token}`
+          },
+          expectDataType: http.HttpDataType.STRING,
+          readTimeout: 10000,
+          connectTimeout: 10000
+        }
+      );
+
+      if (response.responseCode === 200) {
+        return response.result as string;
+      } else if (response.responseCode === 401) {
+        throw new Error('Unauthorized or expired session');
+      } else {
+        throw new Error(`Protected request failed (Code ${response.responseCode})`);
+      }
+    } catch (err) {
+      const error = err as Error;
+      throw new Error(error.message || 'Network request failed');
+    } finally {
+      httpRequest.destroy();
+    }
   }
 }

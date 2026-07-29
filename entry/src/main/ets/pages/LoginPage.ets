@@ -216,25 +216,15 @@ struct LoginPage {
             if (!this.identifier || !this.password) {
               promptAction.showToast({ message: 'Please fill in all fields' })
             } else {
-              ApiService.post('/api/login', {
-                username: this.identifier,
-                password: this.password
-              })
-              .then((resStr: string) => {
-                try {
-                  const res = JSON.parse(resStr) as Record<string, string>;
-                  if (res && res.token) {
-                    AppStorage.setOrCreate('token', res.token);
-                  }
-                  promptAction.showToast({ message: 'Logged in successfully!' });
-                  router.pushUrl({ url: 'pages/HomePage' });
-                } catch (e) {
-                  promptAction.showToast({ message: 'Invalid server response' });
-                }
-              })
-              .catch((err: Error) => {
-                // ApiService will already toast on HTTP errors, this catches network failures
-              });
+              ApiService.login(this.identifier, this.password)
+                .then((token: string) => {
+                  AppStorage.setOrCreate('token', token)
+                  promptAction.showToast({ message: 'Logged in successfully!' })
+                  router.pushUrl({ url: 'pages/HomePage' })
+                })
+                .catch((err: Error) => {
+                  promptAction.showToast({ message: `Login Failed: ${err.message}` })
+                })
             }
           })
         }
