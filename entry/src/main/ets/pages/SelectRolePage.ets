@@ -142,6 +142,7 @@ struct SelectRolePage {
           .margin({ bottom: 16 })
           .onClick(() => {
             promptAction.showToast({ message: 'Patient role selected! Registration complete.' })
+            router.pushUrl({ url: 'pages/HomePage' })
           })
 
           // Card 2: Family Member
@@ -183,6 +184,7 @@ struct SelectRolePage {
           .margin({ bottom: 16 })
           .onClick(() => {
             promptAction.showToast({ message: 'Family Member role selected! Registration complete.' })
+            router.pushUrl({ url: 'pages/HomePage' })
           })
 
           // Card 3: Emergency Responder
@@ -224,6 +226,7 @@ struct SelectRolePage {
           .margin({ bottom: 16 })
           .onClick(() => {
             promptAction.showToast({ message: 'Emergency Responder role selected! Registration complete.' })
+            router.pushUrl({ url: 'pages/HomePage' })
           })
         }
         .width('100%')

@@ -4,6 +4,7 @@
     "pages/WelcomePage",
     "pages/SelectRolePage",
     "pages/LoginPage",
-    "pages/RegisterPage"
+    "pages/RegisterPage",
+    "pages/HomePage"
   ]
 }

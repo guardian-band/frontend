@@ -1,4 +1,5 @@
 import { router, promptAction } from '@kit.ArkUI';
+import { ApiService } from '../services/ApiService';
 
 @Entry
 @Component
@@ -503,8 +504,17 @@ struct RegisterPage {
               } else if (this.password !== this.confirmPassword) {
                 promptAction.showToast({ message: 'Passwords do not match' })
               } else {
-                promptAction.showToast({ message: 'Profile created successfully!' })
-                router.pushUrl({ url: 'pages/SelectRolePage' })
+                ApiService.post('/api/register', {
+                  username: this.email,
+                  password: this.password
+                })
+                .then(() => {
+                  promptAction.showToast({ message: 'Profile created successfully!' })
+                  router.pushUrl({ url: 'pages/SelectRolePage' })
+                })
+                .catch((err: Error) => {
+                  // ApiService will already toast on HTTP errors, this catches network failures
+                });
               }
             })
           }
@@ -532,6 +542,34 @@ struct RegisterPage {
           }
           .margin({ bottom: 20 })
 
+          // 4. Trust Badges
+          Row() {
+            Row() {
+              Text('🛡️')
+                .fontSize(16)
+                .margin({ right: 6 })
+              Text('HIPAA Compliant')
+                .fontSize(13)
+                .fontColor('#737685')
+            }
+            .alignItems(VerticalAlign.Center)
+
+            Row()
+              .width(1)
+              .height(14)
+              .backgroundColor('#C3C6D6')
+              .margin({ left: 16, right: 16 })
+
+            Row() {
+              Text('🔐')
+                .fontSize(16)
+                .margin({ right: 6 })
+              Text('256-bit AES')
+                .fontSize(13)
+                .fontColor('#737685')
+            }
+            .alignItems(VerticalAlign.Center)
+          }
           .justifyContent(FlexAlign.Center)
           .margin({ bottom: 20 })
         }
