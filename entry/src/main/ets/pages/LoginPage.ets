@@ -218,11 +218,21 @@ struct LoginPage {
             } else {
               ApiService.login(this.identifier, this.password)
                 .then((token: string) => {
+                  // BAŞARILI LOG ÇIKTISI (Terminale doğrudan basar)
+                  console.log("\n==================================================");
+                  console.log("[API EXECUTION] POST /api/login - SUCCESS: Operation completed successfully. (Code: 200)");
+                  console.log("==================================================\n");
+
                   AppStorage.setOrCreate('token', token)
                   promptAction.showToast({ message: 'Logged in successfully!' })
                   router.pushUrl({ url: 'pages/HomePage' })
                 })
                 .catch((err: Error) => {
+                  // HATALI LOG ÇIKTISI (Terminale doğrudan basar)
+                  console.log("\n==================================================");
+                  console.log("[API EXECUTION] POST /api/login - UNAUTHORIZED: Authentication failed. (Code: 401)");
+                  console.log("==================================================\n");
+
                   promptAction.showToast({ message: `Login Failed: ${err.message}` })
                 })
             }

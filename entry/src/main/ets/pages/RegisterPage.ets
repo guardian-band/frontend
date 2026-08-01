@@ -212,7 +212,7 @@ struct RegisterPage {
             .width('100%')
             .margin({ bottom: 16 })
 
-            // Birth Date Input (Yaş için)
+            // Birth Date Input
             Column() {
               Text('Birth Date (Age)')
                 .fontSize(14)
@@ -259,7 +259,7 @@ struct RegisterPage {
             .width('100%')
             .margin({ bottom: 16 })
 
-            // Gender Segmented Select (Cinsiyet)
+            // Gender Segmented Select
             Column() {
               Text('Gender')
                 .fontSize(14)
@@ -327,7 +327,7 @@ struct RegisterPage {
             .width('100%')
             .margin({ bottom: 16 })
 
-            // Height and Weight Row (Boy ve Kilo yan yana)
+            // Height and Weight Row
             Row() {
               // Height Input
               Column() {
@@ -504,17 +504,33 @@ struct RegisterPage {
               } else if (this.password !== this.confirmPassword) {
                 promptAction.showToast({ message: 'Passwords do not match' })
               } else {
+
                 ApiService.register(this.email, this.password)
                   .then(() => {
+                    // BAŞARILI KAYIT ÇIKTISI
+                    console.log("\n==================================================");
+                    console.log("[API EXECUTION] POST /api/register - CREATED: Resource was successfully registered or created. (Code: 201)");
+                    console.log("==================================================\n");
+
                     // Auto-login after successful registration to retrieve the JWT token
                     return ApiService.login(this.email, this.password);
                   })
                   .then((token: string) => {
+                    // BAŞARILI GİRİŞ ÇIKTISI
+                    console.log("\n==================================================");
+                    console.log("[API EXECUTION] POST /api/login - SUCCESS: Operation completed successfully. (Code: 200)");
+                    console.log("==================================================\n");
+
                     AppStorage.setOrCreate('token', token);
                     promptAction.showToast({ message: 'Registered and logged in successfully!' })
                     router.pushUrl({ url: 'pages/SelectRolePage' })
                   })
                   .catch((err: Error) => {
+                    // HATALI KAYIT ÇIKTISI
+                    console.log("\n==================================================");
+                    console.log("[API EXECUTION] POST /api/register - BAD REQUEST: Registration failed. (Code: 400)");
+                    console.log("==================================================\n");
+
                     promptAction.showToast({ message: `Registration Failed: ${err.message}` })
                   })
               }
