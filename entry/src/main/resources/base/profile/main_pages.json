@@ -5,6 +5,7 @@
     "pages/SelectRolePage",
     "pages/LoginPage",
     "pages/RegisterPage",
-    "pages/HomePage"
+    "pages/HomePage",
+    "pages/MedsPage"
   ]
 }
