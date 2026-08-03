@@ -2,11 +2,13 @@ import { router, promptAction } from '@kit.ArkUI';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
 
-// Define a clear interface for medication items
 interface MedicationItem {
+  id: string;
   name: string;
   dose: string;
   times: Array<string>;
+  duration: string;
+  days: Array<string>;
 }
 
 interface DashboardMedItem {
@@ -21,161 +23,215 @@ interface DashboardMedItem {
 @Component
 struct MedsPage {
   @StorageLink('dashboardMeds') dashboardMeds: Array<DashboardMedItem> = [];
-  // Allows the main page content to be scrollable
   private scroller: Scroller = new Scroller();
 
-  // State to hold our dynamic list of added medications
   @State medications: Array<MedicationItem> = [];
 
-  // Form states for the medication modal
+  // Modal and Search States
   @State isModalOpen: boolean = false;
-  
-  // Medication search and dropdown visibility states
   @State searchQuery: string = '';
   @State isDropdownOpen: boolean = false;
   private allMeds: Array<string> = ['Pill A', 'Pill B', 'Pill C', 'Pill D', 'Pill E', 'Pill F', 'Pill G'];
-  @State selectedMedName: string = 'Pill A'; 
+  @State selectedMedName: string = 'Pill A';
 
-  // Dosage array and index
-  private availableDoses: Array<number> = [5, 10, 15, 20, 25, 30, 45, 50];
-  @State selectedDoseIndex: number = 1; // Default to 10 mg
+  // Dose States
+  private availableDoses: Array<number> = [5, 10, 15, 20, 25, 30, 45, 50, 100, 500];
+  @State selectedDoseIndex: number = 1;
 
-  // Selection states for time slots
+  // Duration States (Ongoing vs Specific)
+  @State isOngoing: boolean = false;
+  @State durationDays: number = 14;
+
+  // Day Selection States (M, T, W, T, F, S, S)
+  private weekDays: Array<string> = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  @State selectedDays: boolean[] = [true, true, true, true, true, true, true];
+
+  // Time States
   @State isMorningSelected: boolean = false;
   @State isAfternoonSelected: boolean = false;
   @State isEveningSelected: boolean = false;
-
-  // Default times for each slot
   @State morningTime: string = '08:00';
   @State afternoonTime: string = '13:00';
   @State eveningTime: string = '20:00';
 
+  // Restricted Time Data
+  private morningHours: string[] = ['06', '07', '08', '09', '10', '11'];
+  private afternoonHours: string[] = ['12', '13', '14', '15', '16', '17'];
+  private eveningHours: string[] = ['18', '19', '20', '21', '22', '23'];
+  private minutesList: string[] = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+
+  // Custom Time Picker Dialog
+  showCustomTimePicker(slot: 'morning' | 'afternoon' | 'evening') {
+    let hours = slot === 'morning' ? this.morningHours : slot === 'afternoon' ? this.afternoonHours : this.eveningHours;
+
+    TextPickerDialog.show({
+      range: [hours, this.minutesList],
+      selected: [0, 0],
+      onAccept: (value: TextPickerResult) => {
+        if (Array.isArray(value.value) && value.value.length === 2) {
+          const formattedTime = `${value.value[0]}:${value.value[1]}`;
+          if (slot === 'morning') {
+            this.morningTime = formattedTime;
+            this.isMorningSelected = true;
+          } else if (slot === 'afternoon') {
+            this.afternoonTime = formattedTime;
+            this.isAfternoonSelected = true;
+          } else {
+            this.eveningTime = formattedTime;
+            this.isEveningSelected = true;
+          }
+        }
+      }
+    });
+  }
+
+  // Medication Deletion Function
+  deleteMedication(id: string) {
+    this.medications = this.medications.filter(med => med.id !== id);
+    this.dashboardMeds = this.dashboardMeds.filter(med => !med.id.startsWith(id));
+    promptAction.showToast({ message: 'Medication removed successfully' });
+  }
+
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      // Background Hologram & Ambient Blurs
-      Row()
-        .width(500)
-        .height(500)
-        .position({ x: -100, y: -150 })
-        .radialGradient({
-          center: ['50%', '50%'],
-          radius: 250,
-          colors: [
-            ['rgba(218, 226, 255, 0.6)', 0.0],
-            ['rgba(218, 226, 255, 0.0)', 1.0]
-          ]
-        })
+      // Background
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#F8F9FB')
 
-      // Main Scrollable Content Area
-      Scroll(this.scroller) {
-        Column() {
-          AppHeader({ title: 'Medication Schedule' })
+      // Main Content Container
+      Column() {
+        AppHeader({ title: 'Medication Schedule' })
+          .margin({ bottom: 12 })
 
-          // Dynamic Medication List or Empty State Placeholder
-          if (this.medications.length === 0) {
-            Column() {
-              Text('No medications added yet.')
-                .fontSize(15)
-                .fontColor('#737685')
-                .margin({ top: 40 })
-            }
-            .width('100%')
-            .height(300)
-            .justifyContent(FlexAlign.Center)
-            .alignItems(HorizontalAlign.Center)
-            .backgroundColor('rgba(255, 255, 255, 0.85)')
-            .borderRadius(24)
-            .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-            .shadow({ radius: 10, color: 'rgba(0, 0, 0, 0.03)', offsetY: 4 })
-          } else {
-            Column() {
-              ForEach(this.medications, (item: MedicationItem) => {
-                Column() {
-                  Row() {
+        Scroll(this.scroller) {
+          Column() {
+            // Empty State
+            if (this.medications.length === 0) {
+              Column() {
+                Text('No medications added yet.')
+                  .fontSize(15)
+                  .fontColor('#8F92A1')
+              }
+              .width('100%')
+              .height(250)
+              .justifyContent(FlexAlign.Center)
+              .alignItems(HorizontalAlign.Center)
+              .backgroundColor(Color.White)
+              .borderRadius(16)
+              .border({ width: 1, color: '#EBECEF' })
+            } else {
+              // Medication List
+              Column() {
+                ForEach(this.medications, (item: MedicationItem) => {
+                  Column() {
                     Row() {
-                      Text('💊').fontSize(20)
-                    }
-                    .width(40)
-                    .height(40)
-                    .backgroundColor('rgba(0, 61, 155, 0.08)')
-                    .borderRadius(20)
-                    .justifyContent(FlexAlign.Center)
-                    .margin({ right: 12 })
+                      Column() {
+                        Text(item.name)
+                          .fontSize(16)
+                          .fontWeight(FontWeight.Medium)
+                          .fontColor('#1A1C21')
+                        Text(`Dose: ${item.dose} • ${item.duration}`)
+                          .fontSize(13)
+                          .fontColor('#8F92A1')
+                          .margin({ top: 4 })
+                      }
+                      .alignItems(HorizontalAlign.Start)
+                      .layoutWeight(1)
 
-                    Column() {
-                      Text(item.name)
-                        .fontSize(16)
-                        .fontWeight(FontWeight.Bold)
-                        .fontColor('#191C1D')
-                      Text(`Dosage: ${item.dose}`)
-                        .fontSize(13)
-                        .fontColor('#737685')
-                        .margin({ top: 2 })
-                    }
-                    .alignItems(HorizontalAlign.Start)
-                    .layoutWeight(1)
-
-                    Text('🛡️ Active')
-                      .fontSize(12)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor('#006E2F')
-                      .backgroundColor('#E6F9ED')
-                      .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                      .borderRadius(12)
-                  }
-                  .width('100%')
-                  .margin({ bottom: 10 })
-
-                  Row() {
-                    ForEach(item.times, (timeSlot: string) => {
-                      Text(`⏰ ${timeSlot}`)
-                        .fontSize(11)
-                        .fontColor('#003D9B')
-                        .backgroundColor('rgba(0, 61, 155, 0.06)')
-                        .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                      Text('Active')
+                        .fontSize(12)
+                        .fontColor('#006E2F')
+                        .backgroundColor('#E6F9ED')
+                        .padding({ left: 10, right: 10, top: 4, bottom: 4 })
                         .borderRadius(8)
-                        .margin({ right: 6 })
-                    })
+
+                      // Delete Button
+                      Button('✕')
+                        .type(ButtonType.Circle)
+                        .width(28)
+                        .height(28)
+                        .backgroundColor('#FFEBEA')
+                        .fontColor('#BA1A1A')
+                        .fontSize(12)
+                        .fontWeight(FontWeight.Bold)
+                        .margin({ left: 8 })
+                        .onClick(() => {
+                          this.deleteMedication(item.id);
+                        })
+                    }
+                    .width('100%')
+                    .margin({ bottom: 12 })
+
+                    // Days Badges
+                    Row() {
+                      Text('Days: ')
+                        .fontSize(12)
+                        .fontColor('#8F92A1')
+                      Text(item.days.length === 7 ? 'Every Day' : item.days.join(', '))
+                        .fontSize(12)
+                        .fontColor('#1A1C21')
+                        .fontWeight(FontWeight.Medium)
+                    }
+                    .width('100%')
+                    .margin({ bottom: 8 })
+
+                    // Times Badges
+                    Row() {
+                      ForEach(item.times, (timeSlot: string) => {
+                        Text(`⏰ ${timeSlot}`)
+                          .fontSize(12)
+                          .fontColor('#003D9B')
+                          .backgroundColor('#F0F4FF')
+                          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                          .borderRadius(6)
+                          .margin({ right: 6 })
+                      })
+                    }
+                    .width('100%')
+                    .alignItems(VerticalAlign.Center)
                   }
                   .width('100%')
-                  .alignItems(VerticalAlign.Center)
-                }
-                .width('100%')
-                .padding(16)
-                .backgroundColor(Color.White)
-                .borderRadius(20)
-                .margin({ bottom: 12 })
-                .shadow({ radius: 8, color: 'rgba(0,0,0,0.03)', offsetY: 3 })
-              })
+                  .padding(16)
+                  .backgroundColor(Color.White)
+                  .borderRadius(16)
+                  .border({ width: 1, color: '#EBECEF' })
+                  .margin({ bottom: 12 })
+                })
+              }
+              .width('100%')
             }
-            .width('100%')
-          }
 
-          Blank().height(120)
+            Blank().height(120)
+          }
+          .width('100%')
+          .justifyContent(FlexAlign.Start)
         }
+        .scrollBar(BarState.Off)
+        .layoutWeight(1)
         .width('100%')
       }
-      .scrollBar(BarState.Off)
       .width('100%')
       .height('100%')
-      .padding({ left: 24, right: 24, top: 10 })
+      .padding({ left: 24, right: 24, top: 20 })
 
       // Floating Action Button (+)
       Button() {
         Text('+')
           .fontSize(28)
-          .fontWeight(FontWeight.Bold)
+          .fontWeight(FontWeight.Medium)
           .fontColor(Color.White)
       }
-      .width(60)
-      .height(60)
-      .backgroundColor('#003D9B')
-      .borderRadius(30)
-      .shadow({ radius: 10, color: 'rgba(0, 61, 155, 0.3)', offsetY: 4 })
+      .width(56)
+      .height(56)
+      .backgroundColor('#1A1C21')
+      .borderRadius(28)
+      .shadow({ radius: 8, color: 'rgba(26, 28, 33, 0.2)', offsetY: 4 })
       .position({ x: '78%', y: '80%' })
       .zIndex(2)
       .onClick(() => {
-        this.isModalOpen = true; 
+        this.isModalOpen = true;
       })
 
       // MODAL OVERLAY
@@ -184,7 +240,7 @@ struct MedsPage {
           Row()
             .width('100%')
             .height('100%')
-            .backgroundColor('rgba(0, 0, 0, 0.4)')
+            .backgroundColor('rgba(0, 0, 0, 0.5)')
             .onClick(() => {
               this.isModalOpen = false;
               this.isDropdownOpen = false;
@@ -192,30 +248,28 @@ struct MedsPage {
 
           Scroll() {
             Column() {
-              Text('Configure Medication')
+              Text('Add Medication')
                 .fontSize(18)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#191C1D')
-                .margin({ bottom: 16 })
+                .fontWeight(FontWeight.Medium)
+                .fontColor('#1A1C21')
+                .margin({ bottom: 20 })
                 .alignSelf(ItemAlign.Start)
 
-              // 1. Search Bar with Dropdown
-              Text('Select Medication')
+              // Medication Search
+              Text('Medication Name')
                 .fontSize(13)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#434654')
+                .fontColor('#8F92A1')
                 .margin({ bottom: 6 })
                 .alignSelf(ItemAlign.Start)
 
               Stack({ alignContent: Alignment.TopStart }) {
                 TextInput({ placeholder: 'Tap or type to search...', text: this.searchQuery })
                   .height(44)
-                  .backgroundColor('#F3F4F5')
-                  .borderRadius(12)
+                  .backgroundColor(Color.White)
+                  .border({ width: 1, color: '#EBECEF' })
+                  .borderRadius(8)
                   .fontSize(14)
-                  .onClick(() => {
-                    this.isDropdownOpen = true;
-                  })
+                  .onClick(() => { this.isDropdownOpen = true; })
                   .onChange((value: string) => {
                     this.searchQuery = value;
                     this.isDropdownOpen = true;
@@ -230,10 +284,10 @@ struct MedsPage {
                           ListItem() {
                             Text(filteredMed)
                               .fontSize(14)
-                              .fontColor('#191C1D')
+                              .fontColor('#1A1C21')
                               .width('100%')
                               .padding(12)
-                              .backgroundColor(this.selectedMedName === filteredMed ? '#E6F0FF' : Color.Transparent)
+                              .backgroundColor(this.selectedMedName === filteredMed ? '#F8F9FB' : Color.Transparent)
                           }
                           .onClick(() => {
                             this.selectedMedName = filteredMed;
@@ -248,198 +302,263 @@ struct MedsPage {
                   }
                   .width('100%')
                   .backgroundColor(Color.White)
-                  .borderRadius(12)
-                  .border({ width: 1, color: '#C0C4CC' })
-                  .shadow({ radius: 8, color: 'rgba(0,0,0,0.1)', offsetY: 4 })
+                  .borderRadius(8)
+                  .border({ width: 1, color: '#EBECEF' })
+                  .shadow({ radius: 4, color: 'rgba(0,0,0,0.05)', offsetY: 2 })
                   .margin({ top: 48 })
                   .zIndex(5)
                 }
               }
               .width('100%')
-              .margin({ bottom: this.isDropdownOpen ? 125 : 16 })
+              .margin({ bottom: this.isDropdownOpen ? 125 : 20 })
 
-              // 2. Dosage Bar with Increment/Decrement Arrows
-              Text('Select Dosage (mg)')
+              // Dose Selection
+              Text('Dose (mg)')
                 .fontSize(13)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#434654')
+                .fontColor('#8F92A1')
                 .margin({ bottom: 6 })
                 .alignSelf(ItemAlign.Start)
 
               Row() {
                 Text(`${this.availableDoses[this.selectedDoseIndex]} mg`)
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#003D9B')
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor('#1A1C21')
                   .layoutWeight(1)
                   .textAlign(TextAlign.Center)
 
-                Button('➖')
-                  .height(40)
-                  .width(50)
-                  .backgroundColor('#F3F4F5')
-                  .borderRadius(10)
-                  .margin({ right: 8 })
-                  .onClick(() => {
-                    if (this.selectedDoseIndex > 0) {
-                      this.selectedDoseIndex--;
-                    }
-                  })
+                // - Button
+                Text('−')
+                  .width(32)
+                  .height(32)
+                  .backgroundColor('#F1F2F5')
+                  .fontColor('#1A1C21')
+                  .fontSize(18)
+                  .fontWeight(FontWeight.Bold)
+                  .textAlign(TextAlign.Center)
+                  .borderRadius(8)
+                  .margin({ right: 6 })
+                  .onClick(() => { if (this.selectedDoseIndex > 0) this.selectedDoseIndex--; })
 
-                Button('➕')
-                  .height(40)
-                  .width(50)
-                  .backgroundColor('#F3F4F5')
-                  .borderRadius(10)
+                // + Button
+                Text('+')
+                  .width(32)
+                  .height(32)
+                  .backgroundColor('#F1F2F5')
+                  .fontColor('#1A1C21')
+                  .fontSize(18)
+                  .fontWeight(FontWeight.Bold)
+                  .textAlign(TextAlign.Center)
+                  .borderRadius(8)
+                  .onClick(() => { if (this.selectedDoseIndex < this.availableDoses.length - 1) this.selectedDoseIndex++; })
+              }
+              .width('100%')
+              .height(48)
+              .backgroundColor(Color.White)
+              .borderRadius(12)
+              .padding({ left: 16, right: 12 })
+              .border({ width: 1, color: '#EBECEF' })
+              .margin({ bottom: 20 })
+
+              // Duration (Ongoing Checkbox)
+              Row() {
+                Text('Duration')
+                  .fontSize(13)
+                  .fontColor('#8F92A1')
+                Blank()
+                Row() {
+                  Checkbox({ name: 'ongoingToggle', group: 'durationGroup' })
+                    .select(this.isOngoing)
+                    .selectedColor('#1A1C21')
+                    .shape(CheckBoxShape.ROUNDED_SQUARE)
+                    .onChange((value: boolean) => {
+                      this.isOngoing = value;
+                    })
+                  Text('Ongoing')
+                    .fontSize(13)
+                    .fontColor('#1A1C21')
+                    .margin({ left: 4 })
+                }
+              }
+              .width('100%')
+              .margin({ bottom: 12 })
+              .alignItems(VerticalAlign.Center)
+
+              // Show counter if NOT ongoing
+              if (!this.isOngoing) {
+                Row() {
+                  Text('Set Days:')
+                    .fontSize(14)
+                    .fontColor('#1A1C21')
+                  Blank()
+                  Row() {
+                    // - Button
+                    Text('−')
+                      .width(32)
+                      .height(32)
+                      .backgroundColor('#F1F2F5')
+                      .fontColor('#1A1C21')
+                      .fontSize(18)
+                      .fontWeight(FontWeight.Bold)
+                      .textAlign(TextAlign.Center)
+                      .borderRadius(8)
+                      .onClick(() => { if (this.durationDays > 1) this.durationDays--; })
+
+                    Text(`${this.durationDays}`)
+                      .fontSize(14)
+                      .fontWeight(FontWeight.Medium)
+                      .width(40)
+                      .textAlign(TextAlign.Center)
+
+                    // + Button
+                    Text('+')
+                      .width(32)
+                      .height(32)
+                      .backgroundColor('#F1F2F5')
+                      .fontColor('#1A1C21')
+                      .fontSize(18)
+                      .fontWeight(FontWeight.Bold)
+                      .textAlign(TextAlign.Center)
+                      .borderRadius(8)
+                      .onClick(() => { this.durationDays++; })
+                  }
+                }
+                .width('100%')
+                .margin({ bottom: 20 })
+              } else {
+                Blank().height(10)
+              }
+
+              // Days Selection
+              Row() {
+                Text('Select Days')
+                  .fontSize(13)
+                  .fontColor('#8F92A1')
+                Blank()
+                Text(this.selectedDays.includes(false) ? 'Select All' : 'Clear')
+                  .fontSize(12)
+                  .fontColor('#003D9B')
                   .onClick(() => {
-                    if (this.selectedDoseIndex < this.availableDoses.length - 1) {
-                      this.selectedDoseIndex++;
-                    }
+                    const hasFalse = this.selectedDays.includes(false);
+                    this.selectedDays = [hasFalse, hasFalse, hasFalse, hasFalse, hasFalse, hasFalse, hasFalse];
                   })
               }
               .width('100%')
-              .height(50)
-              .backgroundColor('#F9FAFB')
-              .borderRadius(14)
-              .padding({ left: 16, right: 8 })
-              .border({ width: 1, color: '#E0E0E0' })
-              .margin({ bottom: 20 })
+              .margin({ bottom: 12 })
 
-              // 3. Time Slots Selection
-              Text('Select Schedule Times')
+              Row() {
+                ForEach(this.weekDays, (day: string, index: number) => {
+                  Text(day)
+                    .width(32)
+                    .height(32)
+                    .fontSize(12)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(this.selectedDays[index] ? Color.White : '#8F92A1')
+                    .backgroundColor(this.selectedDays[index] ? '#1A1C21' : '#F8F9FB')
+                    .borderRadius(16)
+                    .textAlign(TextAlign.Center)
+                    .border({ width: 1, color: this.selectedDays[index] ? '#1A1C21' : '#EBECEF' })
+                    .onClick(() => {
+                      let temp = [...this.selectedDays];
+                      temp[index] = !temp[index];
+                      this.selectedDays = temp;
+                    })
+                })
+              }
+              .width('100%')
+              .justifyContent(FlexAlign.SpaceBetween)
+              .margin({ bottom: 24 })
+
+              // 5. Meal & Restricted Time Selection
+              Text('Schedule (Tap to set time)')
                 .fontSize(13)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#434654')
+                .fontColor('#8F92A1')
                 .margin({ bottom: 8 })
                 .alignSelf(ItemAlign.Start)
 
               Row() {
-                // Morning Box (06:00 to 12:00)
+                // Morning
                 Column() {
-                  Text('☀️ Morning')
+                  Text('Morning')
                     .fontSize(12)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(this.isMorningSelected ? Color.White : '#191C1D')
+                    .fontColor(this.isMorningSelected ? '#003D9B' : '#1A1C21')
                     .margin({ bottom: 2 })
-                  Text(this.morningTime)
-                    .fontSize(10)
-                    .fontColor(this.isMorningSelected ? Color.White : '#737685')
+                  Text(this.isMorningSelected ? this.morningTime : '--:--')
+                    .fontSize(14)
+                    .fontWeight(this.isMorningSelected ? FontWeight.Medium : FontWeight.Normal)
+                    .fontColor(this.isMorningSelected ? '#003D9B' : '#8F92A1')
                 }
                 .layoutWeight(1)
-                .height(55)
-                .backgroundColor(this.isMorningSelected ? '#006E2F' : '#F3F4F5') 
-                .borderRadius(12)
+                .height(50)
+                .backgroundColor(this.isMorningSelected ? '#F0F4FF' : '#F8F9FB')
+                .borderRadius(8)
+                .border({ width: 1, color: this.isMorningSelected ? '#003D9B' : '#EBECEF' })
                 .justifyContent(FlexAlign.Center)
-                .border({ width: 1, color: this.isMorningSelected ? '#006E2F' : '#E0E0E0' })
                 .margin({ right: 6 })
-                .onClick(() => {
-                  TimePickerDialog.show({
-                    selected: new Date(),
-                    onAccept: (value: TimePickerResult) => {
-                      if (value.hour >= 6 && value.hour < 12) {
-                        let hours = value.hour < 10 ? '0' + value.hour : value.hour.toString();
-                        let minutes = value.minute < 10 ? '0' + value.minute : value.minute.toString();
-                        this.morningTime = `${hours}:${minutes}`;
-                        this.isMorningSelected = true;
-                      } else {
-                        promptAction.showToast({ message: 'Invalid! Morning time must be between 06:00 and 12:00' });
-                      }
-                    }
-                  });
-                })
+                .onClick(() => { this.showCustomTimePicker('morning'); })
 
-                // Afternoon Box (12:00 to 18:00)
+                // Afternoon
                 Column() {
-                  Text('🌤️ Afternoon')
+                  Text('Afternoon')
                     .fontSize(12)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(this.isAfternoonSelected ? Color.White : '#191C1D')
+                    .fontColor(this.isAfternoonSelected ? '#003D9B' : '#1A1C21')
                     .margin({ bottom: 2 })
-                  Text(this.afternoonTime)
-                    .fontSize(10)
-                    .fontColor(this.isAfternoonSelected ? Color.White : '#737685')
+                  Text(this.isAfternoonSelected ? this.afternoonTime : '--:--')
+                    .fontSize(14)
+                    .fontWeight(this.isAfternoonSelected ? FontWeight.Medium : FontWeight.Normal)
+                    .fontColor(this.isAfternoonSelected ? '#003D9B' : '#8F92A1')
                 }
                 .layoutWeight(1)
-                .height(55)
-                .backgroundColor(this.isAfternoonSelected ? '#006E2F' : '#F3F4F5') 
-                .borderRadius(12)
+                .height(50)
+                .backgroundColor(this.isAfternoonSelected ? '#F0F4FF' : '#F8F9FB')
+                .borderRadius(8)
+                .border({ width: 1, color: this.isAfternoonSelected ? '#003D9B' : '#EBECEF' })
                 .justifyContent(FlexAlign.Center)
-                .border({ width: 1, color: this.isAfternoonSelected ? '#006E2F' : '#E0E0E0' })
                 .margin({ right: 6 })
-                .onClick(() => {
-                  TimePickerDialog.show({
-                    selected: new Date(),
-                    onAccept: (value: TimePickerResult) => {
-                      if (value.hour >= 12 && value.hour < 18) {
-                        let hours = value.hour < 10 ? '0' + value.hour : value.hour.toString();
-                        let minutes = value.minute < 10 ? '0' + value.minute : value.minute.toString();
-                        this.afternoonTime = `${hours}:${minutes}`;
-                        this.isAfternoonSelected = true;
-                      } else {
-                        promptAction.showToast({ message: 'Invalid! Afternoon time must be between 12:00 and 18:00' });
-                      }
-                    }
-                  });
-                })
+                .onClick(() => { this.showCustomTimePicker('afternoon'); })
 
-                // Evening Box (18:00 to 23:59)
+                // Evening
                 Column() {
-                  Text('🌙 Evening')
+                  Text('Evening')
                     .fontSize(12)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(this.isEveningSelected ? Color.White : '#191C1D')
+                    .fontColor(this.isEveningSelected ? '#003D9B' : '#1A1C21')
                     .margin({ bottom: 2 })
-                  Text(this.eveningTime)
-                    .fontSize(10)
-                    .fontColor(this.isEveningSelected ? Color.White : '#737685')
+                  Text(this.isEveningSelected ? this.eveningTime : '--:--')
+                    .fontSize(14)
+                    .fontWeight(this.isEveningSelected ? FontWeight.Medium : FontWeight.Normal)
+                    .fontColor(this.isEveningSelected ? '#003D9B' : '#8F92A1')
                 }
                 .layoutWeight(1)
-                .height(55)
-                .backgroundColor(this.isEveningSelected ? '#006E2F' : '#F3F4F5') 
-                .borderRadius(12)
+                .height(50)
+                .backgroundColor(this.isEveningSelected ? '#F0F4FF' : '#F8F9FB')
+                .borderRadius(8)
+                .border({ width: 1, color: this.isEveningSelected ? '#003D9B' : '#EBECEF' })
                 .justifyContent(FlexAlign.Center)
-                .border({ width: 1, color: this.isEveningSelected ? '#006E2F' : '#E0E0E0' })
-                .onClick(() => {
-                  TimePickerDialog.show({
-                    selected: new Date(),
-                    onAccept: (value: TimePickerResult) => {
-                      if (value.hour >= 18 && value.hour <= 23) {
-                        let hours = value.hour < 10 ? '0' + value.hour : value.hour.toString();
-                        let minutes = value.minute < 10 ? '0' + value.minute : value.minute.toString();
-                        this.eveningTime = `${hours}:${minutes}`;
-                        this.isEveningSelected = true;
-                      } else {
-                        promptAction.showToast({ message: 'Invalid! Evening time must be between 18:00 and 23:59' });
-                      }
-                    }
-                  });
-                })
+                .onClick(() => { this.showCustomTimePicker('evening'); })
               }
               .width('100%')
-              .margin({ bottom: 24 })
+              .margin({ bottom: 30 })
 
-              // Action Buttons
+              // Actions
               Row() {
                 Button('Cancel')
                   .layoutWeight(1)
                   .height(44)
-                  .backgroundColor('#F3F4F5')
-                  .fontColor('#434654')
-                  .fontWeight(FontWeight.Bold)
-                  .borderRadius(12)
-                  .margin({ right: 10 })
+                  .backgroundColor(Color.Transparent)
+                  .fontColor('#1A1C21')
+                  .borderRadius(8)
+                  .border({ width: 1, color: '#EBECEF' })
+                  .margin({ right: 12 })
                   .onClick(() => {
                     this.isModalOpen = false;
-                    this.isDropdownOpen = false;
                   })
 
-                Button('Save Medication')
+                Button('Save')
                   .layoutWeight(1)
                   .height(44)
-                  .backgroundColor('#003D9B')
+                  .backgroundColor('#1A1C21')
                   .fontColor(Color.White)
-                  .fontWeight(FontWeight.Bold)
-                  .borderRadius(12)
+                  .borderRadius(8)
                   .onClick(() => {
                     let chosenTimes: Array<string> = [];
                     if (this.isMorningSelected) chosenTimes.push(`Morning (${this.morningTime})`);
@@ -451,40 +570,28 @@ struct MedsPage {
                       return;
                     }
 
-                    // 1. Local Medications list on Meds page
+                    if (!this.selectedDays.includes(true)) {
+                      promptAction.showToast({ message: 'Please select at least one day' });
+                      return;
+                    }
+
+                    let activeDays = this.weekDays.filter((day, index) => this.selectedDays[index]);
+                    let durationStr = this.isOngoing ? 'Ongoing' : `${this.durationDays} Days`;
+                    let baseId = Date.now().toString();
+
                     this.medications.push({
+                      id: baseId,
                       name: this.selectedMedName,
                       dose: `${this.availableDoses[this.selectedDoseIndex]} mg`,
-                      times: chosenTimes
+                      times: chosenTimes,
+                      duration: durationStr,
+                      days: activeDays
                     });
 
-                    // 2. Sync to HomePage dashboardMeds list
-                    let baseId = Date.now().toString();
                     if (this.isMorningSelected) {
                       this.dashboardMeds.push({
-                        id: baseId + '_m',
-                        name: this.selectedMedName,
-                        dosage: `${this.availableDoses[this.selectedDoseIndex]} mg`,
-                        time: `Today, ${this.morningTime}`,
-                        taken: false
-                      });
-                    }
-                    if (this.isAfternoonSelected) {
-                      this.dashboardMeds.push({
-                        id: baseId + '_a',
-                        name: this.selectedMedName,
-                        dosage: `${this.availableDoses[this.selectedDoseIndex]} mg`,
-                        time: `Today, ${this.afternoonTime}`,
-                        taken: false
-                      });
-                    }
-                    if (this.isEveningSelected) {
-                      this.dashboardMeds.push({
-                        id: baseId + '_e',
-                        name: this.selectedMedName,
-                        dosage: `${this.availableDoses[this.selectedDoseIndex]} mg`,
-                        time: `Today, ${this.eveningTime}`,
-                        taken: false
+                        id: baseId + '_m', name: this.selectedMedName,
+                        dosage: `${this.availableDoses[this.selectedDoseIndex]} mg`, time: `Today, ${this.morningTime}`, taken: false
                       });
                     }
 
@@ -494,6 +601,9 @@ struct MedsPage {
                     this.searchQuery = '';
                     this.isDropdownOpen = false;
                     this.isModalOpen = false;
+                    this.selectedDays = [true, true, true, true, true, true, true];
+                    this.isOngoing = false;
+                    this.durationDays = 14;
 
                     promptAction.showToast({ message: 'Medication added successfully!' });
                   })
@@ -501,10 +611,9 @@ struct MedsPage {
               .width('100%')
             }
             .width('92%')
-            .padding(22)
+            .padding(24)
             .backgroundColor(Color.White)
-            .borderRadius(28)
-            .shadow({ radius: 25, color: 'rgba(0, 0, 0, 0.15)', offsetY: 10 })
+            .borderRadius(24)
             .alignSelf(ItemAlign.Center)
           }
           .width('100%')
@@ -521,7 +630,6 @@ struct MedsPage {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F8F9FA')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

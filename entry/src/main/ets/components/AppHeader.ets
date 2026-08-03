@@ -6,7 +6,7 @@ export struct AppHeader {
 
   build() {
     Row() {
-      // Profile Avatar Button
+      // Profile Avatar Button (Clickable to Profile Page)
       Row() {
         Text('👤')
           .fontSize(20)
@@ -18,6 +18,9 @@ export struct AppHeader {
       .justifyContent(FlexAlign.Center)
       .alignItems(VerticalAlign.Center)
       .margin({ right: 12 })
+      .onClick(() => {
+        router.pushUrl({ url: 'pages/ProfilePage' });
+      })
 
       // Brand and Page Titles
       Column() {
