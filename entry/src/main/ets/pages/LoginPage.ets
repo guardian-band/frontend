@@ -6,7 +6,6 @@ import { ApiService } from '../services/ApiService';
 struct LoginPage {
   @State identifier: string = '';
   @State password: string = '';
-  @State rememberMe: boolean = false;
 
   build() {
     Stack() {
@@ -88,9 +87,9 @@ struct LoginPage {
 
         // 2. Login Form Card (Glassmorphism look)
         Column() {
-          // Email or Phone Number Input
+          // Phone Number Input
           Column() {
-            Text('Email or Phone Number')
+            Text('Phone Number')
               .fontSize(15)
               .fontWeight(FontWeight.Bold)
               .fontColor('#434654')
@@ -98,12 +97,13 @@ struct LoginPage {
               .margin({ left: 4, bottom: 8 })
 
             Row() {
-              Image($r('app.media.email'))
+              Image($r('app.media.phone'))
                 .width(20)
                 .height(20)
                 .margin({ left: 16, right: 8 })
 
-              TextInput({ placeholder: 'e.g. name@email.com', text: this.identifier })
+              TextInput({ placeholder: '+90 (555) 000 0000', text: this.identifier })
+                .type(InputType.PhoneNumber)
                 .placeholderColor('rgba(115, 118, 133, 0.5)')
                 .fontSize(16)
                 .backgroundColor(Color.Transparent)
@@ -159,39 +159,6 @@ struct LoginPage {
           }
           .width('100%')
           .margin({ bottom: 20 })
-
-          // Remember Me & Forgot Password
-          Row() {
-            // Remember Me Checkbox
-            Row() {
-              Checkbox({ name: 'rememberMe' })
-                .select(this.rememberMe)
-                .onChange((value: boolean) => {
-                  this.rememberMe = value;
-                })
-                .width(20)
-                .height(20)
-                .margin({ right: 8 })
-
-              Text('Remember Me')
-                .fontSize(14)
-                .fontColor('#434654')
-            }
-            .alignItems(VerticalAlign.Center)
-
-            // Forgot Password Link
-            Text('Forgot Password?')
-              .fontSize(14)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#003D9B')
-              .onClick(() => {
-                promptAction.showToast({ message: 'Forgot password click handler' })
-              })
-          }
-          .width('100%')
-          .justifyContent(FlexAlign.SpaceBetween)
-          .alignItems(VerticalAlign.Center)
-          .margin({ bottom: 24, left: 4, right: 4 })
 
           // Login Button
           Button() {

@@ -142,7 +142,15 @@ struct SelectRolePage {
           .margin({ bottom: 16 })
           .onClick(() => {
             promptAction.showToast({ message: 'Patient role selected! Welcome to GuardianBand.' })
-            router.pushUrl({ url: 'pages/HomePage' })
+            router.pushUrl({
+              url: 'pages/ProfileSetupPage',
+              params: { role: 'patient' }
+            }, (err) => {
+              if (err) {
+                promptAction.showToast({ message: `Routing Error: ${err.message}` })
+                console.error(`Routing to ProfileSetupPage failed: ${err.code} - ${err.message}`)
+              }
+            })
           })
 
           // Card 2: Family Member
@@ -184,7 +192,15 @@ struct SelectRolePage {
           .margin({ bottom: 16 })
           .onClick(() => {
             promptAction.showToast({ message: 'Family Member role selected! Welcome to GuardianBand.' })
-            router.pushUrl({ url: 'pages/HomePage' })
+            router.pushUrl({
+              url: 'pages/ProfileSetupPage',
+              params: { role: 'family' }
+            }, (err) => {
+              if (err) {
+                promptAction.showToast({ message: `Routing Error: ${err.message}` })
+                console.error(`Routing to ProfileSetupPage failed: ${err.code} - ${err.message}`)
+              }
+            })
           })
 
           // Card 3: Emergency Responder
@@ -226,7 +242,15 @@ struct SelectRolePage {
           .margin({ bottom: 16 })
           .onClick(() => {
             promptAction.showToast({ message: 'Emergency Responder role selected! Welcome to GuardianBand.' })
-            router.pushUrl({ url: 'pages/HomePage' })
+            router.pushUrl({
+              url: 'pages/ProfileSetupPage',
+              params: { role: 'responder' }
+            }, (err) => {
+              if (err) {
+                promptAction.showToast({ message: `Routing Error: ${err.message}` })
+                console.error(`Routing to ProfileSetupPage failed: ${err.code} - ${err.message}`)
+              }
+            })
           })
         }
         .width('100%')

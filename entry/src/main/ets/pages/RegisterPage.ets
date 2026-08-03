@@ -6,14 +6,8 @@ import { ApiService } from '../services/ApiService';
 struct RegisterPage {
   // Input fields state
   @State fullName: string = '';
-  @State email: string = '';
   @State phone: string = '';
-  @State birthDate: string = '';
-  @State selectedGender: string = 'Male';
-  @State heightCm: string = '';
-  @State weightKg: string = '';
   @State password: string = '';
-  @State confirmPassword: string = '';
   @State selectedRole: string = 'patient';
 
   private scroller: Scroller = new Scroller();
@@ -140,42 +134,6 @@ struct RegisterPage {
             .width('100%')
             .margin({ bottom: 16 })
 
-            // Email Input
-            Column() {
-              Text('Email')
-                .fontSize(14)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#434654')
-                .alignSelf(ItemAlign.Start)
-                .margin({ left: 4, bottom: 8 })
-
-              Row() {
-                Image($r('app.media.email'))
-                  .width(20)
-                  .height(20)
-                  .margin({ left: 16, right: 8 })
-
-                TextInput({ placeholder: 'care@example.com', text: this.email })
-                  .type(InputType.Email)
-                  .placeholderColor('rgba(115, 118, 133, 0.5)')
-                  .fontSize(16)
-                  .backgroundColor(Color.Transparent)
-                  .height('100%')
-                  .layoutWeight(1)
-                  .onChange((value: string) => {
-                    this.email = value;
-                  })
-              }
-              .width('100%')
-              .height(56)
-              .backgroundColor('#F3F4F5')
-              .borderRadius(16)
-              .alignItems(VerticalAlign.Center)
-              .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })
-            }
-            .width('100%')
-            .margin({ bottom: 16 })
-
             // Phone Number Input
             Column() {
               Text('Phone Number')
@@ -208,199 +166,6 @@ struct RegisterPage {
               .borderRadius(16)
               .alignItems(VerticalAlign.Center)
               .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })
-            }
-            .width('100%')
-            .margin({ bottom: 16 })
-
-            // Birth Date Input
-            Column() {
-              Text('Birth Date (Age)')
-                .fontSize(14)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#434654')
-                .alignSelf(ItemAlign.Start)
-                .margin({ left: 4, bottom: 8 })
-
-              Row() {
-                Image($r('app.media.calendar'))
-                  .width(20)
-                  .height(20)
-                  .margin({ left: 16, right: 8 })
-
-                Text(this.birthDate ? this.birthDate : 'Select Birth Date')
-                  .fontSize(16)
-                  .fontColor(this.birthDate ? '#191C1D' : 'rgba(115, 118, 133, 0.5)')
-                  .layoutWeight(1)
-
-                Text('➔')
-                  .fontSize(16)
-                  .fontColor('#737685')
-                  .margin({ right: 16 })
-              }
-              .width('100%')
-              .height(56)
-              .backgroundColor('#F3F4F5')
-              .borderRadius(16)
-              .alignItems(VerticalAlign.Center)
-              .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })
-              .onClick(() => {
-                DatePickerDialog.show({
-                  start: new Date("1900-1-1"),
-                  end: new Date(),
-                  selected: this.birthDate ? new Date(this.birthDate) : new Date(),
-                  onAccept: (value: DatePickerResult) => {
-                    if (value.year !== undefined && value.month !== undefined && value.day !== undefined) {
-                      this.birthDate = `${value.year}-${value.month + 1}-${value.day}`;
-                    }
-                  }
-                })
-              })
-            }
-            .width('100%')
-            .margin({ bottom: 16 })
-
-            // Gender Segmented Select
-            Column() {
-              Text('Gender')
-                .fontSize(14)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#434654')
-                .alignSelf(ItemAlign.Start)
-                .margin({ left: 4, bottom: 8 })
-
-              Row() {
-                Row() {
-                  Text('Male')
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(this.selectedGender === 'Male' ? Color.White : '#434654')
-                }
-                .layoutWeight(1)
-                .height(44)
-                .backgroundColor(this.selectedGender === 'Male' ? '#003D9B' : '#FFFFFF')
-                .borderRadius(12)
-                .justifyContent(FlexAlign.Center)
-                .alignItems(VerticalAlign.Center)
-                .border({ width: this.selectedGender === 'Male' ? 0 : 1, color: '#C3C6D6', style: BorderStyle.Solid })
-                .onClick(() => {
-                  this.selectedGender = 'Male';
-                })
-                .margin({ right: 8 })
-
-                Row() {
-                  Text('Female')
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(this.selectedGender === 'Female' ? Color.White : '#434654')
-                }
-                .layoutWeight(1)
-                .height(44)
-                .backgroundColor(this.selectedGender === 'Female' ? '#003D9B' : '#FFFFFF')
-                .borderRadius(12)
-                .justifyContent(FlexAlign.Center)
-                .alignItems(VerticalAlign.Center)
-                .border({ width: this.selectedGender === 'Female' ? 0 : 1, color: '#C3C6D6', style: BorderStyle.Solid })
-                .onClick(() => {
-                  this.selectedGender = 'Female';
-                })
-                .margin({ right: 8 })
-
-                Row() {
-                  Text('Other')
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(this.selectedGender === 'Other' ? Color.White : '#434654')
-                }
-                .layoutWeight(1)
-                .height(44)
-                .backgroundColor(this.selectedGender === 'Other' ? '#003D9B' : '#FFFFFF')
-                .borderRadius(12)
-                .justifyContent(FlexAlign.Center)
-                .alignItems(VerticalAlign.Center)
-                .border({ width: this.selectedGender === 'Other' ? 0 : 1, color: '#C3C6D6', style: BorderStyle.Solid })
-                .onClick(() => {
-                  this.selectedGender = 'Other';
-                })
-              }
-              .width('100%')
-            }
-            .width('100%')
-            .margin({ bottom: 16 })
-
-            // Height and Weight Row
-            Row() {
-              // Height Input
-              Column() {
-                Text('Height (cm)')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#434654')
-                  .alignSelf(ItemAlign.Start)
-                  .margin({ left: 4, bottom: 8 })
-
-                Row() {
-                  Image($r('app.media.ruler'))
-                    .width(25)
-                    .height(25)
-                    .margin({ left: 12, right: 6 })
-
-                  TextInput({ placeholder: 'e.g. 180', text: this.heightCm })
-                    .type(InputType.Number)
-                    .placeholderColor('rgba(115, 118, 133, 0.5)')
-                    .fontSize(15)
-                    .backgroundColor(Color.Transparent)
-                    .height('100%')
-                    .layoutWeight(1)
-                    .padding({ left: 0, right: 8 })
-                    .onChange((value: string) => {
-                      this.heightCm = value;
-                    })
-                }
-                .width('100%')
-                .height(56)
-                .backgroundColor('#F3F4F5')
-                .borderRadius(16)
-                .alignItems(VerticalAlign.Center)
-                .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })
-              }
-              .layoutWeight(1)
-              .margin({ right: 12 })
-
-              // Weight Input
-              Column() {
-                Text('Weight (kg)')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#434654')
-                  .alignSelf(ItemAlign.Start)
-                  .margin({ left: 4, bottom: 8 })
-
-                Row() {
-                  Image($r('app.media.scale'))
-                    .width(25)
-                    .height(25)
-                    .margin({ left: 12, right: 6 })
-
-                  TextInput({ placeholder: 'e.g. 75', text: this.weightKg })
-                    .type(InputType.Number)
-                    .placeholderColor('rgba(115, 118, 133, 0.5)')
-                    .fontSize(15)
-                    .backgroundColor(Color.Transparent)
-                    .height('100%')
-                    .layoutWeight(1)
-                    .padding({ left: 0, right: 8 })
-                    .onChange((value: string) => {
-                      this.weightKg = value;
-                    })
-                }
-                .width('100%')
-                .height(56)
-                .backgroundColor('#F3F4F5')
-                .borderRadius(16)
-                .alignItems(VerticalAlign.Center)
-                .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })
-              }
-              .layoutWeight(1)
             }
             .width('100%')
             .margin({ bottom: 16 })
@@ -440,43 +205,6 @@ struct RegisterPage {
               .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })
             }
             .width('100%')
-            .margin({ bottom: 16 })
-
-            // Confirm Password Input
-            Column() {
-              Text('Confirm Password')
-                .fontSize(14)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#434654')
-                .alignSelf(ItemAlign.Start)
-                .margin({ left: 4, bottom: 8 })
-
-              Row() {
-                Image($r('app.media.password'))
-                  .width(23)
-                  .height(23)
-                  .margin({ left: 16, right: 8 })
-
-                TextInput({ placeholder: '••••••••', text: this.confirmPassword })
-                  .type(InputType.Password)
-                  .placeholderColor('rgba(115, 118, 133, 0.5)')
-                  .fontSize(16)
-                  .backgroundColor(Color.Transparent)
-                  .height('100%')
-                  .layoutWeight(1)
-                  .showPasswordIcon(true)
-                  .onChange((value: string) => {
-                    this.confirmPassword = value;
-                  })
-              }
-              .width('100%')
-              .height(56)
-              .backgroundColor('#F3F4F5')
-              .borderRadius(16)
-              .alignItems(VerticalAlign.Center)
-              .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })
-            }
-            .width('100%')
             .margin({ bottom: 24 })
 
             // Continue Button
@@ -499,13 +227,11 @@ struct RegisterPage {
             .borderRadius(16)
             .shadow({ radius: 8, color: 'rgba(0, 61, 155, 0.2)', offsetX: 0, offsetY: 4 })
             .onClick(() => {
-              if (!this.fullName || !this.email || !this.phone || !this.birthDate || !this.heightCm || !this.weightKg || !this.password || !this.confirmPassword) {
-                promptAction.showToast({ message: 'Please fill in all medical and profile fields' })
-              } else if (this.password !== this.confirmPassword) {
-                promptAction.showToast({ message: 'Passwords do not match' })
+              if (!this.fullName || !this.phone || !this.password) {
+                promptAction.showToast({ message: 'Please fill in all fields' })
               } else {
 
-                ApiService.register(this.email, this.password)
+                ApiService.register(this.phone, this.password)
                   .then(() => {
                     // BAŞARILI KAYIT ÇIKTISI
                     console.log("\n==================================================");
@@ -513,7 +239,7 @@ struct RegisterPage {
                     console.log("==================================================\n");
 
                     // Auto-login after successful registration to retrieve the JWT token
-                    return ApiService.login(this.email, this.password);
+                    return ApiService.login(this.phone, this.password);
                   })
                   .then((token: string) => {
                     // BAŞARILI GİRİŞ ÇIKTISI
@@ -522,6 +248,7 @@ struct RegisterPage {
                     console.log("==================================================\n");
 
                     AppStorage.setOrCreate('token', token);
+                    AppStorage.setOrCreate('fullName', this.fullName);
                     promptAction.showToast({ message: 'Registered and logged in successfully!' })
                     router.pushUrl({ url: 'pages/SelectRolePage' })
                   })

@@ -6,6 +6,9 @@
     "pages/LoginPage",
     "pages/RegisterPage",
     "pages/HomePage",
-    "pages/MedsPage"
+    "pages/MedsPage",
+    "pages/ProfileSetupPage",
+    "pages/SOSPage",
+    "pages/ProfilePage"
   ]
 }

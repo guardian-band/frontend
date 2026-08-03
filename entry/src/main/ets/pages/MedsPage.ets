@@ -1,241 +1,522 @@
 import { router, promptAction } from '@kit.ArkUI';
-import { ApiService } from '../services/ApiService';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
 
+// Define a clear interface for medication items
+interface MedicationItem {
+  name: string;
+  dose: string;
+  times: Array<string>;
+}
+
+interface DashboardMedItem {
+  id: string;
+  name: string;
+  dosage: string;
+  time: string;
+  taken: boolean;
+}
+
 @Entry
 @Component
-struct HomePage {
-  @StorageLink('token') token: string = '';
-  @State protectedResponse: string = 'Click button below to load protected data.';
-  @State isLoading: boolean = false;
-
-  // Mock patient vital metrics
-  @State heartRate: string = '74 bpm';
-  @State stepCount: string = '8,432 steps';
-  @State batteryLevel: string = '92%';
-  @State deviceStatus: string = 'Connected';
-
-  // Allows the main page content to be scrollable so it doesn't hide behind the BottomNavBar
+struct MedsPage {
+  @StorageLink('dashboardMeds') dashboardMeds: Array<DashboardMedItem> = [];
+  // Allows the main page content to be scrollable
   private scroller: Scroller = new Scroller();
 
+  // State to hold our dynamic list of added medications
+  @State medications: Array<MedicationItem> = [];
+
+  // Form states for the medication modal
+  @State isModalOpen: boolean = false;
+  
+  // Medication search and dropdown visibility states
+  @State searchQuery: string = '';
+  @State isDropdownOpen: boolean = false;
+  private allMeds: Array<string> = ['Pill A', 'Pill B', 'Pill C', 'Pill D', 'Pill E', 'Pill F', 'Pill G'];
+  @State selectedMedName: string = 'Pill A'; 
+
+  // Dosage array and index
+  private availableDoses: Array<number> = [5, 10, 15, 20, 25, 30, 45, 50];
+  @State selectedDoseIndex: number = 1; // Default to 10 mg
+
+  // Selection states for time slots
+  @State isMorningSelected: boolean = false;
+  @State isAfternoonSelected: boolean = false;
+  @State isEveningSelected: boolean = false;
+
+  // Default times for each slot
+  @State morningTime: string = '08:00';
+  @State afternoonTime: string = '13:00';
+  @State eveningTime: string = '20:00';
+
   build() {
-    // Stack layout modified to align content to bottom for the NavBar
     Stack({ alignContent: Alignment.Bottom }) {
-      // Background Hologram/Ambient Blurs (0.5 opacity for consistency)
+      // Background Hologram & Ambient Blurs
       Row()
         .width(500)
         .height(500)
-        .position({ x: -200, y: -200 })
+        .position({ x: -100, y: -150 })
         .radialGradient({
           center: ['50%', '50%'],
           radius: 250,
           colors: [
-            ['rgba(218, 226, 255, 0.5)', 0.0],
+            ['rgba(218, 226, 255, 0.6)', 0.0],
             ['rgba(218, 226, 255, 0.0)', 1.0]
           ]
         })
 
-      Row()
-        .width(600)
-        .height(600)
-        .position({ x: '30%', y: '60%' })
-        .radialGradient({
-          center: ['50%', '50%'],
-          radius: 300,
-          colors: [
-            ['rgba(107, 255, 143, 0.5)', 0.0],
-            ['rgba(107, 255, 143, 0.0)', 1.0]
-          ]
-        })
-
-      // Main Content Wrapped in a Scroll
+      // Main Scrollable Content Area
       Scroll(this.scroller) {
         Column() {
-          // 1. Reusable Dashboard Header
-          AppHeader({ title: 'Dashboard' })
-            .margin({ top: 20, bottom: 24 })
+          AppHeader({ title: 'Medication Schedule' })
 
-          // 2. Patient Device Status Card (Premium Glassmorphism)
-          Column() {
-            Row() {
-              Column() {
-                Text('Smart Band Status')
-                  .fontSize(14)
-                  .fontColor('#737685')
-                  .margin({ bottom: 4 })
-                Text(this.deviceStatus)
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#006E2F')
-              }
-              .alignItems(HorizontalAlign.Start)
-
-              Blank()
-
-              Row() {
-                Text('🔋')
-                  .fontSize(16)
-                  .margin({ right: 4 })
-                Text(this.batteryLevel)
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#434654')
-              }
-            }
-            .width('100%')
-            .margin({ bottom: 20 })
-
-            // Divider
-            Row()
-              .width('100%')
-              .height(1)
-              .backgroundColor('rgba(195, 198, 214, 0.3)')
-              .margin({ bottom: 20 })
-
-            // Vitals Grid
-            Row() {
-              // Heart Rate
-              Column() {
-                Text('❤️ Heart Rate')
-                  .fontSize(13)
-                  .fontColor('#737685')
-                  .margin({ bottom: 6 })
-                Text(this.heartRate)
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-              }
-              .layoutWeight(1)
-              .alignItems(HorizontalAlign.Start)
-
-              // Steps
-              Column() {
-                Text('🚶 Daily Steps')
-                  .fontSize(13)
-                  .fontColor('#737685')
-                  .margin({ bottom: 6 })
-                Text(this.stepCount)
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-              }
-              .layoutWeight(1)
-              .alignItems(HorizontalAlign.Start)
-            }
-            .width('100%')
-          }
-          .width('100%')
-          .padding(20)
-          .backgroundColor('rgba(255, 255, 255, 0.85)')
-          .borderRadius(28)
-          .border({ width: 1, color: 'rgba(255, 255, 255, 0.5)', style: BorderStyle.Solid })
-          .shadow({ radius: 12, color: 'rgba(0, 61, 155, 0.04)', offsetX: 0, offsetY: 4 })
-          .margin({ bottom: 20 })
-
-          // 3. API Integration Testing Card
-          Column() {
-            Text('Backend API Integration')
-              .fontSize(16)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#191C1D')
-              .margin({ bottom: 6 })
-              .alignSelf(ItemAlign.Start)
-
-            Text('Tests secure connection to local Docker backend using Bearer token authentication.')
-              .fontSize(13)
-              .fontColor('#434654')
-              .margin({ bottom: 16 })
-              .alignSelf(ItemAlign.Start)
-
-            // Request Status Response Container
+          // Dynamic Medication List or Empty State Placeholder
+          if (this.medications.length === 0) {
             Column() {
-              if (this.isLoading) {
-                LoadingProgress()
-                  .width(40)
-                  .height(40)
-                  .color('#003D9B')
-              } else {
-                Text(this.protectedResponse)
-                  .fontSize(14)
-                  .fontColor('#003D9B')
-                  .textAlign(TextAlign.Start)
-                  .lineHeight(20)
-              }
-            }
-            .width('100%')
-            .height(100)
-            .padding(16)
-            .backgroundColor('#F3F4F5')
-            .borderRadius(16)
-            .justifyContent(FlexAlign.Center)
-            .margin({ bottom: 16 })
-
-            // Connect API Trigger Button
-            Button() {
-              Text('Fetch Protected Data')
+              Text('No medications added yet.')
                 .fontSize(15)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(Color.White)
+                .fontColor('#737685')
+                .margin({ top: 40 })
             }
             .width('100%')
-            .height(48)
-            .backgroundColor('#003D9B')
-            .borderRadius(12)
-            .onClick(() => {
-              if (!this.token) {
-                this.protectedResponse = 'No auth token found in AppStorage! Please log in first.';
-                return;
-              }
-              this.isLoading = true;
-              ApiService.getProtected(this.token)
-                .then((result: string) => {
-                  this.protectedResponse = result;
-                  this.isLoading = false;
-                })
-                .catch((err: Error) => {
-                  this.protectedResponse = `Authentication Failed:\n${err.message}`;
-                  this.isLoading = false;
-                });
-            })
-          }
-          .width('100%')
-          .padding(24)
-          .backgroundColor('rgba(255, 255, 255, 0.85)')
-          .borderRadius(28)
-          .border({ width: 1, color: 'rgba(255, 255, 255, 0.5)', style: BorderStyle.Solid })
-          .shadow({ radius: 12, color: 'rgba(0, 61, 155, 0.04)', offsetX: 0, offsetY: 4 })
-          .margin({ bottom: 24 })
+            .height(300)
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+            .backgroundColor('rgba(255, 255, 255, 0.85)')
+            .borderRadius(24)
+            .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
+            .shadow({ radius: 10, color: 'rgba(0, 0, 0, 0.03)', offsetY: 4 })
+          } else {
+            Column() {
+              ForEach(this.medications, (item: MedicationItem) => {
+                Column() {
+                  Row() {
+                    Row() {
+                      Text('💊').fontSize(20)
+                    }
+                    .width(40)
+                    .height(40)
+                    .backgroundColor('rgba(0, 61, 155, 0.08)')
+                    .borderRadius(20)
+                    .justifyContent(FlexAlign.Center)
+                    .margin({ right: 12 })
 
-          // 4. Sign Out Button
-          Button('Sign Out')
+                    Column() {
+                      Text(item.name)
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                      Text(`Dosage: ${item.dose}`)
+                        .fontSize(13)
+                        .fontColor('#737685')
+                        .margin({ top: 2 })
+                    }
+                    .alignItems(HorizontalAlign.Start)
+                    .layoutWeight(1)
+
+                    Text('🛡️ Active')
+                      .fontSize(12)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor('#006E2F')
+                      .backgroundColor('#E6F9ED')
+                      .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+                      .borderRadius(12)
+                  }
+                  .width('100%')
+                  .margin({ bottom: 10 })
+
+                  Row() {
+                    ForEach(item.times, (timeSlot: string) => {
+                      Text(`⏰ ${timeSlot}`)
+                        .fontSize(11)
+                        .fontColor('#003D9B')
+                        .backgroundColor('rgba(0, 61, 155, 0.06)')
+                        .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                        .borderRadius(8)
+                        .margin({ right: 6 })
+                    })
+                  }
+                  .width('100%')
+                  .alignItems(VerticalAlign.Center)
+                }
+                .width('100%')
+                .padding(16)
+                .backgroundColor(Color.White)
+                .borderRadius(20)
+                .margin({ bottom: 12 })
+                .shadow({ radius: 8, color: 'rgba(0,0,0,0.03)', offsetY: 3 })
+              })
+            }
             .width('100%')
-            .height(56)
-            .fontSize(16)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#8C0013')
-            .backgroundColor('rgba(140, 0, 19, 0.08)')
-            .borderRadius(16)
-            .margin({ bottom: 20 })
-            .onClick(() => {
-              AppStorage.setOrCreate('token', '');
-              promptAction.showToast({ message: 'Signed out successfully' });
-              router.clear();
-              router.replaceUrl({ url: 'pages/WelcomePage' });
-            })
+          }
 
-          // Blank space to prevent the BottomNavBar from covering the bottom content
-          Blank().height(100)
+          Blank().height(120)
         }
         .width('100%')
-        .padding({ left: 24, right: 24, top: 10 })
       }
       .scrollBar(BarState.Off)
       .width('100%')
       .height('100%')
+      .padding({ left: 24, right: 24, top: 10 })
 
-      // Reusable Bottom Navigation Bar Component
-      BottomNavBar({ activeTab: 'home' })
+      // Floating Action Button (+)
+      Button() {
+        Text('+')
+          .fontSize(28)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+      }
+      .width(60)
+      .height(60)
+      .backgroundColor('#003D9B')
+      .borderRadius(30)
+      .shadow({ radius: 10, color: 'rgba(0, 61, 155, 0.3)', offsetY: 4 })
+      .position({ x: '78%', y: '80%' })
+      .zIndex(2)
+      .onClick(() => {
+        this.isModalOpen = true; 
+      })
+
+      // MODAL OVERLAY
+      if (this.isModalOpen) {
+        Stack() {
+          Row()
+            .width('100%')
+            .height('100%')
+            .backgroundColor('rgba(0, 0, 0, 0.4)')
+            .onClick(() => {
+              this.isModalOpen = false;
+              this.isDropdownOpen = false;
+            })
+
+          Scroll() {
+            Column() {
+              Text('Configure Medication')
+                .fontSize(18)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#191C1D')
+                .margin({ bottom: 16 })
+                .alignSelf(ItemAlign.Start)
+
+              // 1. Search Bar with Dropdown
+              Text('Select Medication')
+                .fontSize(13)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#434654')
+                .margin({ bottom: 6 })
+                .alignSelf(ItemAlign.Start)
+
+              Stack({ alignContent: Alignment.TopStart }) {
+                TextInput({ placeholder: 'Tap or type to search...', text: this.searchQuery })
+                  .height(44)
+                  .backgroundColor('#F3F4F5')
+                  .borderRadius(12)
+                  .fontSize(14)
+                  .onClick(() => {
+                    this.isDropdownOpen = true;
+                  })
+                  .onChange((value: string) => {
+                    this.searchQuery = value;
+                    this.isDropdownOpen = true;
+                  })
+
+                if (this.isDropdownOpen) {
+                  Column() {
+                    List() {
+                      ForEach(
+                        this.allMeds.filter((med: string) => med.toLowerCase().includes(this.searchQuery.toLowerCase())),
+                        (filteredMed: string) => {
+                          ListItem() {
+                            Text(filteredMed)
+                              .fontSize(14)
+                              .fontColor('#191C1D')
+                              .width('100%')
+                              .padding(12)
+                              .backgroundColor(this.selectedMedName === filteredMed ? '#E6F0FF' : Color.Transparent)
+                          }
+                          .onClick(() => {
+                            this.selectedMedName = filteredMed;
+                            this.searchQuery = filteredMed;
+                            this.isDropdownOpen = false;
+                          })
+                        }
+                      )
+                    }
+                    .width('100%')
+                    .height(110)
+                  }
+                  .width('100%')
+                  .backgroundColor(Color.White)
+                  .borderRadius(12)
+                  .border({ width: 1, color: '#C0C4CC' })
+                  .shadow({ radius: 8, color: 'rgba(0,0,0,0.1)', offsetY: 4 })
+                  .margin({ top: 48 })
+                  .zIndex(5)
+                }
+              }
+              .width('100%')
+              .margin({ bottom: this.isDropdownOpen ? 125 : 16 })
+
+              // 2. Dosage Bar with Increment/Decrement Arrows
+              Text('Select Dosage (mg)')
+                .fontSize(13)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#434654')
+                .margin({ bottom: 6 })
+                .alignSelf(ItemAlign.Start)
+
+              Row() {
+                Text(`${this.availableDoses[this.selectedDoseIndex]} mg`)
+                  .fontSize(18)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#003D9B')
+                  .layoutWeight(1)
+                  .textAlign(TextAlign.Center)
+
+                Button('➖')
+                  .height(40)
+                  .width(50)
+                  .backgroundColor('#F3F4F5')
+                  .borderRadius(10)
+                  .margin({ right: 8 })
+                  .onClick(() => {
+                    if (this.selectedDoseIndex > 0) {
+                      this.selectedDoseIndex--;
+                    }
+                  })
+
+                Button('➕')
+                  .height(40)
+                  .width(50)
+                  .backgroundColor('#F3F4F5')
+                  .borderRadius(10)
+                  .onClick(() => {
+                    if (this.selectedDoseIndex < this.availableDoses.length - 1) {
+                      this.selectedDoseIndex++;
+                    }
+                  })
+              }
+              .width('100%')
+              .height(50)
+              .backgroundColor('#F9FAFB')
+              .borderRadius(14)
+              .padding({ left: 16, right: 8 })
+              .border({ width: 1, color: '#E0E0E0' })
+              .margin({ bottom: 20 })
+
+              // 3. Time Slots Selection
+              Text('Select Schedule Times')
+                .fontSize(13)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#434654')
+                .margin({ bottom: 8 })
+                .alignSelf(ItemAlign.Start)
+
+              Row() {
+                // Morning Box (06:00 to 12:00)
+                Column() {
+                  Text('☀️ Morning')
+                    .fontSize(12)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(this.isMorningSelected ? Color.White : '#191C1D')
+                    .margin({ bottom: 2 })
+                  Text(this.morningTime)
+                    .fontSize(10)
+                    .fontColor(this.isMorningSelected ? Color.White : '#737685')
+                }
+                .layoutWeight(1)
+                .height(55)
+                .backgroundColor(this.isMorningSelected ? '#006E2F' : '#F3F4F5') 
+                .borderRadius(12)
+                .justifyContent(FlexAlign.Center)
+                .border({ width: 1, color: this.isMorningSelected ? '#006E2F' : '#E0E0E0' })
+                .margin({ right: 6 })
+                .onClick(() => {
+                  TimePickerDialog.show({
+                    selected: new Date(),
+                    onAccept: (value: TimePickerResult) => {
+                      if (value.hour >= 6 && value.hour < 12) {
+                        let hours = value.hour < 10 ? '0' + value.hour : value.hour.toString();
+                        let minutes = value.minute < 10 ? '0' + value.minute : value.minute.toString();
+                        this.morningTime = `${hours}:${minutes}`;
+                        this.isMorningSelected = true;
+                      } else {
+                        promptAction.showToast({ message: 'Invalid! Morning time must be between 06:00 and 12:00' });
+                      }
+                    }
+                  });
+                })
+
+                // Afternoon Box (12:00 to 18:00)
+                Column() {
+                  Text('🌤️ Afternoon')
+                    .fontSize(12)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(this.isAfternoonSelected ? Color.White : '#191C1D')
+                    .margin({ bottom: 2 })
+                  Text(this.afternoonTime)
+                    .fontSize(10)
+                    .fontColor(this.isAfternoonSelected ? Color.White : '#737685')
+                }
+                .layoutWeight(1)
+                .height(55)
+                .backgroundColor(this.isAfternoonSelected ? '#006E2F' : '#F3F4F5') 
+                .borderRadius(12)
+                .justifyContent(FlexAlign.Center)
+                .border({ width: 1, color: this.isAfternoonSelected ? '#006E2F' : '#E0E0E0' })
+                .margin({ right: 6 })
+                .onClick(() => {
+                  TimePickerDialog.show({
+                    selected: new Date(),
+                    onAccept: (value: TimePickerResult) => {
+                      if (value.hour >= 12 && value.hour < 18) {
+                        let hours = value.hour < 10 ? '0' + value.hour : value.hour.toString();
+                        let minutes = value.minute < 10 ? '0' + value.minute : value.minute.toString();
+                        this.afternoonTime = `${hours}:${minutes}`;
+                        this.isAfternoonSelected = true;
+                      } else {
+                        promptAction.showToast({ message: 'Invalid! Afternoon time must be between 12:00 and 18:00' });
+                      }
+                    }
+                  });
+                })
+
+                // Evening Box (18:00 to 23:59)
+                Column() {
+                  Text('🌙 Evening')
+                    .fontSize(12)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(this.isEveningSelected ? Color.White : '#191C1D')
+                    .margin({ bottom: 2 })
+                  Text(this.eveningTime)
+                    .fontSize(10)
+                    .fontColor(this.isEveningSelected ? Color.White : '#737685')
+                }
+                .layoutWeight(1)
+                .height(55)
+                .backgroundColor(this.isEveningSelected ? '#006E2F' : '#F3F4F5') 
+                .borderRadius(12)
+                .justifyContent(FlexAlign.Center)
+                .border({ width: 1, color: this.isEveningSelected ? '#006E2F' : '#E0E0E0' })
+                .onClick(() => {
+                  TimePickerDialog.show({
+                    selected: new Date(),
+                    onAccept: (value: TimePickerResult) => {
+                      if (value.hour >= 18 && value.hour <= 23) {
+                        let hours = value.hour < 10 ? '0' + value.hour : value.hour.toString();
+                        let minutes = value.minute < 10 ? '0' + value.minute : value.minute.toString();
+                        this.eveningTime = `${hours}:${minutes}`;
+                        this.isEveningSelected = true;
+                      } else {
+                        promptAction.showToast({ message: 'Invalid! Evening time must be between 18:00 and 23:59' });
+                      }
+                    }
+                  });
+                })
+              }
+              .width('100%')
+              .margin({ bottom: 24 })
+
+              // Action Buttons
+              Row() {
+                Button('Cancel')
+                  .layoutWeight(1)
+                  .height(44)
+                  .backgroundColor('#F3F4F5')
+                  .fontColor('#434654')
+                  .fontWeight(FontWeight.Bold)
+                  .borderRadius(12)
+                  .margin({ right: 10 })
+                  .onClick(() => {
+                    this.isModalOpen = false;
+                    this.isDropdownOpen = false;
+                  })
+
+                Button('Save Medication')
+                  .layoutWeight(1)
+                  .height(44)
+                  .backgroundColor('#003D9B')
+                  .fontColor(Color.White)
+                  .fontWeight(FontWeight.Bold)
+                  .borderRadius(12)
+                  .onClick(() => {
+                    let chosenTimes: Array<string> = [];
+                    if (this.isMorningSelected) chosenTimes.push(`Morning (${this.morningTime})`);
+                    if (this.isAfternoonSelected) chosenTimes.push(`Afternoon (${this.afternoonTime})`);
+                    if (this.isEveningSelected) chosenTimes.push(`Evening (${this.eveningTime})`);
+
+                    if (chosenTimes.length === 0) {
+                      promptAction.showToast({ message: 'Please select at least one time slot' });
+                      return;
+                    }
+
+                    // 1. Local Medications list on Meds page
+                    this.medications.push({
+                      name: this.selectedMedName,
+                      dose: `${this.availableDoses[this.selectedDoseIndex]} mg`,
+                      times: chosenTimes
+                    });
+
+                    // 2. Sync to HomePage dashboardMeds list
+                    let baseId = Date.now().toString();
+                    if (this.isMorningSelected) {
+                      this.dashboardMeds.push({
+                        id: baseId + '_m',
+                        name: this.selectedMedName,
+                        dosage: `${this.availableDoses[this.selectedDoseIndex]} mg`,
+                        time: `Today, ${this.morningTime}`,
+                        taken: false
+                      });
+                    }
+                    if (this.isAfternoonSelected) {
+                      this.dashboardMeds.push({
+                        id: baseId + '_a',
+                        name: this.selectedMedName,
+                        dosage: `${this.availableDoses[this.selectedDoseIndex]} mg`,
+                        time: `Today, ${this.afternoonTime}`,
+                        taken: false
+                      });
+                    }
+                    if (this.isEveningSelected) {
+                      this.dashboardMeds.push({
+                        id: baseId + '_e',
+                        name: this.selectedMedName,
+                        dosage: `${this.availableDoses[this.selectedDoseIndex]} mg`,
+                        time: `Today, ${this.eveningTime}`,
+                        taken: false
+                      });
+                    }
+
+                    this.isMorningSelected = false;
+                    this.isAfternoonSelected = false;
+                    this.isEveningSelected = false;
+                    this.searchQuery = '';
+                    this.isDropdownOpen = false;
+                    this.isModalOpen = false;
+
+                    promptAction.showToast({ message: 'Medication added successfully!' });
+                  })
+              }
+              .width('100%')
+            }
+            .width('92%')
+            .padding(22)
+            .backgroundColor(Color.White)
+            .borderRadius(28)
+            .shadow({ radius: 25, color: 'rgba(0, 0, 0, 0.15)', offsetY: 10 })
+            .alignSelf(ItemAlign.Center)
+          }
+          .width('100%')
+          .height('100%')
+          .align(Alignment.Center)
+        }
+        .width('100%')
+        .height('100%')
+        .zIndex(10)
+      }
+
+      BottomNavBar({ activeTab: 'meds' })
         .zIndex(1)
     }
     .width('100%')

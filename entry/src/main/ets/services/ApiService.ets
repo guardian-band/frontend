@@ -5,10 +5,23 @@ export class ApiService {
   // If running on a real device, change this to the host machine's actual LAN IP address.
   private static readonly BASE_URL: string = 'http://localhost:3000';
 
+  // Toggle this flag to switch between mock frontend data and actual backend calls
+  private static readonly MOCK_MODE: boolean = true;
+
   /**
    * Register a user on the Docker backend
    */
   public static async register(username: string, password: string): Promise<void> {
+    if (ApiService.MOCK_MODE) {
+      console.log(`\n==================================================`);
+      console.log(`[MOCK API] POST /api/register - SUCCESS`);
+      console.log(`- Username: ${username}`);
+      console.log(`==================================================\n`);
+      // Simulate network request latency (800ms)
+      await new Promise<void>(resolve => setTimeout(resolve, 800));
+      return;
+    }
+
     let httpRequest = http.createHttp();
     try {
       let response = await httpRequest.request(
@@ -49,6 +62,16 @@ export class ApiService {
    * Log in a user on the Docker backend and return their JWT token
    */
   public static async login(username: string, password: string): Promise<string> {
+    if (ApiService.MOCK_MODE) {
+      console.log(`\n==================================================`);
+      console.log(`[MOCK API] POST /api/login - SUCCESS`);
+      console.log(`- Username: ${username}`);
+      console.log(`==================================================\n`);
+      // Simulate network request latency (800ms)
+      await new Promise<void>(resolve => setTimeout(resolve, 800));
+      return 'mock-jwt-token-guardian-band-123456';
+    }
+
     let httpRequest = http.createHttp();
     try {
       let response = await httpRequest.request(
@@ -68,7 +91,7 @@ export class ApiService {
         }
       );
 
-      if (response.responseCode === 201) {
+      if (response.responseCode === 200) {
         const resultJson = JSON.parse(response.result as string) as Record<string, string>;
         if (resultJson && resultJson.token) {
           return resultJson.token;
@@ -92,6 +115,15 @@ export class ApiService {
    * Access sample protected endpoint using bearer token authentication
    */
   public static async getProtected(token: string): Promise<string> {
+    if (ApiService.MOCK_MODE) {
+      console.log(`\n==================================================`);
+      console.log(`[MOCK API] GET /api/protected - ACCESS GRANTED`);
+      console.log(`==================================================\n`);
+      // Simulate network request latency (500ms)
+      await new Promise<void>(resolve => setTimeout(resolve, 500));
+      return 'Access granted to mock protected endpoint!';
+    }
+
     let httpRequest = http.createHttp();
     try {
       let response = await httpRequest.request(

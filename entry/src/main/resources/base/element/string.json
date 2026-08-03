@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "label"
+    },
+    {
+      "name": "location_reason",
+      "value": "This app requires location permission to show your current location on the emergency map."
     }
   ]
 }
