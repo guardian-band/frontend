@@ -1,19 +1,96 @@
 import { router, promptAction } from '@kit.ArkUI';
 import { BottomNavBar } from '../components/BottomNavBar';
+import { AppHeader } from '../components/AppHeader';
 import { geoLocationManager } from '@kit.LocationKit';
 import { abilityAccessCtrl, common } from '@kit.AbilityKit';
+
+interface EmergencyContact {
+  id: string;
+  fullName: string;
+  phone: string;
+  relation: string;
+}
+
+@CustomDialog
+struct AddContactDialog {
+  controller?: CustomDialogController;
+  @State firstName: string = '';
+  @State lastName: string = '';
+  @State phoneNumber: string = '';
+  @State relation: string = '';
+
+  onAdd: (name: string, phone: string, relation: string) => void = () => {};
+
+  build() {
+    Column() {
+      Text('Add Emergency Contact')
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .fontColor('#191C1D')
+        .margin({ bottom: 16 })
+
+      TextInput({ placeholder: 'First Name' })
+        .onChange((val: string) => this.firstName = val)
+        .margin({ bottom: 12 })
+        .backgroundColor('#F3F4F5')
+
+      TextInput({ placeholder: 'Last Name' })
+        .onChange((val: string) => this.lastName = val)
+        .margin({ bottom: 12 })
+        .backgroundColor('#F3F4F5')
+
+      TextInput({ placeholder: 'Phone Number' })
+        .type(InputType.PhoneNumber)
+        .onChange((val: string) => this.phoneNumber = val)
+        .margin({ bottom: 12 })
+        .backgroundColor('#F3F4F5')
+
+      TextInput({ placeholder: 'Relationship / Title (e.g. Son, Security)' })
+        .onChange((val: string) => this.relation = val)
+        .margin({ bottom: 24 })
+        .backgroundColor('#F3F4F5')
+
+      Row() {
+        Button('Cancel')
+          .backgroundColor('#F1F2F5')
+          .fontColor('#191C1D')
+          .layoutWeight(1)
+          .margin({ right: 12 })
+          .onClick(() => {
+            this.controller?.close();
+          })
+
+        Button('Save')
+          .backgroundColor('#003D9B')
+          .fontColor(Color.White)
+          .layoutWeight(1)
+          .onClick(() => {
+            if (this.firstName && this.phoneNumber) {
+              this.onAdd(`${this.firstName} ${this.lastName}`.trim(), this.phoneNumber, this.relation || 'Emergency Contact');
+              this.controller?.close();
+            } else {
+              promptAction.showToast({ message: 'Name and Phone are required!' });
+            }
+          })
+      }
+      .width('100%')
+    }
+    .padding(24)
+    .backgroundColor(Color.White)
+    .borderRadius(20)
+  }
+}
 
 @Entry
 @Component
 struct SOSPage {
   @StorageLink('userRole') userRole: string = 'patient';
-  @StorageLink('fullName') fullName: string = 'John Doe';
+  @StorageLink('fullName') fullName: string = 'User';
 
   private scroller: Scroller = new Scroller();
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      // Background Hologram/Ambient Blurs (0.5 opacity for consistency)
       Row()
         .width(500)
         .height(500)
@@ -40,10 +117,8 @@ struct SOSPage {
           ]
         })
 
-      // Main Content Wrapped in a Scroll
       Scroll(this.scroller) {
         Column() {
-          // Dynamic Render based on userRole
           if (this.userRole === 'patient') {
             PatientSOSView({ fullName: this.fullName })
           } else if (this.userRole === 'family') {
@@ -52,7 +127,6 @@ struct SOSPage {
             ResponderSOSView({ fullName: this.fullName })
           }
 
-          // Spacing for BottomNavBar
           Blank().height(100)
         }
         .width('100%')
@@ -62,7 +136,6 @@ struct SOSPage {
       .width('100%')
       .height('100%')
 
-      // Reusable Bottom Navigation Bar Component (SOS is active)
       BottomNavBar({ activeTab: 'sos' })
         .zIndex(1)
     }
@@ -74,11 +147,13 @@ struct SOSPage {
 }
 
 // ----------------------------------------------------
-// PATIENT SOS VIEW (Interactive countdown button)
+// PATIENT SOS VIEW
 // ----------------------------------------------------
 @Component
 struct PatientSOSView {
   @Prop fullName: string;
+
+  @StorageLink('sosContacts') sosContacts: EmergencyContact[] = [];
 
   @State isPressing: boolean = false;
   @State countdown: number = 5;
@@ -88,6 +163,24 @@ struct PatientSOSView {
   @State locationAddress: string = 'Locating...';
   @State locationAccuracy: string = 'Calculating...';
   @State mapUrl: string = 'https://lh3.googleusercontent.com/aida-public/AB6AXuB3DOyWbt3lkFVxP7NZrMYwn2N2qMUViMOW8kmdLoZRwafSBGctOWa0h_NyOGWvH7lLEe-peA0lMD0rWxan9ngub_ZscVBdvYK36Ok2LwedrhLMChEBn0HbW1M3W2J52BmUHnVkqCD_IXASCujUzz0YHctn6QPQ0AE3diw5bECh8ePev6al4j6vy_EAhApcfrwDxV1v2zuTEugICNWfy6OR6LZSiSzPJW4Q5nh-PNv7WHRwX0UwoBqkYQiorTLYWnFGyukCa8wwmW8';
+
+  dialogController: CustomDialogController = new CustomDialogController({
+    builder: AddContactDialog({
+      onAdd: (name: string, phone: string, relation: string) => {
+        // Yalnızca 2 kişiye kadar eklenmesine izin veriyoruz
+        if (this.sosContacts.length < 2) {
+          this.sosContacts.push({
+            id: Date.now().toString(),
+            fullName: name,
+            phone: phone,
+            relation: relation
+          });
+        }
+      }
+    }),
+    alignment: DialogAlignment.Center,
+    autoCancel: true
+  });
 
   aboutToAppear() {
     this.requestLocationPermission();
@@ -104,15 +197,12 @@ struct PatientSOSView {
       atManager.requestPermissionsFromUser(context, [
         'ohos.permission.LOCATION',
         'ohos.permission.APPROXIMATELY_LOCATION'
-      ]).then((data) => {
-        console.log(`Permission request response: ${JSON.stringify(data)}`);
+      ]).then(() => {
         this.getCurrentLocation();
-      }).catch((err: Error) => {
-        console.error(`Permission request failed: ${err.message}`);
+      }).catch(() => {
         this.getCurrentLocation();
       });
     } catch (e) {
-      console.error(`Permission check exception: ${e}`);
       this.getCurrentLocation();
     }
   }
@@ -138,12 +228,10 @@ struct PatientSOSView {
         } else {
           this.useMockLocation();
         }
-      }).catch((err: Error) => {
-        console.error(`Location selection failed: ${err.message}`);
+      }).catch(() => {
         this.useMockLocation();
       });
     } catch (err) {
-      console.error(`Location API failed: ${err}`);
       this.useMockLocation();
     }
   }
@@ -161,8 +249,7 @@ struct PatientSOSView {
     if (event.type === TouchType.Down) {
       this.isPressing = true;
       this.countdown = 5;
-      
-      // Setup interval to simulate progress and tick every 400ms (total 2 seconds)
+
       this.intervalId = setInterval(() => {
         this.countdown--;
         if (this.countdown <= 0) {
@@ -180,50 +267,34 @@ struct PatientSOSView {
     }
   }
 
+  getInitials(name: string): string {
+    if (!name) return 'C';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  }
+
   build() {
     Column() {
-      // 1. Header Row
-      Row() {
-        Text('GuardianBand')
-          .fontSize(22)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#003D9B')
+      // Temizlenmiş ve düzeltilmiş üst başlık (Çift yazılar kaldırıldı)
+      AppHeader({ title: 'Emergency' })
+        .margin({ bottom: 24 })
 
-        Blank()
-
-        Row() {
-          Text('Score: 98')
-            .fontSize(14)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#003D9B')
-        }
-        .padding({ left: 16, right: 16, top: 8, bottom: 8 })
-        .backgroundColor('#E8EEFF')
-        .borderRadius(20)
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-      .margin({ bottom: 24 })
-
-      // 2. Emergency Title
+      // Sadece durum bilgilendirme yazısı kaldı
       Column() {
-        Text('EMERGENCY SOS')
-          .fontSize(28)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#BA1A1A')
-          .margin({ bottom: 8 })
-        
         Text(this.sosSent ? 'Emergency alert broadcasted.' : 'Stay calm. Help is on the way.')
           .fontSize(16)
+          .fontWeight(FontWeight.Medium)
           .fontColor('#434654')
       }
       .width('100%')
       .margin({ bottom: 28 })
       .alignItems(HorizontalAlign.Center)
 
-      // 3. HOLD TO SEND SOS Button
+      // HOLD TO SEND SOS Button
       Stack() {
-        // Outer pulsing ring
         Row()
           .width(220)
           .height(220)
@@ -235,7 +306,6 @@ struct PatientSOSView {
           })
           .animation({ duration: 500, tempo: 1.0, curve: Curve.FastOutLinearIn, playMode: PlayMode.Alternate, iterations: -1 })
 
-        // Main Trigger Button
         Button() {
           Column() {
             if (this.sosSent) {
@@ -244,7 +314,7 @@ struct PatientSOSView {
                 .height(48)
                 .objectFit(ImageFit.Contain)
                 .margin({ bottom: 8 })
-              
+
               Text('SOS SENT')
                 .fontSize(16)
                 .fontWeight(FontWeight.Bold)
@@ -256,7 +326,7 @@ struct PatientSOSView {
                 .fontWeight(FontWeight.Bold)
                 .fontColor(Color.White)
                 .margin({ bottom: 6 })
-              
+
               Text('HOLDING...')
                 .fontSize(13)
                 .fontWeight(FontWeight.Bold)
@@ -266,7 +336,7 @@ struct PatientSOSView {
               Text('🚨')
                 .fontSize(44)
                 .margin({ bottom: 8 })
-              
+
               Text('HOLD TO SEND')
                 .fontSize(14)
                 .fontWeight(FontWeight.Bold)
@@ -298,165 +368,135 @@ struct PatientSOSView {
       .height(240)
       .margin({ bottom: 24 })
 
-      // 4. Contacts Notified Card
+      // Contacts Notified Card
       Column() {
-        Text('Emergency Responders')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#434654')
-          .alignSelf(ItemAlign.Start)
-          .margin({ left: 4, bottom: 12 })
+        Row() {
+          Text('Emergency Responders')
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#434654')
+
+          Blank()
+
+          // Sadece 2 kişiden az eklendiyse Add butonunu gösterir
+          if (this.sosContacts.length < 2) {
+            Button('+ Add')
+              .fontSize(13)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#003D9B')
+              .backgroundColor('#E8EEFF')
+              .height(28)
+              .onClick(() => {
+                this.dialogController.open();
+              })
+          }
+        }
+        .width('100%')
+        .margin({ bottom: 12 })
+        .padding({ left: 4, right: 4 })
 
         Column() {
-          // Contact 1 (Son)
-          Row() {
+          // Dinamik eklenen kullanıcılar ve öncelik sıralamaları
+          ForEach(this.sosContacts, (contact: EmergencyContact, index: number) => {
             Row() {
-              Image($r('app.media.man'))
-                .width(28)
-                .height(28)
-                .objectFit(ImageFit.Contain)
-            }
-            .width(48)
-            .height(48)
-            .borderRadius(24)
-            .backgroundColor('#E6F9ED')
-            .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
-            .margin({ right: 12 })
-
-            Column() {
-              Text('Son (David)')
-                .fontSize(16)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#191C1D')
-                .margin({ bottom: 4 })
-              
               Row() {
-                Image($r('app.media.like'))
-                  .width(14)
-                  .height(14)
-                  .objectFit(ImageFit.Contain)
-                  .margin({ right: 4 })
-                Text('Notified')
-                  .fontSize(13)
+                Text(this.getInitials(contact.fullName))
+                  .fontSize(14)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor('#006E2F')
+                  .fontColor('#003D9B')
               }
-            }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
+              .width(44)
+              .height(44)
+              .borderRadius(22)
+              .backgroundColor('#E8EEFF')
+              .justifyContent(FlexAlign.Center)
+              .alignItems(VerticalAlign.Center)
+              .margin({ right: 12 })
 
-            Image($r('app.media.phone'))
-              .width(24)
-              .height(24)
-              .objectFit(ImageFit.Contain)
-              .onClick(() => {
-                promptAction.showToast({ message: 'Calling David...' });
-              })
-          }
-          .width('100%')
-          .padding({ top: 12, bottom: 12 })
-          .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
+              Column() {
+                Text(contact.fullName)
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#191C1D')
+                  .margin({ bottom: 4 })
 
-          // Contact 2 (Daughter)
-          Row() {
-            Row() {
-              Image($r('app.media.woman'))
-                .width(28)
-                .height(28)
-                .objectFit(ImageFit.Contain)
-            }
-            .width(48)
-            .height(48)
-            .borderRadius(24)
-            .backgroundColor('#E6F9ED')
-            .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
-            .margin({ right: 12 })
+                // Öncelik Sırası Rozeti ve Unvan
+                Row() {
+                  Text(index === 0 ? '1st to Call' : '2nd to Call')
+                    .fontSize(10)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(Color.White)
+                    .backgroundColor(index === 0 ? '#BA1A1A' : '#854E00') // 1. Sıra Kırmızı, 2. Sıra Turuncu
+                    .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                    .borderRadius(4)
+                    .margin({ right: 6 })
 
-            Column() {
-              Text('Daughter (Sarah)')
-                .fontSize(16)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#191C1D')
+                  Text(contact.relation)
+                    .fontSize(12)
+                    .fontColor('#003D9B')
+                    .fontWeight(FontWeight.Medium)
+                }
                 .margin({ bottom: 4 })
-              
-              Row() {
-                Image($r('app.media.like'))
-                  .width(14)
-                  .height(14)
-                  .objectFit(ImageFit.Contain)
-                  .margin({ right: 4 })
-                Text('Notified')
-                  .fontSize(13)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#006E2F')
+
+                Row() {
+                  Text(this.sosSent ? 'Notified' : contact.phone)
+                    .fontSize(13)
+                    .fontWeight(this.sosSent ? FontWeight.Bold : FontWeight.Normal)
+                    .fontColor(this.sosSent ? '#006E2F' : '#737685')
+                }
               }
+              .alignItems(HorizontalAlign.Start)
+              .layoutWeight(1)
+
+              Text('Remove')
+                .fontSize(12)
+                .fontColor('#BA1A1A')
+                .padding(8)
+                .onClick(() => {
+                  this.sosContacts = this.sosContacts.filter(c => c.id !== contact.id);
+                })
             }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
+            .width('100%')
+            .padding({ top: 12, bottom: 12 })
+            .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
+          }, (contact: EmergencyContact) => contact.id)
 
-            Image($r('app.media.phone'))
-              .width(24)
-              .height(24)
-              .objectFit(ImageFit.Contain)
-              .onClick(() => {
-                promptAction.showToast({ message: 'Calling Sarah...' });
-              })
-          }
-          .width('100%')
-          .padding({ top: 12, bottom: 12 })
-          .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
-
-          // Contact 3 (EMS)
+          // 112 Default Fixed EMS
           Row() {
             Row() {
-              Image($r('app.media.ambulance'))
-                .width(28)
-                .height(28)
-                .objectFit(ImageFit.Contain)
+              Text('🚑')
+                .fontSize(20)
             }
-            .width(48)
-            .height(48)
-            .borderRadius(24)
+            .width(44)
+            .height(44)
+            .borderRadius(22)
             .backgroundColor(this.sosSent ? '#E6F9ED' : '#FFEBEA')
             .justifyContent(FlexAlign.Center)
             .alignItems(VerticalAlign.Center)
             .margin({ right: 12 })
 
             Column() {
-              Text('Local EMS')
+              Text('112 Emergency')
                 .fontSize(16)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#191C1D')
                 .margin({ bottom: 4 })
-              
+
               Row() {
                 if (this.sosSent) {
-                  Image($r('app.media.like'))
-                    .width(14)
-                    .height(14)
-                    .objectFit(ImageFit.Contain)
-                    .margin({ right: 4 })
                   Text('Dispatched')
                     .fontSize(13)
                     .fontWeight(FontWeight.Bold)
                     .fontColor('#006E2F')
                 } else {
-                  Text('🛰️ Connecting...')
+                  Text('Standard EMS / Police')
                     .fontSize(13)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#BA1A1A')
+                    .fontColor('#737685')
                 }
               }
             }
             .alignItems(HorizontalAlign.Start)
             .layoutWeight(1)
-
-            Image($r('app.media.emergency'))
-              .width(24)
-              .height(24)
-              .objectFit(ImageFit.Contain)
           }
           .width('100%')
           .padding({ top: 12, bottom: 12 })
@@ -470,23 +510,17 @@ struct PatientSOSView {
       .width('100%')
       .margin({ bottom: 20 })
 
-      // 5. Location Card
+      // Location Card
       Column() {
         Row() {
           Row() {
-            Image($r('app.media.place'))
-              .width(22)
-              .height(22)
-              .objectFit(ImageFit.Contain)
-              .margin({ right: 8 })
+            Text('📍').margin({ right: 8 })
             Text('Current Location')
               .fontSize(15)
               .fontWeight(FontWeight.Bold)
               .fontColor('#191C1D')
           }
-          
           Blank()
-          
           Text(`Accuracy: ${this.locationAccuracy}`)
             .fontSize(12)
             .fontColor('#737685')
@@ -494,7 +528,6 @@ struct PatientSOSView {
         .width('100%')
         .margin({ bottom: 12 })
 
-        // Image Map (Dynamic Yandex Static Map)
         Image(this.mapUrl)
           .width('100%')
           .height(130)
@@ -507,7 +540,6 @@ struct PatientSOSView {
           .fontWeight(FontWeight.Bold)
           .fontColor('#191C1D')
           .alignSelf(ItemAlign.Start)
-          .margin({ bottom: 2 })
       }
       .width('100%')
       .padding(16)
@@ -516,15 +548,9 @@ struct PatientSOSView {
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
       .margin({ bottom: 24 })
 
-      // 6. Cancel Action
+      // Cancel Action
       Button() {
         Row() {
-          Image($r('app.media.cancel'))
-            .width(18)
-            .height(18)
-            .objectFit(ImageFit.Contain)
-            .margin({ right: 8 })
-          
           Text('Cancel SOS Request')
             .fontSize(16)
             .fontWeight(FontWeight.Bold)
@@ -541,7 +567,6 @@ struct PatientSOSView {
         this.countdown = 5;
         this.clearTimer();
         promptAction.showToast({ message: 'SOS request cancelled.' });
-        router.back();
       })
     }
     .width('100%')
@@ -549,7 +574,7 @@ struct PatientSOSView {
 }
 
 // ----------------------------------------------------
-// FAMILY SOS VIEW (Incoming alert receiver)
+// FAMILY SOS VIEW
 // ----------------------------------------------------
 @Component
 struct FamilySOSView {
@@ -557,17 +582,9 @@ struct FamilySOSView {
 
   build() {
     Column() {
-      // Header
-      Row() {
-        Text('GuardianBand')
-          .fontSize(22)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#BA1A1A')
-      }
-      .width('100%')
-      .margin({ bottom: 24 })
+      AppHeader({ title: 'Family Alerts' })
+        .margin({ bottom: 24 })
 
-      // Red Warning Card
       Column() {
         Text('🚨 EMERGENCY SOS ALERT')
           .fontSize(14)
@@ -593,7 +610,6 @@ struct FamilySOSView {
       .border({ width: 1, color: '#BA1A1A', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
 
-      // Live Vitals Box
       Column() {
         Text('Patient Vitals (At Alert Time)')
           .fontSize(15)
@@ -603,7 +619,6 @@ struct FamilySOSView {
           .margin({ left: 4, bottom: 12 })
 
         Row() {
-          // Heart Rate
           Column() {
             Text('❤️ Heart Rate')
               .fontSize(13)
@@ -613,16 +628,10 @@ struct FamilySOSView {
               .fontSize(18)
               .fontWeight(FontWeight.Bold)
               .fontColor('#BA1A1A')
-            Text('High Alert')
-              .fontSize(12)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#BA1A1A')
-              .margin({ top: 4 })
           }
           .layoutWeight(1)
           .alignItems(HorizontalAlign.Start)
 
-          // SpO2
           Column() {
             Text('💨 Oxygen SpO2')
               .fontSize(13)
@@ -632,11 +641,6 @@ struct FamilySOSView {
               .fontSize(18)
               .fontWeight(FontWeight.Bold)
               .fontColor('#BA1A1A')
-            Text('Low SpO2')
-              .fontSize(12)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#BA1A1A')
-              .margin({ top: 4 })
           }
           .layoutWeight(1)
           .alignItems(HorizontalAlign.Start)
@@ -650,41 +654,6 @@ struct FamilySOSView {
       .width('100%')
       .margin({ bottom: 20 })
 
-      // Location Card
-      Column() {
-        Text('📍 Last Known Location')
-          .fontSize(15)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#191C1D')
-          .alignSelf(ItemAlign.Start)
-          .margin({ bottom: 12 })
-
-        Image('https://lh3.googleusercontent.com/aida-public/AB6AXuB3DOyWbt3lkFVxP7NZrMYwn2N2qMUViMOW8kmdLoZRwafSBGctOWa0h_NyOGWvH7lLEe-peA0lMD0rWxan9ngub_ZscVBdvYK36Ok2LwedrhLMChEBn0HbW1M3W2J52BmUHnVkqCD_IXASCujUzz0YHctn6QPQ0AE3diw5bECh8ePev6al4j6vy_EAhApcfrwDxV1v2zuTEugICNWfy6OR6LZSiSzPJW4Q5nh-PNv7WHRwX0UwoBqkYQiorTLYWnFGyukCa8wwmW8')
-          .width('100%')
-          .height(130)
-          .borderRadius(12)
-          .margin({ bottom: 12 })
-          .objectFit(ImageFit.Cover)
-
-        Text('123 Silver Oak Lane, Apt 4B')
-          .fontSize(15)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#191C1D')
-          .alignSelf(ItemAlign.Start)
-
-        Text('Palo Alto, CA 94301')
-          .fontSize(13)
-          .fontColor('#737685')
-          .alignSelf(ItemAlign.Start)
-      }
-      .width('100%')
-      .padding(16)
-      .backgroundColor(Color.White)
-      .borderRadius(20)
-      .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-      .margin({ bottom: 20 })
-
-      // Action Buttons Column
       Column() {
         Button('📞 Call Father')
           .width('100%')
@@ -692,28 +661,12 @@ struct FamilySOSView {
           .backgroundColor('#006E2F')
           .borderRadius(12)
           .margin({ bottom: 12 })
-          .onClick(() => {
-            promptAction.showToast({ message: 'Calling Father...' });
-          })
 
         Button('🚑 Dispatch EMS')
           .width('100%')
           .height(50)
           .backgroundColor('#BA1A1A')
           .borderRadius(12)
-          .margin({ bottom: 12 })
-          .onClick(() => {
-            promptAction.showToast({ message: 'EMS Emergency Dispatch Request Sent!' });
-          })
-
-        Button('📍 Get Navigation Directions')
-          .width('100%')
-          .height(50)
-          .backgroundColor('#003D9B')
-          .borderRadius(12)
-          .onClick(() => {
-            promptAction.showToast({ message: 'Opening maps with directions...' });
-          })
       }
       .width('100%')
     }
@@ -722,7 +675,7 @@ struct FamilySOSView {
 }
 
 // ----------------------------------------------------
-// RESPONDER SOS VIEW (Emergency dispatch info)
+// RESPONDER SOS VIEW
 // ----------------------------------------------------
 @Component
 struct ResponderSOSView {
@@ -730,26 +683,16 @@ struct ResponderSOSView {
 
   build() {
     Column() {
-      // Header
-      Row() {
-        Text('GuardianBand Dispatch')
-          .fontSize(22)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#BA1A1A')
-      }
-      .width('100%')
-      .margin({ bottom: 24 })
+      AppHeader({ title: 'Dispatch Panel' })
+        .margin({ bottom: 24 })
 
-      // Incident Card
       Column() {
         Row() {
           Text('ACTIVE CASE #924')
             .fontSize(14)
             .fontWeight(FontWeight.Bold)
             .fontColor('#BA1A1A')
-
           Blank()
-
           Text('PRIORITY 1')
             .fontSize(12)
             .fontWeight(FontWeight.Bold)
@@ -767,11 +710,6 @@ struct ResponderSOSView {
           .fontColor('#191C1D')
           .alignSelf(ItemAlign.Start)
           .margin({ bottom: 4 })
-
-        Text('Alert Type: Dynamic Heart Rate Spike & SOS Button Pressed')
-          .fontSize(13)
-          .fontColor('#434654')
-          .alignSelf(ItemAlign.Start)
       }
       .width('100%')
       .padding(16)
@@ -780,144 +718,11 @@ struct ResponderSOSView {
       .border({ width: 1, color: '#BA1A1A', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
 
-      // Medical Profile Card
-      Column() {
-        Text('Triage Medical Details')
-          .fontSize(15)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#434654')
-          .alignSelf(ItemAlign.Start)
-          .margin({ left: 4, bottom: 12 })
-
-        Column() {
-          // Blood Type
-          Row() {
-            Text('🩸 Blood Type')
-              .fontSize(14)
-              .fontColor('#737685')
-            Blank()
-            Text('A+')
-              .fontSize(14)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#191C1D')
-          }
-          .width('100%')
-          .padding({ top: 10, bottom: 10 })
-          .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
-
-          // Allergies
-          Row() {
-            Text('⚠️ Allergies')
-              .fontSize(14)
-              .fontColor('#737685')
-            Blank()
-            Text('Penicillin')
-              .fontSize(14)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#BA1A1A')
-          }
-          .width('100%')
-          .padding({ top: 10, bottom: 10 })
-          .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
-
-          // Medical Devices
-          Row() {
-            Text('⚙️ Triage Medical Devices')
-              .fontSize(14)
-              .fontColor('#737685')
-            Blank()
-            Text('Pacemaker Active')
-              .fontSize(14)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#006E2F')
-          }
-          .width('100%')
-          .padding({ top: 10, bottom: 10 })
-        }
-        .width('100%')
-        .padding({ left: 16, right: 16 })
-        .backgroundColor(Color.White)
-        .borderRadius(20)
-        .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-      }
-      .width('100%')
-      .margin({ bottom: 20 })
-
-      // Location / Route Navigation Card
-      Column() {
-        Text('📍 Navigation Routing')
-          .fontSize(15)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#191C1D')
-          .alignSelf(ItemAlign.Start)
-          .margin({ bottom: 12 })
-
-        Image('https://lh3.googleusercontent.com/aida-public/AB6AXuB3DOyWbt3lkFVxP7NZrMYwn2N2qMUViMOW8kmdLoZRwafSBGctOWa0h_NyOGWvH7lLEe-peA0lMD0rWxan9ngub_ZscVBdvYK36Ok2LwedrhLMChEBn0HbW1M3W2J52BmUHnVkqCD_IXASCujUzz0YHctn6QPQ0AE3diw5bECh8ePev6al4j6vy_EAhApcfrwDxV1v2zuTEugICNWfy6OR6LZSiSzPJW4Q5nh-PNv7WHRwX0UwoBqkYQiorTLYWnFGyukCa8wwmW8')
-          .width('100%')
-          .height(130)
-          .borderRadius(12)
-          .margin({ bottom: 12 })
-          .objectFit(ImageFit.Cover)
-
-        Text('123 Silver Oak Lane, Apt 4B, Palo Alto')
-          .fontSize(14)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#191C1D')
-          .alignSelf(ItemAlign.Start)
-      }
-      .width('100%')
-      .padding(16)
-      .backgroundColor(Color.White)
-      .borderRadius(20)
-      .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-      .margin({ bottom: 20 })
-
-      // Action Buttons
-      Column() {
-        Button('🚨 Route to Case Location')
-          .width('100%')
-          .height(50)
-          .backgroundColor('#003D9B')
-          .borderRadius(12)
-          .margin({ bottom: 12 })
-          .onClick(() => {
-            promptAction.showToast({ message: 'Opening emergency navigation overlay...' });
-          })
-
-        Button('📞 Call Family Contact')
-          .width('100%')
-          .height(50)
-          .backgroundColor('rgba(0, 61, 155, 0.08)')
-          .fontColor('#003D9B')
-          .borderRadius(12)
-          .margin({ bottom: 12 })
-          .onClick(() => {
-            promptAction.showToast({ message: 'Calling son David (Emergency contact)...' });
-          })
-
-        Button() {
-          Row() {
-            Image($r('app.media.like'))
-              .width(18)
-              .height(18)
-              .objectFit(ImageFit.Contain)
-              .margin({ right: 6 })
-            Text('Mark as Resolved')
-              .fontSize(15)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(Color.White)
-          }
-        }
+      Button('Mark as Resolved')
         .width('100%')
         .height(50)
         .backgroundColor('#006E2F')
         .borderRadius(12)
-        .onClick(() => {
-          promptAction.showToast({ message: 'Case #924 successfully resolved and closed.' });
-          router.back();
-        })
-      }
-      .width('100%')
     }
     .width('100%')
   }

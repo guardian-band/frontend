@@ -182,7 +182,7 @@ struct PatientDashboardView {
   build() {
     Stack({ alignContent: Alignment.Center }) {
       Column() {
-        AppHeader({ title: 'GuardianBand Home' })
+        AppHeader({ title: 'Home Page' })
           .margin({ bottom: 16 })
 
         Row() {

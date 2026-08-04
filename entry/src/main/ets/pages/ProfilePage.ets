@@ -2,6 +2,7 @@ import { router, promptAction } from '@kit.ArkUI';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 
+// Data model interface for medical profile
 interface MedicalProfile {
   birthDate: string;
   gender: string;
@@ -15,13 +16,26 @@ interface MedicalProfile {
   hearingAid: boolean;
 }
 
+// Interface for dynamic emergency contacts (Syncs with SOS Page)
+interface EmergencyContact {
+  id: string;
+  fullName: string;
+  phone: string;
+  relation: string;
+}
+
 @Entry
 @Component
 struct ProfilePage {
+  // AppStorage links for user session data
   @StorageLink('userRole') userRole: string = 'patient';
-  @StorageLink('fullName') fullName: string = 'John Doe';
+  @StorageLink('fullName') fullName: string = 'User';
   @StorageLink('profilePicture') profilePicture: string = '';
 
+  // Dynamic contacts fetched from SOS Page
+  @StorageLink('sosContacts') sosContacts: EmergencyContact[] = [];
+
+  // Link to medical profile data
   @StorageLink('medicalProfile') medicalProfile: MedicalProfile = {
     birthDate: '',
     gender: '',
@@ -37,6 +51,7 @@ struct ProfilePage {
 
   private scroller: Scroller = new Scroller();
 
+  // Helper function to extract initials for avatar
   getInitials(name: string): string {
     if (!name) return 'GB';
     const parts = name.trim().split(' ');
@@ -48,6 +63,7 @@ struct ProfilePage {
     return name.substring(0, Math.min(2, name.length)).toUpperCase();
   }
 
+  // Photo picker function to change profile picture from gallery
   changeProfilePicture() {
     try {
       let photoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
@@ -70,6 +86,7 @@ struct ProfilePage {
     }
   }
 
+  // Helper function to calculate age from birth date
   getAge(birthDateStr: string): number {
     if (!birthDateStr) return 0;
     try {
@@ -80,11 +97,12 @@ struct ProfilePage {
         return currentYear - year;
       }
     } catch (e) {
-      // ignore
+      // Ignore parsing errors
     }
     return 0;
   }
 
+  // Formatter to display birth date nicely
   formatBirthDate(birthDateStr: string): string {
     if (!birthDateStr) return 'Not Set';
     try {
@@ -99,14 +117,14 @@ struct ProfilePage {
         }
       }
     } catch (e) {
-      // ignore
+      // Ignore parsing errors
     }
     return birthDateStr;
   }
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      // Background Hologram/Ambient Blurs (0.5 opacity for consistency)
+      // Background Hologram/Ambient Blurs
       Row()
         .width(500)
         .height(500)
@@ -133,10 +151,9 @@ struct ProfilePage {
           ]
         })
 
-      // Main Content Wrapped in a Scroll
       Scroll(this.scroller) {
         Column() {
-          // 1. Header
+          // 1. Header Area
           Row() {
             Row() {
               Text('💙')
@@ -213,7 +230,7 @@ struct ProfilePage {
               this.changeProfilePicture();
             })
 
-            // Patient Name
+            // User Full Name
             Text(this.fullName)
               .fontSize(24)
               .fontWeight(FontWeight.Bold)
@@ -234,9 +251,9 @@ struct ProfilePage {
             .margin({ bottom: 16 })
             .justifyContent(FlexAlign.Center)
 
-            // Interactive Badges (Blood Type, Allergies, Primary Disease)
+            // Interactive Medical Badges (Blood Type, Allergies, Diseases)
             Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center }) {
-              // Blood Badge
+              // Blood Type Badge
               if (this.medicalProfile.bloodType) {
                 Row() {
                   Image($r('app.media.blood'))
@@ -274,7 +291,7 @@ struct ProfilePage {
                 .margin(4)
               }
 
-              // Diseases Badges
+              // Chronic Disease Badges
               ForEach(this.medicalProfile.diseases, (disease: string) => {
                 Row() {
                   Image($r('app.media.stethoscope'))
@@ -293,7 +310,7 @@ struct ProfilePage {
                 .margin(4)
               })
 
-              // Fallback text if nothing is set up yet
+              // Fallback text if no medical parameters are registered
               if (!this.medicalProfile.bloodType && !this.medicalProfile.allergies && this.medicalProfile.diseases.length === 0) {
                 Text('No medical parameters registered')
                   .fontSize(13)
@@ -312,15 +329,15 @@ struct ProfilePage {
           .shadow({ radius: 12, color: 'rgba(0, 61, 155, 0.04)', offsetX: 0, offsetY: 4 })
           .margin({ bottom: 20 })
 
-          // 3. AI Emergency Summary Box
+          // 3. AI Health Insight (Synced with Home Page text)
           Column() {
             Row() {
-              Image($r('app.media.summary'))
+              Image($r('app.media.idea'))
                 .width(26)
                 .height(26)
                 .objectFit(ImageFit.Contain)
                 .margin({ right: 8 })
-              Text('AI Emergency Summary')
+              Text('AI Health Insight')
                 .fontSize(15)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#003D9B')
@@ -328,10 +345,7 @@ struct ProfilePage {
             .width('100%')
             .margin({ bottom: 8 })
 
-            Text(this.medicalProfile.diseases.length > 0 ?
-              `"Patient has a history of ${this.medicalProfile.diseases.join(', ')}. Based on current environmental sensors and activity logs, patient is likely stable but requires monitoring."` :
-              `"No recorded chronic diseases. Based on current profile setup, patient is stable. Vitals logs will appear here when active."`
-            )
+            Text('"Your vitals are stable. Heart rate is trending smoothly around 72 bpm. Activity is up 10% today!"')
               .fontSize(13)
               .fontColor('#003D9B')
               .lineHeight(20)
@@ -343,7 +357,7 @@ struct ProfilePage {
           .borderRadius(20)
           .margin({ bottom: 20 })
 
-          // 4. Physical Info & Devices Card (Setup information)
+          // 4. Physical Info & Devices Card
           Column() {
             Text('Physical & Devices')
               .fontSize(16)
@@ -353,7 +367,7 @@ struct ProfilePage {
               .margin({ left: 4, bottom: 12 })
 
             Column() {
-              // Height
+              // Height Info
               Row() {
                 Row() {
                   Image($r('app.media.ruler'))
@@ -375,7 +389,7 @@ struct ProfilePage {
               .padding({ top: 12, bottom: 12 })
               .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
 
-              // Weight
+              // Weight Info
               Row() {
                 Row() {
                   Image($r('app.media.scale'))
@@ -397,7 +411,7 @@ struct ProfilePage {
               .padding({ top: 12, bottom: 12 })
               .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
 
-              // Pacemaker
+              // Pacemaker Status
               Row() {
                 Row() {
                   Image($r('app.media.pacemaker'))
@@ -419,7 +433,7 @@ struct ProfilePage {
               .padding({ top: 12, bottom: 12 })
               .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
 
-              // Hearing Aid
+              // Hearing Aid Status
               Row() {
                 Row() {
                   Image($r('app.media.hearingaid'))
@@ -449,95 +463,7 @@ struct ProfilePage {
           .width('100%')
           .margin({ bottom: 20 })
 
-          // 5. Current Medications
-          Column() {
-            Text('Current Medications')
-              .fontSize(16)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#434654')
-              .alignSelf(ItemAlign.Start)
-              .margin({ left: 4, bottom: 12 })
-
-            Column() {
-              // Med 1
-              Row() {
-                Column() {
-                  Text('Metformin')
-                    .fontSize(16)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#191C1D')
-                    .margin({ bottom: 4 })
-                  Text('500mg, Twice Daily')
-                    .fontSize(12)
-                    .fontColor('#737685')
-                }
-                .alignItems(HorizontalAlign.Start)
-
-                Blank()
-
-                Row() {
-                  Image($r('app.media.like'))
-                    .width(14)
-                    .height(14)
-                    .objectFit(ImageFit.Contain)
-                    .margin({ right: 4 })
-                  Text('Last: 08:30 AM')
-                    .fontSize(12)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#006E2F')
-                }
-                .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                .backgroundColor('#E6F9ED')
-                .borderRadius(8)
-              }
-              .width('100%')
-              .padding({ top: 12, bottom: 12 })
-              .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
-
-              // Med 2
-              Row() {
-                Column() {
-                  Text('Lisinopril')
-                    .fontSize(16)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#191C1D')
-                    .margin({ bottom: 4 })
-                  Text('10mg, Morning')
-                    .fontSize(12)
-                    .fontColor('#737685')
-                }
-                .alignItems(HorizontalAlign.Start)
-
-                Blank()
-
-                Row() {
-                  Image($r('app.media.like'))
-                    .width(14)
-                    .height(14)
-                    .objectFit(ImageFit.Contain)
-                    .margin({ right: 4 })
-                  Text('Last: 08:30 AM')
-                    .fontSize(12)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#006E2F')
-                }
-                .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                .backgroundColor('#E6F9ED')
-                .borderRadius(8)
-              }
-              .width('100%')
-              .padding({ top: 12, bottom: 12 })
-            }
-            .width('100%')
-            .padding({ left: 16, right: 16 })
-            .backgroundColor(Color.White)
-            .borderRadius(20)
-            .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-          }
-          .width('100%')
-          .margin({ bottom: 20 })
-
-          // 6. Emergency Contacts
+          // 5. Emergency Contacts (Dynamic data from SOS page)
           Column() {
             Text('Emergency Contacts')
               .fontSize(16)
@@ -547,106 +473,89 @@ struct ProfilePage {
               .margin({ left: 4, bottom: 12 })
 
             Column() {
-              // Contact 1
-              Row() {
-                // Profile Initials Circle Avatar (Left Side)
-                Row() {
-                  Text(this.getInitials('Sarah Chen'))
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(Color.White)
-                }
-                .width(40)
-                .height(40)
-                .borderRadius(20)
-                .backgroundColor('#003D9B')
-                .justifyContent(FlexAlign.Center)
-                .alignItems(VerticalAlign.Center)
-                .margin({ right: 12 })
+              if (this.sosContacts.length > 0) {
+                ForEach(this.sosContacts, (contact: EmergencyContact, index: number) => {
+                  Row() {
+                    // Avatar (Left Side)
+                    Row() {
+                      Text(this.getInitials(contact.fullName))
+                        .fontSize(14)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor(Color.White)
+                    }
+                    .width(40)
+                    .height(40)
+                    .borderRadius(20)
+                    .backgroundColor('#003D9B')
+                    .justifyContent(FlexAlign.Center)
+                    .alignItems(VerticalAlign.Center)
+                    .margin({ right: 12 })
 
+                    // Contact Info
+                    Column() {
+                      Text(contact.fullName)
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                        .margin({ bottom: 4 })
+
+                      // Priority Badge and Relation
+                      Row() {
+                        Text(index === 0 ? '1st to Call' : '2nd to Call')
+                          .fontSize(10)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor(Color.White)
+                          .backgroundColor(index === 0 ? '#BA1A1A' : '#854E00')
+                          .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+                          .borderRadius(4)
+                          .margin({ right: 6 })
+
+                        Text(contact.relation)
+                          .fontSize(12)
+                          .fontColor('#737685')
+                      }
+                    }
+                    .alignItems(HorizontalAlign.Start)
+
+                    Blank()
+
+                    // Call Button
+                    Row() {
+                      Image($r('app.media.phone'))
+                        .width(16)
+                        .height(16)
+                        .objectFit(ImageFit.Contain)
+                    }
+                    .width(36)
+                    .height(36)
+                    .borderRadius(18)
+                    .backgroundColor('#003D9B')
+                    .justifyContent(FlexAlign.Center)
+                    .alignItems(VerticalAlign.Center)
+                    .onClick(() => {
+                      promptAction.showToast({ message: `Calling ${contact.fullName}...` });
+                    })
+                  }
+                  .width('100%')
+                  .padding({ top: 12, bottom: 12 })
+                  .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
+                }, (contact: EmergencyContact) => contact.id)
+              } else {
+                // Fallback screen if no contacts are added
                 Column() {
-                  Text('Sarah Chen')
-                    .fontSize(16)
+                  Text('No emergency contacts added yet.')
+                    .fontSize(14)
                     .fontWeight(FontWeight.Bold)
                     .fontColor('#191C1D')
                     .margin({ bottom: 4 })
-                  Text('Daughter / Primary')
+                  Text('Please go to the SOS page to add responders.')
                     .fontSize(12)
                     .fontColor('#737685')
                 }
-                .alignItems(HorizontalAlign.Start)
-
-                Blank()
-
-                Row() {
-                  Image($r('app.media.phone'))
-                    .width(16)
-                    .height(16)
-                    .objectFit(ImageFit.Contain)
-                }
-                .width(36)
-                .height(36)
-                .borderRadius(18)
-                .backgroundColor('#003D9B')
-                .justifyContent(FlexAlign.Center)
-                .alignItems(VerticalAlign.Center)
-                .onClick(() => {
-                  promptAction.showToast({ message: 'Calling Sarah Chen...' });
-                })
+                .width('100%')
+                .padding(16)
+                .alignItems(HorizontalAlign.Center)
               }
-              .width('100%')
-              .padding({ top: 12, bottom: 12 })
-              .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
-
-              // Contact 2
-              Row() {
-                // Profile Initials Circle Avatar (Left Side)
-                Row() {
-                  Text(this.getInitials('Dr. James Miller'))
-                    .fontSize(14)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(Color.White)
-                }
-                .width(40)
-                .height(40)
-                .borderRadius(20)
-                .backgroundColor('#003D9B')
-                .justifyContent(FlexAlign.Center)
-                .alignItems(VerticalAlign.Center)
-                .margin({ right: 12 })
-
-                Column() {
-                  Text('Dr. James Miller')
-                    .fontSize(16)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#191C1D')
-                    .margin({ bottom: 4 })
-                  Text('Cardiologist')
-                    .fontSize(12)
-                    .fontColor('#737685')
-                }
-                .alignItems(HorizontalAlign.Start)
-
-                Blank()
-
-                Row() {
-                  Image($r('app.media.phone'))
-                    .width(16)
-                    .height(16)
-                    .objectFit(ImageFit.Contain)
-                }
-                .width(36)
-                .height(36)
-                .borderRadius(18)
-                .backgroundColor('#003D9B')
-                .justifyContent(FlexAlign.Center)
-                .alignItems(VerticalAlign.Center)
-                .onClick(() => {
-                  promptAction.showToast({ message: 'Calling Dr. James Miller...' });
-                })
-              }
-              .width('100%')
-              .padding({ top: 12, bottom: 12 })
             }
             .width('100%')
             .padding({ left: 16, right: 16 })
@@ -656,7 +565,7 @@ struct ProfilePage {
           }
           .width('100%')
 
-          // Sign Out Button (moved from home page)
+          // 6. Sign Out Button
           Button('Sign Out')
             .width('100%')
             .height(56)
@@ -688,7 +597,7 @@ struct ProfilePage {
               router.replaceUrl({ url: 'pages/WelcomePage' });
             })
 
-          // Spacing for BottomNavBar
+          // Blank space to prevent overlap with BottomNavBar
           Blank().height(100)
         }
         .width('100%')
@@ -698,7 +607,7 @@ struct ProfilePage {
       .width('100%')
       .height('100%')
 
-      // Reusable Navigation Bar Component (Profile is active)
+      // Bottom Navigation Bar
       BottomNavBar({ activeTab: 'profile' })
         .zIndex(1)
     }
