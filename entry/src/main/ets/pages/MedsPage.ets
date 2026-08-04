@@ -1,20 +1,32 @@
+// MedsPage.ets
 import { router, promptAction } from '@kit.ArkUI';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
+import { cameraPicker, camera } from '@kit.CameraKit';
+import { textRecognition } from '@kit.CoreVisionKit';
+import { image } from '@kit.ImageKit';
+import { fileIo } from '@kit.CoreFileKit';
+import { common } from '@kit.AbilityKit';
+
+interface MedTime {
+  slot: string; // 'Morning', 'Afternoon', 'Evening'
+  specificTime: string; // e.g., '08:00' or '' (empty if optional)
+  taken: boolean; // Tracks if the dose was taken today
+}
 
 interface MedicationItem {
   id: string;
   name: string;
-  dose: string;
-  times: Array<string>;
-  duration: string;
+  totalPills: number; // Stock-based tracking
+  durationDays: number; // How many days to use
+  mealTiming: string; // 'Before Meal', 'During Meal', 'After Meal', 'Any Time'
+  times: Array<MedTime>;
   days: Array<string>;
 }
 
 interface DashboardMedItem {
   id: string;
   name: string;
-  dosage: string;
   time: string;
   taken: boolean;
 }
@@ -24,6 +36,7 @@ interface DashboardMedItem {
 struct MedsPage {
   @StorageLink('dashboardMeds') dashboardMeds: Array<DashboardMedItem> = [];
   private scroller: Scroller = new Scroller();
+  private modalScroller: Scroller = new Scroller();
 
   @State medications: Array<MedicationItem> = [];
 
@@ -31,30 +44,33 @@ struct MedsPage {
   @State isModalOpen: boolean = false;
   @State searchQuery: string = '';
   @State isDropdownOpen: boolean = false;
-  private allMeds: Array<string> = ['Pill A', 'Pill B', 'Pill C', 'Pill D', 'Pill E', 'Pill F', 'Pill G'];
-  @State selectedMedName: string = 'Pill A';
+  private allMeds: Array<string> = ['Benical Cold', 'Flagyl 500 mg', 'Apranax Forte', 'Piyeloseptyl'];
+  @State selectedMedName: string = 'Benical Cold';
 
-  // Dose States
-  private availableDoses: Array<number> = [5, 10, 15, 20, 25, 30, 45, 50, 100, 500];
-  @State selectedDoseIndex: number = 1;
+  // Duration State (Days)
+  @State durationDays: number = 7;
 
-  // Duration States (Ongoing vs Specific)
-  @State isOngoing: boolean = false;
-  @State durationDays: number = 14;
+  // Stock-based Tracking State (Total Pills)
+  @State totalPills: number = 20;
+
+  // Meal Timing State (Aç/Tok)
+  @State mealTiming: string = 'Any Time';
+  private mealOptions: Array<string> = ['Before Meal', 'During Meal', 'After Meal', 'Any Time'];
+  @State medWarning: string = '';
 
   // Day Selection States (M, T, W, T, F, S, S)
   private weekDays: Array<string> = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   @State selectedDays: boolean[] = [true, true, true, true, true, true, true];
 
-  // Time States
+  // Optional Time States
   @State isMorningSelected: boolean = false;
   @State isAfternoonSelected: boolean = false;
   @State isEveningSelected: boolean = false;
-  @State morningTime: string = '08:00';
-  @State afternoonTime: string = '13:00';
-  @State eveningTime: string = '20:00';
+  @State morningTime: string = '';
+  @State afternoonTime: string = '';
+  @State eveningTime: string = '';
 
-  // Restricted Time Data
+  // Restricted Time Data for Picker
   private morningHours: string[] = ['06', '07', '08', '09', '10', '11'];
   private afternoonHours: string[] = ['12', '13', '14', '15', '16', '17'];
   private eveningHours: string[] = ['18', '19', '20', '21', '22', '23'];
@@ -90,6 +106,163 @@ struct MedsPage {
     this.medications = this.medications.filter(med => med.id !== id);
     this.dashboardMeds = this.dashboardMeds.filter(med => !med.id.startsWith(id));
     promptAction.showToast({ message: 'Medication removed successfully' });
+  }
+
+  // Toggle dose taken status and update stock
+  toggleDoseTaken(medId: string, slot: string) {
+    const medIndex = this.medications.findIndex(m => m.id === medId);
+    if (medIndex !== -1) {
+      const timeIndex = this.medications[medIndex].times.findIndex(t => t.slot === slot);
+      if (timeIndex !== -1) {
+        const isCurrentlyTaken = this.medications[medIndex].times[timeIndex].taken;
+
+        // Toggle the taken status
+        this.medications[medIndex].times[timeIndex].taken = !isCurrentlyTaken;
+
+        // Adjust stock automatically
+        if (!isCurrentlyTaken) {
+          this.medications[medIndex].totalPills = Math.max(0, this.medications[medIndex].totalPills - 1);
+        } else {
+          this.medications[medIndex].totalPills += 1;
+        }
+
+        // Force UI update by splicing the array
+        this.medications.splice(medIndex, 1, this.medications[medIndex]);
+
+        if (!isCurrentlyTaken) {
+          promptAction.showToast({ message: `Marked as taken. Stock updated.` });
+        }
+      }
+    }
+  }
+
+  // Real OCR Camera Scanning Function using Vision Kit
+  async performRealOCRScan() {
+    const context = getContext(this) as common.UIAbilityContext;
+
+    try {
+      promptAction.showToast({ message: 'Opening camera...' });
+
+      // Launch Camera Picker and take a photo
+      let pickerProfile: cameraPicker.PickerProfile = {
+        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK
+      };
+
+      let pickerResult = await cameraPicker.pick(context, [cameraPicker.PickerMediaType.PHOTO], pickerProfile);
+
+      if (pickerResult && pickerResult.resultUri) {
+        promptAction.showToast({ message: 'Processing label, please wait...' });
+
+        // Read the image and convert it to a PixelMap
+        let file = fileIo.openSync(pickerResult.resultUri, fileIo.OpenMode.READ_ONLY);
+        let imageSource = image.createImageSource(file.fd);
+        let pixelMap = await imageSource.createPixelMap();
+
+        // Recognize text using Core Vision Kit
+        let visionInfo: textRecognition.VisionInfo = { pixelMap: pixelMap };
+        let textResult = await textRecognition.recognizeText(visionInfo);
+
+        // Extract and parse the recognized text
+        let extractedText = textResult.value;
+        this.parsePharmacyLabel(extractedText);
+
+        fileIo.closeSync(file);
+      }
+    } catch (error) {
+      console.error('OCR Error:', error);
+      promptAction.showToast({ message: 'Scan failed or cancelled.' });
+    }
+  }
+
+  // Calculates the difference in days between two date strings (Format: DD.MM.YYYY)
+  calculateDurationFromDates(startDateStr: string, endDateStr: string): number {
+    const startParts = startDateStr.split('.');
+    const endParts = endDateStr.split('.');
+
+    // Ensure we have exactly 3 parts (Day, Month, Year)
+    if (startParts.length !== 3 || endParts.length !== 3) return 7;
+
+    const startDate = new Date(`${startParts[2]}-${startParts[1]}-${startParts[0]}`);
+    const endDate = new Date(`${endParts[2]}-${endParts[1]}-${endParts[0]}`);
+
+    const diffInMs = endDate.getTime() - startDate.getTime();
+    const diffInDays = Math.ceil(diffInMs / (1000 * 60 * 60 * 24));
+
+    return diffInDays > 0 ? diffInDays : 7;
+  }
+
+  // Parses the raw text extracted from the OCR Vision Kit
+  parsePharmacyLabel(rawText: string) {
+    const upperText = rawText.toLocaleUpperCase('tr-TR');
+
+    // 1. Parse Meal Timing
+    if (upperText.includes('AÇ VEYA TOK')) {
+      this.mealTiming = 'Any Time';
+    } else if (upperText.includes('YEMEĞİN ORTASINDA') || upperText.includes('YEMEKLE BERABER')) {
+      this.mealTiming = 'During Meal';
+    } else if (upperText.includes('TOK') || upperText.includes('YEMEKTEN SONRA')) {
+      this.mealTiming = 'After Meal';
+    } else if (upperText.includes('AÇ')) {
+      this.mealTiming = 'Before Meal';
+    }
+
+    // 2. Parse Schedule
+    if (upperText.includes('SABAH')) {
+      this.isMorningSelected = true;
+    }
+    if (upperText.includes('ÖĞLE')) {
+      this.isAfternoonSelected = true;
+    }
+    if (upperText.includes('AKŞAM')) {
+      this.isEveningSelected = true;
+    }
+
+    // 3. Parse Strict Intervals (Optional)
+    if (upperText.includes('12 SAAT ARA İLE')) {
+      this.morningTime = '08:00';
+      this.eveningTime = '20:00';
+    }
+
+    // 4. Parse Warnings
+    const warningMatch = upperText.match(/UYARI\s*[:;-]?\s*(.*)/);
+
+    if (warningMatch && warningMatch[1]) {
+      this.medWarning = warningMatch[1].trim();
+
+      promptAction.showDialog({
+        title: '⚠️ Medication Warning',
+        message: this.medWarning,
+        buttons: [
+          {
+            text: 'I Understand',
+            color: '#BA1A1A'
+          }
+        ]
+      });
+    }
+
+    // 5. Parse Dates to Calculate Duration (DD.MM.YYYY)
+    const datePattern = /(\d{2}\.\d{2}\.\d{4})/g;
+    const foundDates = upperText.match(datePattern);
+
+    if (foundDates && foundDates.length >= 2) {
+      // If both Start and End dates are found
+      const startDate = foundDates[0];
+      const endDate = foundDates[1];
+      this.durationDays = this.calculateDurationFromDates(startDate, endDate);
+    } else if (foundDates && foundDates.length === 1) {
+      // If only one date is found (assuming it's the end date)
+      const today = new Date();
+      const dd = String(today.getDate()).padStart(2, '0');
+      const mm = String(today.getMonth() + 1).padStart(2, '0'); // January is 0!
+      const yyyy = today.getFullYear();
+      const todayStr = `${dd}.${mm}.${yyyy}`;
+
+      const endDate = foundDates[0];
+      this.durationDays = this.calculateDurationFromDates(todayStr, endDate);
+    }
+
+    promptAction.showToast({ message: 'Label scanned and applied successfully!' });
   }
 
   build() {
@@ -132,20 +305,21 @@ struct MedsPage {
                           .fontSize(16)
                           .fontWeight(FontWeight.Medium)
                           .fontColor('#1A1C21')
-                        Text(`Dose: ${item.dose} • ${item.duration}`)
+
+                        // Display Duration and Meal Timing
+                        Text(`Duration: ${item.durationDays} Days • ${item.mealTiming}`)
                           .fontSize(13)
                           .fontColor('#8F92A1')
+                          .margin({ top: 4 })
+
+                        // Display Stock Remaining
+                        Text(`Stock: ${item.totalPills} pills remaining`)
+                          .fontSize(12)
+                          .fontColor(item.totalPills <= 5 ? '#BA1A1A' : '#006E2F')
                           .margin({ top: 4 })
                       }
                       .alignItems(HorizontalAlign.Start)
                       .layoutWeight(1)
-
-                      Text('Active')
-                        .fontSize(12)
-                        .fontColor('#006E2F')
-                        .backgroundColor('#E6F9ED')
-                        .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-                        .borderRadius(8)
 
                       // Delete Button
                       Button('✕')
@@ -175,18 +349,28 @@ struct MedsPage {
                         .fontWeight(FontWeight.Medium)
                     }
                     .width('100%')
-                    .margin({ bottom: 8 })
+                    .margin({ bottom: 12 })
 
-                    // Times Badges
+                    // Interactive Time Badges (Tick to mark as taken)
                     Row() {
-                      ForEach(item.times, (timeSlot: string) => {
-                        Text(`⏰ ${timeSlot}`)
-                          .fontSize(12)
-                          .fontColor('#003D9B')
-                          .backgroundColor('#F0F4FF')
-                          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-                          .borderRadius(6)
-                          .margin({ right: 6 })
+                      ForEach(item.times, (timeObj: MedTime) => {
+                        Row() {
+                          Text(timeObj.taken ? '✓ ' : '⏳ ')
+                            .fontSize(12)
+                            .fontColor(timeObj.taken ? '#006E2F' : '#003D9B')
+
+                          Text(`${timeObj.slot}${timeObj.specificTime ? ' (' + timeObj.specificTime + ')' : ''}`)
+                            .fontSize(12)
+                            .fontColor(timeObj.taken ? '#006E2F' : '#003D9B')
+                            .decoration({ type: timeObj.taken ? TextDecorationType.LineThrough : TextDecorationType.None })
+                        }
+                        .backgroundColor(timeObj.taken ? '#E6F9ED' : '#F0F4FF')
+                        .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                        .borderRadius(8)
+                        .margin({ right: 8 })
+                        .onClick(() => {
+                          this.toggleDoseTaken(item.id, timeObj.slot);
+                        })
                       })
                     }
                     .width('100%')
@@ -246,379 +430,414 @@ struct MedsPage {
               this.isDropdownOpen = false;
             })
 
-          Scroll() {
-            Column() {
-              Text('Add Medication')
-                .fontSize(18)
-                .fontWeight(FontWeight.Medium)
-                .fontColor('#1A1C21')
-                .margin({ bottom: 20 })
-                .alignSelf(ItemAlign.Start)
-
-              // Medication Search
-              Text('Medication Name')
-                .fontSize(13)
-                .fontColor('#8F92A1')
-                .margin({ bottom: 6 })
-                .alignSelf(ItemAlign.Start)
-
-              Stack({ alignContent: Alignment.TopStart }) {
-                TextInput({ placeholder: 'Tap or type to search...', text: this.searchQuery })
-                  .height(44)
-                  .backgroundColor(Color.White)
-                  .border({ width: 1, color: '#EBECEF' })
-                  .borderRadius(8)
-                  .fontSize(14)
-                  .onClick(() => { this.isDropdownOpen = true; })
-                  .onChange((value: string) => {
-                    this.searchQuery = value;
-                    this.isDropdownOpen = true;
-                  })
-
-                if (this.isDropdownOpen) {
-                  Column() {
-                    List() {
-                      ForEach(
-                        this.allMeds.filter((med: string) => med.toLowerCase().includes(this.searchQuery.toLowerCase())),
-                        (filteredMed: string) => {
-                          ListItem() {
-                            Text(filteredMed)
-                              .fontSize(14)
-                              .fontColor('#1A1C21')
-                              .width('100%')
-                              .padding(12)
-                              .backgroundColor(this.selectedMedName === filteredMed ? '#F8F9FB' : Color.Transparent)
-                          }
-                          .onClick(() => {
-                            this.selectedMedName = filteredMed;
-                            this.searchQuery = filteredMed;
-                            this.isDropdownOpen = false;
-                          })
-                        }
-                      )
-                    }
-                    .width('100%')
-                    .height(110)
-                  }
-                  .width('100%')
-                  .backgroundColor(Color.White)
-                  .borderRadius(8)
-                  .border({ width: 1, color: '#EBECEF' })
-                  .shadow({ radius: 4, color: 'rgba(0,0,0,0.05)', offsetY: 2 })
-                  .margin({ top: 48 })
-                  .zIndex(5)
-                }
-              }
-              .width('100%')
-              .margin({ bottom: this.isDropdownOpen ? 125 : 20 })
-
-              // Dose Selection
-              Text('Dose (mg)')
-                .fontSize(13)
-                .fontColor('#8F92A1')
-                .margin({ bottom: 6 })
-                .alignSelf(ItemAlign.Start)
-
-              Row() {
-                Text(`${this.availableDoses[this.selectedDoseIndex]} mg`)
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor('#1A1C21')
-                  .layoutWeight(1)
-                  .textAlign(TextAlign.Center)
-
-                // - Button
-                Text('−')
-                  .width(32)
-                  .height(32)
-                  .backgroundColor('#F1F2F5')
-                  .fontColor('#1A1C21')
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .textAlign(TextAlign.Center)
-                  .borderRadius(8)
-                  .margin({ right: 6 })
-                  .onClick(() => { if (this.selectedDoseIndex > 0) this.selectedDoseIndex--; })
-
-                // + Button
-                Text('+')
-                  .width(32)
-                  .height(32)
-                  .backgroundColor('#F1F2F5')
-                  .fontColor('#1A1C21')
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .textAlign(TextAlign.Center)
-                  .borderRadius(8)
-                  .onClick(() => { if (this.selectedDoseIndex < this.availableDoses.length - 1) this.selectedDoseIndex++; })
-              }
-              .width('100%')
-              .height(48)
-              .backgroundColor(Color.White)
-              .borderRadius(12)
-              .padding({ left: 16, right: 12 })
-              .border({ width: 1, color: '#EBECEF' })
-              .margin({ bottom: 20 })
-
-              // Duration (Ongoing Checkbox)
-              Row() {
-                Text('Duration')
-                  .fontSize(13)
-                  .fontColor('#8F92A1')
-                Blank()
+          Column() {
+            Scroll(this.modalScroller) {
+              Column() {
                 Row() {
-                  Checkbox({ name: 'ongoingToggle', group: 'durationGroup' })
-                    .select(this.isOngoing)
-                    .selectedColor('#1A1C21')
-                    .shape(CheckBoxShape.ROUNDED_SQUARE)
-                    .onChange((value: boolean) => {
-                      this.isOngoing = value;
-                    })
-                  Text('Ongoing')
-                    .fontSize(13)
+                  Text('Add Medication')
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Medium)
                     .fontColor('#1A1C21')
-                    .margin({ left: 4 })
-                }
-              }
-              .width('100%')
-              .margin({ bottom: 12 })
-              .alignItems(VerticalAlign.Center)
 
-              // Show counter if NOT ongoing
-              if (!this.isOngoing) {
-                Row() {
-                  Text('Set Days:')
-                    .fontSize(14)
-                    .fontColor('#1A1C21')
                   Blank()
-                  Row() {
-                    // - Button
-                    Text('−')
-                      .width(32)
-                      .height(32)
-                      .backgroundColor('#F1F2F5')
-                      .fontColor('#1A1C21')
-                      .fontSize(18)
-                      .fontWeight(FontWeight.Bold)
-                      .textAlign(TextAlign.Center)
-                      .borderRadius(8)
-                      .onClick(() => { if (this.durationDays > 1) this.durationDays--; })
 
-                    Text(`${this.durationDays}`)
-                      .fontSize(14)
-                      .fontWeight(FontWeight.Medium)
-                      .width(40)
-                      .textAlign(TextAlign.Center)
-
-                    // + Button
-                    Text('+')
-                      .width(32)
-                      .height(32)
-                      .backgroundColor('#F1F2F5')
-                      .fontColor('#1A1C21')
-                      .fontSize(18)
-                      .fontWeight(FontWeight.Bold)
-                      .textAlign(TextAlign.Center)
-                      .borderRadius(8)
-                      .onClick(() => { this.durationDays++; })
-                  }
+                  // Real Camera / OCR Scan Button
+                  Button('Scan Label')
+                    .fontSize(12)
+                    .backgroundColor('#F0F4FF')
+                    .fontColor('#003D9B')
+                    .height(30)
+                    .borderRadius(15)
+                    .onClick(() => {
+                      this.performRealOCRScan();
+                    })
                 }
                 .width('100%')
                 .margin({ bottom: 20 })
-              } else {
-                Blank().height(10)
-              }
 
-              // Days Selection
-              Row() {
-                Text('Select Days')
+                // 1. Medication Search
+                Text('Medication Name')
                   .fontSize(13)
                   .fontColor('#8F92A1')
-                Blank()
-                Text(this.selectedDays.includes(false) ? 'Select All' : 'Clear')
-                  .fontSize(12)
-                  .fontColor('#003D9B')
-                  .onClick(() => {
-                    const hasFalse = this.selectedDays.includes(false);
-                    this.selectedDays = [hasFalse, hasFalse, hasFalse, hasFalse, hasFalse, hasFalse, hasFalse];
-                  })
-              }
-              .width('100%')
-              .margin({ bottom: 12 })
+                  .margin({ bottom: 6 })
+                  .alignSelf(ItemAlign.Start)
 
-              Row() {
-                ForEach(this.weekDays, (day: string, index: number) => {
-                  Text(day)
-                    .width(32)
-                    .height(32)
-                    .fontSize(12)
-                    .fontWeight(FontWeight.Medium)
-                    .fontColor(this.selectedDays[index] ? Color.White : '#8F92A1')
-                    .backgroundColor(this.selectedDays[index] ? '#1A1C21' : '#F8F9FB')
-                    .borderRadius(16)
-                    .textAlign(TextAlign.Center)
-                    .border({ width: 1, color: this.selectedDays[index] ? '#1A1C21' : '#EBECEF' })
-                    .onClick(() => {
-                      let temp = [...this.selectedDays];
-                      temp[index] = !temp[index];
-                      this.selectedDays = temp;
+                Stack({ alignContent: Alignment.TopStart }) {
+                  TextInput({ placeholder: 'Tap or type to search...', text: this.searchQuery })
+                    .height(44)
+                    .backgroundColor(Color.White)
+                    .border({ width: 1, color: '#EBECEF' })
+                    .borderRadius(8)
+                    .fontSize(14)
+                    .onClick(() => { this.isDropdownOpen = true; })
+                    .onChange((value: string) => {
+                      this.searchQuery = value;
+                      this.isDropdownOpen = true;
                     })
-                })
-              }
-              .width('100%')
-              .justifyContent(FlexAlign.SpaceBetween)
-              .margin({ bottom: 24 })
 
-              // 5. Meal & Restricted Time Selection
-              Text('Schedule (Tap to set time)')
-                .fontSize(13)
-                .fontColor('#8F92A1')
-                .margin({ bottom: 8 })
-                .alignSelf(ItemAlign.Start)
-
-              Row() {
-                // Morning
-                Column() {
-                  Text('Morning')
-                    .fontSize(12)
-                    .fontColor(this.isMorningSelected ? '#003D9B' : '#1A1C21')
-                    .margin({ bottom: 2 })
-                  Text(this.isMorningSelected ? this.morningTime : '--:--')
-                    .fontSize(14)
-                    .fontWeight(this.isMorningSelected ? FontWeight.Medium : FontWeight.Normal)
-                    .fontColor(this.isMorningSelected ? '#003D9B' : '#8F92A1')
+                  if (this.isDropdownOpen) {
+                    Column() {
+                      List() {
+                        ForEach(
+                          this.allMeds.filter((med: string) => med.toLowerCase().includes(this.searchQuery.toLowerCase())),
+                          (filteredMed: string) => {
+                            ListItem() {
+                              Text(filteredMed)
+                                .fontSize(14)
+                                .fontColor('#1A1C21')
+                                .width('100%')
+                                .padding(12)
+                                .backgroundColor(this.selectedMedName === filteredMed ? '#F8F9FB' : Color.Transparent)
+                            }
+                            .onClick(() => {
+                              this.selectedMedName = filteredMed;
+                              this.searchQuery = filteredMed;
+                              this.isDropdownOpen = false;
+                            })
+                          }
+                        )
+                      }
+                      .width('100%')
+                      .height(110)
+                    }
+                    .width('100%')
+                    .backgroundColor(Color.White)
+                    .borderRadius(8)
+                    .border({ width: 1, color: '#EBECEF' })
+                    .shadow({ radius: 4, color: 'rgba(0,0,0,0.05)', offsetY: 2 })
+                    .margin({ top: 48 })
+                    .zIndex(5)
+                  }
                 }
-                .layoutWeight(1)
-                .height(50)
-                .backgroundColor(this.isMorningSelected ? '#F0F4FF' : '#F8F9FB')
-                .borderRadius(8)
-                .border({ width: 1, color: this.isMorningSelected ? '#003D9B' : '#EBECEF' })
-                .justifyContent(FlexAlign.Center)
-                .margin({ right: 6 })
-                .onClick(() => { this.showCustomTimePicker('morning'); })
+                .width('100%')
+                .margin({ bottom: this.isDropdownOpen ? 125 : 20 })
 
-                // Afternoon
-                Column() {
-                  Text('Afternoon')
-                    .fontSize(12)
-                    .fontColor(this.isAfternoonSelected ? '#003D9B' : '#1A1C21')
-                    .margin({ bottom: 2 })
-                  Text(this.isAfternoonSelected ? this.afternoonTime : '--:--')
-                    .fontSize(14)
-                    .fontWeight(this.isAfternoonSelected ? FontWeight.Medium : FontWeight.Normal)
-                    .fontColor(this.isAfternoonSelected ? '#003D9B' : '#8F92A1')
+                // 2. Duration (Days to Use)
+                Text('Duration (Days)')
+                  .fontSize(13)
+                  .fontColor('#8F92A1')
+                  .margin({ bottom: 6 })
+                  .alignSelf(ItemAlign.Start)
+
+                Row() {
+                  // - Button
+                  Text('−')
+                    .width(40)
+                    .height(40)
+                    .backgroundColor('#F1F2F5')
+                    .fontColor('#1A1C21')
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Bold)
+                    .textAlign(TextAlign.Center)
+                    .borderRadius(8)
+                    .onClick(() => { if (this.durationDays > 1) this.durationDays--; })
+
+                  Text(`${this.durationDays} Days`)
+                    .fontSize(16)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#1A1C21')
+                    .layoutWeight(1)
+                    .textAlign(TextAlign.Center)
+
+                  // + Button
+                  Text('+')
+                    .width(40)
+                    .height(40)
+                    .backgroundColor('#F1F2F5')
+                    .fontColor('#1A1C21')
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Bold)
+                    .textAlign(TextAlign.Center)
+                    .borderRadius(8)
+                    .onClick(() => { this.durationDays++; })
                 }
-                .layoutWeight(1)
-                .height(50)
-                .backgroundColor(this.isAfternoonSelected ? '#F0F4FF' : '#F8F9FB')
-                .borderRadius(8)
-                .border({ width: 1, color: this.isAfternoonSelected ? '#003D9B' : '#EBECEF' })
-                .justifyContent(FlexAlign.Center)
-                .margin({ right: 6 })
-                .onClick(() => { this.showCustomTimePicker('afternoon'); })
+                .width('100%')
+                .margin({ bottom: 20 })
 
-                // Evening
-                Column() {
-                  Text('Evening')
-                    .fontSize(12)
-                    .fontColor(this.isEveningSelected ? '#003D9B' : '#1A1C21')
-                    .margin({ bottom: 2 })
-                  Text(this.isEveningSelected ? this.eveningTime : '--:--')
-                    .fontSize(14)
-                    .fontWeight(this.isEveningSelected ? FontWeight.Medium : FontWeight.Normal)
-                    .fontColor(this.isEveningSelected ? '#003D9B' : '#8F92A1')
+                // 3. Stock Tracking (Total Pills in Box)
+                Text('Total Pills in Box (Stock)')
+                  .fontSize(13)
+                  .fontColor('#8F92A1')
+                  .margin({ bottom: 6 })
+                  .alignSelf(ItemAlign.Start)
+
+                Row() {
+                  // - Button
+                  Text('−')
+                    .width(40)
+                    .height(40)
+                    .backgroundColor('#F1F2F5')
+                    .fontColor('#1A1C21')
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Bold)
+                    .textAlign(TextAlign.Center)
+                    .borderRadius(8)
+                    .onClick(() => { if (this.totalPills > 1) this.totalPills--; })
+
+                  Text(`${this.totalPills} Pills`)
+                    .fontSize(16)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor('#1A1C21')
+                    .layoutWeight(1)
+                    .textAlign(TextAlign.Center)
+
+                  // + Button
+                  Text('+')
+                    .width(40)
+                    .height(40)
+                    .backgroundColor('#F1F2F5')
+                    .fontColor('#1A1C21')
+                    .fontSize(18)
+                    .fontWeight(FontWeight.Bold)
+                    .textAlign(TextAlign.Center)
+                    .borderRadius(8)
+                    .onClick(() => { this.totalPills++; })
                 }
-                .layoutWeight(1)
-                .height(50)
-                .backgroundColor(this.isEveningSelected ? '#F0F4FF' : '#F8F9FB')
-                .borderRadius(8)
-                .border({ width: 1, color: this.isEveningSelected ? '#003D9B' : '#EBECEF' })
-                .justifyContent(FlexAlign.Center)
-                .onClick(() => { this.showCustomTimePicker('evening'); })
-              }
-              .width('100%')
-              .margin({ bottom: 30 })
+                .width('100%')
+                .margin({ bottom: 20 })
 
-              // Actions
-              Row() {
-                Button('Cancel')
-                  .layoutWeight(1)
-                  .height(44)
-                  .backgroundColor(Color.Transparent)
-                  .fontColor('#1A1C21')
-                  .borderRadius(8)
-                  .border({ width: 1, color: '#EBECEF' })
-                  .margin({ right: 12 })
-                  .onClick(() => {
-                    this.isModalOpen = false;
+                // 4. Meal Timing (Aç/Tok)
+                Text('Meal Timing')
+                  .fontSize(13)
+                  .fontColor('#8F92A1')
+                  .margin({ bottom: 6 })
+                  .alignSelf(ItemAlign.Start)
+
+                Row() {
+                  ForEach(this.mealOptions, (option: string) => {
+                    Text(option)
+                      .layoutWeight(1)
+                      .height(36)
+                      .fontSize(12)
+                      .fontWeight(FontWeight.Medium)
+                      .textAlign(TextAlign.Center)
+                      .fontColor(this.mealTiming === option ? Color.White : '#1A1C21')
+                      .backgroundColor(this.mealTiming === option ? '#1A1C21' : '#F8F9FB')
+                      .borderRadius(8)
+                      .margin({ right: 4, left: 4 })
+                      .onClick(() => {
+                        this.mealTiming = option;
+                      })
                   })
+                }
+                .width('100%')
+                .margin({ bottom: 20 })
 
-                Button('Save')
-                  .layoutWeight(1)
-                  .height(44)
-                  .backgroundColor('#1A1C21')
-                  .fontColor(Color.White)
-                  .borderRadius(8)
-                  .onClick(() => {
-                    let chosenTimes: Array<string> = [];
-                    if (this.isMorningSelected) chosenTimes.push(`Morning (${this.morningTime})`);
-                    if (this.isAfternoonSelected) chosenTimes.push(`Afternoon (${this.afternoonTime})`);
-                    if (this.isEveningSelected) chosenTimes.push(`Evening (${this.eveningTime})`);
+                // 5. Days Selection
+                Row() {
+                  Text('Select Days')
+                    .fontSize(13)
+                    .fontColor('#8F92A1')
+                  Blank()
+                  Text(this.selectedDays.includes(false) ? 'Select All' : 'Clear')
+                    .fontSize(12)
+                    .fontColor('#003D9B')
+                    .onClick(() => {
+                      const hasFalse = this.selectedDays.includes(false);
+                      this.selectedDays = [hasFalse, hasFalse, hasFalse, hasFalse, hasFalse, hasFalse, hasFalse];
+                    })
+                }
+                .width('100%')
+                .margin({ bottom: 12 })
 
-                    if (chosenTimes.length === 0) {
-                      promptAction.showToast({ message: 'Please select at least one time slot' });
-                      return;
-                    }
+                Row() {
+                  ForEach(this.weekDays, (day: string, index: number) => {
+                    Text(day)
+                      .width(32)
+                      .height(32)
+                      .fontSize(12)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor(this.selectedDays[index] ? Color.White : '#8F92A1')
+                      .backgroundColor(this.selectedDays[index] ? '#1A1C21' : '#F8F9FB')
+                      .borderRadius(16)
+                      .textAlign(TextAlign.Center)
+                      .border({ width: 1, color: this.selectedDays[index] ? '#1A1C21' : '#EBECEF' })
+                      .onClick(() => {
+                        let temp = [...this.selectedDays];
+                        temp[index] = !temp[index];
+                        this.selectedDays = temp;
+                      })
+                  })
+                }
+                .width('100%')
+                .justifyContent(FlexAlign.SpaceBetween)
+                .margin({ bottom: 24 })
 
-                    if (!this.selectedDays.includes(true)) {
-                      promptAction.showToast({ message: 'Please select at least one day' });
-                      return;
-                    }
+                // 6. Flexible Schedule Selection
+                Text('Schedule (Time is Optional)')
+                  .fontSize(13)
+                  .fontColor('#8F92A1')
+                  .margin({ bottom: 8 })
+                  .alignSelf(ItemAlign.Start)
 
-                    let activeDays = this.weekDays.filter((day, index) => this.selectedDays[index]);
-                    let durationStr = this.isOngoing ? 'Ongoing' : `${this.durationDays} Days`;
-                    let baseId = Date.now().toString();
+                Column() {
+                  // Morning Flexible Option
+                  Row() {
+                    Checkbox()
+                      .select(this.isMorningSelected)
+                      .selectedColor('#1A1C21')
+                      .onChange((value: boolean) => { this.isMorningSelected = value; })
+                    Text('Morning')
+                      .fontSize(14)
+                      .fontColor('#1A1C21')
+                      .margin({ left: 8 })
 
-                    this.medications.push({
-                      id: baseId,
-                      name: this.selectedMedName,
-                      dose: `${this.availableDoses[this.selectedDoseIndex]} mg`,
-                      times: chosenTimes,
-                      duration: durationStr,
-                      days: activeDays
-                    });
+                    Blank()
 
                     if (this.isMorningSelected) {
-                      this.dashboardMeds.push({
-                        id: baseId + '_m', name: this.selectedMedName,
-                        dosage: `${this.availableDoses[this.selectedDoseIndex]} mg`, time: `Today, ${this.morningTime}`, taken: false
-                      });
+                      Button(this.morningTime ? this.morningTime : 'Set specific time')
+                        .fontSize(12)
+                        .backgroundColor(this.morningTime ? '#F0F4FF' : '#F8F9FB')
+                        .fontColor(this.morningTime ? '#003D9B' : '#8F92A1')
+                        .height(30)
+                        .onClick(() => { this.showCustomTimePicker('morning'); })
                     }
+                  }
+                  .width('100%')
+                  .height(44)
 
-                    this.isMorningSelected = false;
-                    this.isAfternoonSelected = false;
-                    this.isEveningSelected = false;
-                    this.searchQuery = '';
-                    this.isDropdownOpen = false;
-                    this.isModalOpen = false;
-                    this.selectedDays = [true, true, true, true, true, true, true];
-                    this.isOngoing = false;
-                    this.durationDays = 14;
+                  // Afternoon Flexible Option
+                  Row() {
+                    Checkbox()
+                      .select(this.isAfternoonSelected)
+                      .selectedColor('#1A1C21')
+                      .onChange((value: boolean) => { this.isAfternoonSelected = value; })
+                    Text('Afternoon')
+                      .fontSize(14)
+                      .fontColor('#1A1C21')
+                      .margin({ left: 8 })
 
-                    promptAction.showToast({ message: 'Medication added successfully!' });
-                  })
+                    Blank()
+
+                    if (this.isAfternoonSelected) {
+                      Button(this.afternoonTime ? this.afternoonTime : 'Set specific time')
+                        .fontSize(12)
+                        .backgroundColor(this.afternoonTime ? '#F0F4FF' : '#F8F9FB')
+                        .fontColor(this.afternoonTime ? '#003D9B' : '#8F92A1')
+                        .height(30)
+                        .onClick(() => { this.showCustomTimePicker('afternoon'); })
+                    }
+                  }
+                  .width('100%')
+                  .height(44)
+
+                  // Evening Flexible Option
+                  Row() {
+                    Checkbox()
+                      .select(this.isEveningSelected)
+                      .selectedColor('#1A1C21')
+                      .onChange((value: boolean) => { this.isEveningSelected = value; })
+                    Text('Evening')
+                      .fontSize(14)
+                      .fontColor('#1A1C21')
+                      .margin({ left: 8 })
+
+                    Blank()
+
+                    if (this.isEveningSelected) {
+                      Button(this.eveningTime ? this.eveningTime : 'Set specific time')
+                        .fontSize(12)
+                        .backgroundColor(this.eveningTime ? '#F0F4FF' : '#F8F9FB')
+                        .fontColor(this.eveningTime ? '#003D9B' : '#8F92A1')
+                        .height(30)
+                        .onClick(() => { this.showCustomTimePicker('evening'); })
+                    }
+                  }
+                  .width('100%')
+                  .height(44)
+                }
+                .width('100%')
+                .margin({ bottom: 20 })
+
+                // 7. Actions
+                Row() {
+                  Button('Cancel')
+                    .layoutWeight(1)
+                    .height(44)
+                    .backgroundColor(Color.Transparent)
+                    .fontColor('#1A1C21')
+                    .borderRadius(8)
+                    .border({ width: 1, color: '#EBECEF' })
+                    .margin({ right: 12 })
+                    .onClick(() => {
+                      this.isModalOpen = false;
+                    })
+
+                  Button('Save')
+                    .layoutWeight(1)
+                    .height(44)
+                    .backgroundColor('#1A1C21')
+                    .fontColor(Color.White)
+                    .borderRadius(8)
+                    .onClick(() => {
+                      let chosenTimes: Array<MedTime> = [];
+
+                      if (this.isMorningSelected) {
+                        chosenTimes.push({ slot: 'Morning', specificTime: this.morningTime, taken: false });
+                      }
+                      if (this.isAfternoonSelected) {
+                        chosenTimes.push({ slot: 'Afternoon', specificTime: this.afternoonTime, taken: false });
+                      }
+                      if (this.isEveningSelected) {
+                        chosenTimes.push({ slot: 'Evening', specificTime: this.eveningTime, taken: false });
+                      }
+
+                      if (chosenTimes.length === 0) {
+                        promptAction.showToast({ message: 'Please select at least one time slot' });
+                        return;
+                      }
+
+                      if (!this.selectedDays.includes(true)) {
+                        promptAction.showToast({ message: 'Please select at least one day' });
+                        return;
+                      }
+
+                      let activeDays = this.weekDays.filter((day, index) => this.selectedDays[index]);
+                      let baseId = Date.now().toString();
+
+                      this.medications.push({
+                        id: baseId,
+                        name: this.selectedMedName,
+                        durationDays: this.durationDays,
+                        totalPills: this.totalPills,
+                        mealTiming: this.mealTiming,
+                        times: chosenTimes,
+                        days: activeDays
+                      });
+
+                      // Reset fields
+                      this.isMorningSelected = false;
+                      this.isAfternoonSelected = false;
+                      this.isEveningSelected = false;
+                      this.morningTime = '';
+                      this.afternoonTime = '';
+                      this.eveningTime = '';
+                      this.searchQuery = '';
+                      this.isDropdownOpen = false;
+                      this.isModalOpen = false;
+                      this.selectedDays = [true, true, true, true, true, true, true];
+                      this.totalPills = 20;
+                      this.durationDays = 7;
+                      this.mealTiming = 'Any Time';
+
+                      promptAction.showToast({ message: 'Medication added successfully!' });
+                    })
+                }
+                .width('100%')
               }
               .width('100%')
+              .padding(24)
             }
+            .scrollBar(BarState.Off)
             .width('92%')
-            .padding(24)
+            .height('85%')
             .backgroundColor(Color.White)
             .borderRadius(24)
-            .alignSelf(ItemAlign.Center)
           }
           .width('100%')
           .height('100%')
-          .align(Alignment.Center)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
         }
         .width('100%')
         .height('100%')
