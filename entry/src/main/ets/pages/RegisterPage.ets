@@ -249,6 +249,8 @@ struct RegisterPage {
 
                     AppStorage.setOrCreate('token', token);
                     AppStorage.setOrCreate('fullName', this.fullName);
+                    AppStorage.setOrCreate('userRole', 'patient');
+                    AppStorage.setOrCreate('doctorProfile', { hospital: '', specialty: '', email: '', isVerified: false });
                     promptAction.showToast({ message: 'Registered and logged in successfully!' })
                     router.pushUrl({ url: 'pages/SelectRolePage' })
                   })

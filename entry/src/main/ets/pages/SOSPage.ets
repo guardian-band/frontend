@@ -86,6 +86,7 @@ struct AddContactDialog {
 struct SOSPage {
   @StorageLink('userRole') userRole: string = 'patient';
   @StorageLink('fullName') fullName: string = 'User';
+  @StorageLink('isResponderVerified') isResponderVerified: boolean = false;
 
   private scroller: Scroller = new Scroller();
 
@@ -123,8 +124,8 @@ struct SOSPage {
             PatientSOSView({ fullName: this.fullName })
           } else if (this.userRole === 'family') {
             FamilySOSView({ fullName: this.fullName })
-          } else {
-            ResponderSOSView({ fullName: this.fullName })
+          } else if (this.userRole === 'doctor') {
+            DoctorSOSView()
           }
 
           Blank().height(100)
@@ -164,23 +165,6 @@ struct PatientSOSView {
   @State locationAccuracy: string = 'Calculating...';
   @State mapUrl: string = 'https://lh3.googleusercontent.com/aida-public/AB6AXuB3DOyWbt3lkFVxP7NZrMYwn2N2qMUViMOW8kmdLoZRwafSBGctOWa0h_NyOGWvH7lLEe-peA0lMD0rWxan9ngub_ZscVBdvYK36Ok2LwedrhLMChEBn0HbW1M3W2J52BmUHnVkqCD_IXASCujUzz0YHctn6QPQ0AE3diw5bECh8ePev6al4j6vy_EAhApcfrwDxV1v2zuTEugICNWfy6OR6LZSiSzPJW4Q5nh-PNv7WHRwX0UwoBqkYQiorTLYWnFGyukCa8wwmW8';
 
-  dialogController: CustomDialogController = new CustomDialogController({
-    builder: AddContactDialog({
-      onAdd: (name: string, phone: string, relation: string) => {
-        // Yalnızca 2 kişiye kadar eklenmesine izin veriyoruz
-        if (this.sosContacts.length < 2) {
-          this.sosContacts.push({
-            id: Date.now().toString(),
-            fullName: name,
-            phone: phone,
-            relation: relation
-          });
-        }
-      }
-    }),
-    alignment: DialogAlignment.Center,
-    autoCancel: true
-  });
 
   aboutToAppear() {
     this.requestLocationPermission();
@@ -377,19 +361,6 @@ struct PatientSOSView {
             .fontColor('#434654')
 
           Blank()
-
-          // Sadece 2 kişiden az eklendiyse Add butonunu gösterir
-          if (this.sosContacts.length < 2) {
-            Button('+ Add')
-              .fontSize(13)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#003D9B')
-              .backgroundColor('#E8EEFF')
-              .height(28)
-              .onClick(() => {
-                this.dialogController.open();
-              })
-          }
         }
         .width('100%')
         .margin({ bottom: 12 })
@@ -448,13 +419,22 @@ struct PatientSOSView {
               .alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
 
-              Text('Remove')
-                .fontSize(12)
-                .fontColor('#BA1A1A')
-                .padding(8)
-                .onClick(() => {
-                  this.sosContacts = this.sosContacts.filter(c => c.id !== contact.id);
-                })
+              // Call Button
+              Row() {
+                Image($r('app.media.phone'))
+                  .width(16)
+                  .height(16)
+                  .objectFit(ImageFit.Contain)
+              }
+              .width(36)
+              .height(36)
+              .borderRadius(18)
+              .backgroundColor('#003D9B')
+              .justifyContent(FlexAlign.Center)
+              .alignItems(VerticalAlign.Center)
+              .onClick(() => {
+                promptAction.showToast({ message: `Calling ${contact.fullName}...` });
+              })
             }
             .width('100%')
             .padding({ top: 12, bottom: 12 })
@@ -464,8 +444,10 @@ struct PatientSOSView {
           // 112 Default Fixed EMS
           Row() {
             Row() {
-              Text('🚑')
-                .fontSize(20)
+              Image($r('app.media.ambulance'))
+                .width(24)
+                .height(24)
+                .objectFit(ImageFit.Contain)
             }
             .width(44)
             .height(44)
@@ -514,7 +496,11 @@ struct PatientSOSView {
       Column() {
         Row() {
           Row() {
-            Text('📍').margin({ right: 8 })
+            Image($r('app.media.place'))
+              .width(20)
+              .height(20)
+              .margin({ right: 8 })
+              .objectFit(ImageFit.Contain)
             Text('Current Location')
               .fontSize(15)
               .fontWeight(FontWeight.Bold)
@@ -551,11 +537,18 @@ struct PatientSOSView {
       // Cancel Action
       Button() {
         Row() {
+          Image($r('app.media.cancel'))
+            .width(20)
+            .height(20)
+            .margin({ right: 8 })
+            .objectFit(ImageFit.Contain)
           Text('Cancel SOS Request')
             .fontSize(16)
             .fontWeight(FontWeight.Bold)
             .fontColor('#BA1A1A')
         }
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
       }
       .width('100%')
       .height(56)
@@ -662,11 +655,25 @@ struct FamilySOSView {
           .borderRadius(12)
           .margin({ bottom: 12 })
 
-        Button('🚑 Dispatch EMS')
-          .width('100%')
-          .height(50)
-          .backgroundColor('#BA1A1A')
-          .borderRadius(12)
+        Button() {
+          Row() {
+            Image($r('app.media.ambulance'))
+              .width(20)
+              .height(20)
+              .margin({ right: 8 })
+              .objectFit(ImageFit.Contain)
+            Text('Dispatch EMS')
+              .fontSize(16)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+          }
+          .justifyContent(FlexAlign.Center)
+          .alignItems(VerticalAlign.Center)
+        }
+        .width('100%')
+        .height(50)
+        .backgroundColor('#BA1A1A')
+        .borderRadius(12)
       }
       .width('100%')
     }
@@ -723,6 +730,370 @@ struct ResponderSOSView {
         .height(50)
         .backgroundColor('#006E2F')
         .borderRadius(12)
+    }
+    .width('100%')
+  }
+}
+
+// ----------------------------------------------------
+// RESPONDER LOCK VIEW
+// ----------------------------------------------------
+@Component
+struct ResponderLockView {
+  @StorageLink('isResponderVerified') isResponderVerified: boolean = false;
+  @State responderPin: string = '';
+
+  build() {
+    Column() {
+      AppHeader({ title: 'Authorized Verification' })
+        .margin({ bottom: 20 })
+
+      Column() {
+        Image($r('app.media.alert'))
+          .width(50)
+          .height(50)
+          .objectFit(ImageFit.Contain)
+          .margin({ bottom: 16 })
+
+        Text('Verification Required')
+          .fontSize(20)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#191C1D')
+          .margin({ bottom: 8 })
+
+        Text('This dispatch panel contains sensitive patient medical records. Please verify your first responder credentials to unlock.')
+          .fontSize(14)
+          .fontColor('#737685')
+          .textAlign(TextAlign.Center)
+          .margin({ bottom: 24 })
+          .lineHeight(20)
+          .width('90%')
+
+        // PIN Input
+        TextInput({ placeholder: 'Enter 6-digit Responder PIN', text: this.responderPin })
+          .type(InputType.Number)
+          .maxLength(6)
+          .placeholderColor('rgba(115, 118, 133, 0.5)')
+          .fontSize(16)
+          .backgroundColor('#F3F4F5')
+          .height(50)
+          .width('100%')
+          .margin({ bottom: 20 })
+          .textAlign(TextAlign.Center)
+          .onChange((value: string) => {
+            this.responderPin = value;
+          })
+
+        Button('Verify Credentials')
+          .width('100%')
+          .height(50)
+          .backgroundColor('#BA1A1A')
+          .fontColor(Color.White)
+          .borderRadius(12)
+          .onClick(() => {
+            if (this.responderPin === '123456') {
+              this.isResponderVerified = true;
+              this.responderPin = '';
+              promptAction.showToast({ message: 'Verified successfully!' });
+            } else {
+              promptAction.showToast({ message: 'Invalid credentials. Access denied.' });
+            }
+          })
+      }
+      .width('100%')
+      .padding(24)
+      .backgroundColor(Color.White)
+      .borderRadius(24)
+      .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
+      .shadow({ radius: 10, color: 'rgba(0, 0, 0, 0.04)', offsetY: 4 })
+    }
+    .width('100%')
+  }
+}
+
+// ----------------------------------------------------
+// DOCTOR SOS PORTAL VIEW
+// ----------------------------------------------------
+@Component
+struct DoctorSOSView {
+  @State activeAlertsCount: number = 1;
+  @State selectedAlarmPatient: string = 'John Doe';
+  @State alarmHeartRate: number = 135;
+
+  build() {
+    Column() {
+      // 1. Header
+      AppHeader({ title: 'Medical SOS Portal' })
+        .margin({ bottom: 20 })
+
+      // 2. Pulsing Critical Alerts Panel
+      if (this.activeAlertsCount > 0) {
+        Column() {
+          Row() {
+            Circle({ width: 10, height: 10 }).fill('#BA1A1A').margin({ right: 8 })
+            Text('CRITICAL PATIENT ALARM')
+              .fontSize(12)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#BA1A1A')
+          }
+          .margin({ bottom: 8 })
+
+          Text(`Critical telemetry received from patient ${this.selectedAlarmPatient}:`)
+            .fontSize(14)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#434654')
+            .margin({ bottom: 12 })
+
+          Row() {
+            Row() {
+              Image($r('app.media.heart'))
+                .width(28)
+                .height(28)
+                .objectFit(ImageFit.Contain)
+                .margin({ right: 8 })
+
+              Column() {
+                Text('Heart Rate')
+                  .fontSize(11)
+                  .fontColor('#737685')
+                Text(`${this.alarmHeartRate} BPM`)
+                  .fontSize(20)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#BA1A1A')
+              }
+              .alignItems(HorizontalAlign.Start)
+            }
+            .layoutWeight(1)
+
+            Row() {
+              Image($r('app.media.place'))
+                .width(20)
+                .height(20)
+                .objectFit(ImageFit.Contain)
+                .margin({ right: 6 })
+
+              Column() {
+                Text('Location')
+                  .fontSize(11)
+                  .fontColor('#737685')
+                Text('Palo Alto')
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#191C1D')
+              }
+              .alignItems(HorizontalAlign.Start)
+            }
+            .layoutWeight(1)
+          }
+          .width('100%')
+          .margin({ bottom: 16 })
+
+          // Actions row
+          Row() {
+            Button('Direct Call Patient', { type: ButtonType.Normal })
+              .layoutWeight(1)
+              .height(38)
+              .fontSize(12)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+              .backgroundColor('#003D9B')
+              .borderRadius(8)
+              .margin({ right: 10 })
+              .onClick(() => {
+                promptAction.showToast({ message: `Calling patient ${this.selectedAlarmPatient}...` });
+              })
+
+            Button('Dispatch Ambulance', { type: ButtonType.Normal })
+              .layoutWeight(1)
+              .height(38)
+              .fontSize(12)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+              .backgroundColor('#BA1A1A')
+              .borderRadius(8)
+              .onClick(() => {
+                promptAction.showToast({ message: `Ambulance dispatched to Palo Alto for ${this.selectedAlarmPatient}!` });
+                this.activeAlertsCount = 0; // clear alert mockup
+              })
+          }
+          .width('100%')
+        }
+        .width('100%')
+        .padding(18)
+        .backgroundColor('#FFEBEA')
+        .borderRadius(20)
+        .border({ width: 1.5, color: '#BA1A1A', style: BorderStyle.Solid })
+        .margin({ bottom: 24 })
+      } else {
+        // Safe Banner
+        Row() {
+          Image($r('app.media.like'))
+            .width(22)
+            .height(22)
+            .objectFit(ImageFit.Contain)
+            .margin({ right: 10 })
+
+          Text('All linked patients vitals stable')
+            .fontSize(14)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#006E2F')
+        }
+        .width('100%')
+        .padding(16)
+        .backgroundColor('#E6F9ED')
+        .borderRadius(20)
+        .border({ width: 1, color: '#006E2F', style: BorderStyle.Solid })
+        .margin({ bottom: 24 })
+      }
+
+      // 3. Hospital ER Quick Calls
+      Text('Hospital Emergency Lines')
+        .fontSize(16)
+        .fontWeight(FontWeight.Bold)
+        .fontColor('#434654')
+        .alignSelf(ItemAlign.Start)
+        .margin({ left: 4, bottom: 12 })
+
+      // ER Card
+      Row() {
+        Row() {
+          Image($r('app.media.emergency'))
+            .width(28)
+            .height(28)
+            .objectFit(ImageFit.Contain)
+        }
+        .width(44)
+        .height(44)
+        .borderRadius(10)
+        .backgroundColor('rgba(186, 26, 26, 0.08)')
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .margin({ right: 12 })
+
+        Column() {
+          Text('ER Triage Desk')
+            .fontSize(15)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#191C1D')
+            .margin({ bottom: 2 })
+          Text('Direct line to hospital emergency room')
+            .fontSize(12)
+            .fontColor('#737685')
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Button('CALL', { type: ButtonType.Normal })
+          .fontSize(12)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+          .backgroundColor('#BA1A1A')
+          .borderRadius(8)
+          .height(30)
+          .onClick(() => {
+            promptAction.showToast({ message: 'Calling ER Triage Desk...' });
+          })
+      }
+      .width('100%')
+      .padding(14)
+      .backgroundColor(Color.White)
+      .borderRadius(20)
+      .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
+      .margin({ bottom: 12 })
+
+      // Ambulance Service Card
+      Row() {
+        Row() {
+          Image($r('app.media.ambulance'))
+            .width(28)
+            .height(28)
+            .objectFit(ImageFit.Contain)
+        }
+        .width(44)
+        .height(44)
+        .borderRadius(10)
+        .backgroundColor('rgba(0, 61, 155, 0.08)')
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .margin({ right: 12 })
+
+        Column() {
+          Text('Ambulance Dispatch')
+            .fontSize(15)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#191C1D')
+            .margin({ bottom: 2 })
+          Text('Priority service dispatcher hotline')
+            .fontSize(12)
+            .fontColor('#737685')
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Button('CALL', { type: ButtonType.Normal })
+          .fontSize(12)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+          .backgroundColor('#003D9B')
+          .borderRadius(8)
+          .height(30)
+          .onClick(() => {
+            promptAction.showToast({ message: 'Calling Ambulance Dispatcher...' });
+          })
+      }
+      .width('100%')
+      .padding(14)
+      .backgroundColor(Color.White)
+      .borderRadius(20)
+      .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
+      .margin({ bottom: 24 })
+
+      // Chief of Medicine Card
+      Row() {
+        Row() {
+          Image($r('app.media.doctor'))
+            .width(28)
+            .height(28)
+            .objectFit(ImageFit.Contain)
+        }
+        .width(44)
+        .height(44)
+        .borderRadius(10)
+        .backgroundColor('rgba(0, 110, 47, 0.08)')
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .margin({ right: 12 })
+
+        Column() {
+          Text('ER Department Head')
+            .fontSize(15)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#191C1D')
+            .margin({ bottom: 2 })
+          Text('Chief medical director emergency desk')
+            .fontSize(12)
+            .fontColor('#737685')
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Button('CALL', { type: ButtonType.Normal })
+          .fontSize(12)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+          .backgroundColor('#006E2F')
+          .borderRadius(8)
+          .height(30)
+          .onClick(() => {
+            promptAction.showToast({ message: 'Calling ER Department Head...' });
+          })
+      }
+      .width('100%')
+      .padding(14)
+      .backgroundColor(Color.White)
+      .borderRadius(20)
+      .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
+      .margin({ bottom: 20 })
     }
     .width('100%')
   }

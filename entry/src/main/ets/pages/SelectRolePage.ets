@@ -107,8 +107,10 @@ struct SelectRolePage {
           Row() {
             // Icon
             Row() {
-              Text('🚶')
-                .fontSize(24)
+              Image($r('app.media.patient'))
+                .width(40)
+                .height(40)
+                .objectFit(ImageFit.Contain)
             }
             .width(56)
             .height(56)
@@ -157,8 +159,10 @@ struct SelectRolePage {
           Row() {
             // Icon
             Row() {
-              Text('👥')
-                .fontSize(24)
+              Image($r('app.media.family'))
+                .width(40)
+                .height(40)
+                .objectFit(ImageFit.Contain)
             }
             .width(56)
             .height(56)
@@ -203,16 +207,18 @@ struct SelectRolePage {
             })
           })
 
-          // Card 3: Emergency Responder
+          // Card 3: Doctor
           Row() {
             // Icon
             Row() {
-              Text('🩹')
-                .fontSize(24)
+              Image($r('app.media.doctor'))
+                .width(40)
+                .height(40)
+                .objectFit(ImageFit.Contain)
             }
             .width(56)
             .height(56)
-            .backgroundColor('#FFEBEA')
+            .backgroundColor('#E8EEFF')
             .borderRadius(16)
             .justifyContent(FlexAlign.Center)
             .alignItems(VerticalAlign.Center)
@@ -220,12 +226,12 @@ struct SelectRolePage {
 
             // Content
             Column() {
-              Text('Emergency Responder')
+              Text('Doctor')
                 .fontSize(18)
                 .fontWeight(FontWeight.Bold)
-                .fontColor('#8C0013')
+                .fontColor('#003D9B')
                 .margin({ bottom: 4 })
-              Text('Access emergency medical information securely using QR code verification.')
+              Text("Monitor your patients' health and perform real-time check-ups.")
                 .fontSize(14)
                 .fontColor('#434654')
                 .lineHeight(18)
@@ -241,10 +247,10 @@ struct SelectRolePage {
           .shadow({ radius: 10, color: 'rgba(0, 0, 0, 0.04)', offsetX: 0, offsetY: 4 })
           .margin({ bottom: 16 })
           .onClick(() => {
-            promptAction.showToast({ message: 'Emergency Responder role selected! Welcome to GuardianBand.' })
+            promptAction.showToast({ message: 'Doctor role selected! Welcome to GuardianBand.' })
             router.pushUrl({
               url: 'pages/ProfileSetupPage',
-              params: { role: 'responder' }
+              params: { role: 'doctor' }
             }, (err) => {
               if (err) {
                 promptAction.showToast({ message: `Routing Error: ${err.message}` })
@@ -252,6 +258,8 @@ struct SelectRolePage {
               }
             })
           })
+
+
         }
         .width('100%')
       }

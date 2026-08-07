@@ -27,6 +27,7 @@ interface MedicationItem {
 interface DashboardMedItem {
   id: string;
   name: string;
+  dosage: string;
   time: string;
   taken: boolean;
 }
@@ -38,7 +39,7 @@ struct MedsPage {
   private scroller: Scroller = new Scroller();
   private modalScroller: Scroller = new Scroller();
 
-  @State medications: Array<MedicationItem> = [];
+  @StorageLink('medications') medications: Array<MedicationItem> = [];
 
   // Modal and Search States
   @State isModalOpen: boolean = false;
@@ -118,6 +119,13 @@ struct MedsPage {
 
         // Toggle the taken status
         this.medications[medIndex].times[timeIndex].taken = !isCurrentlyTaken;
+
+        // Also update dashboardMeds in AppStorage
+        const dashIndex = this.dashboardMeds.findIndex(m => m.id === `${medId}_${slot}`);
+        if (dashIndex !== -1) {
+          this.dashboardMeds[dashIndex].taken = !isCurrentlyTaken;
+          this.dashboardMeds = [...this.dashboardMeds];
+        }
 
         // Adjust stock automatically
         if (!isCurrentlyTaken) {
@@ -403,16 +411,16 @@ struct MedsPage {
       // Floating Action Button (+)
       Button() {
         Text('+')
-          .fontSize(28)
+          .fontSize(50)
           .fontWeight(FontWeight.Medium)
           .fontColor(Color.White)
       }
-      .width(56)
-      .height(56)
-      .backgroundColor('#1A1C21')
+      .width(60)
+      .height(60)
+      .backgroundColor('#003D9B')
       .borderRadius(28)
-      .shadow({ radius: 8, color: 'rgba(26, 28, 33, 0.2)', offsetY: 4 })
-      .position({ x: '78%', y: '80%' })
+      .shadow({ radius: 8, color: 'rgba(0, 61, 155, 0.2)', offsetY: 4 })
+      .position({ x: '78%', y: '78%' })
       .zIndex(2)
       .onClick(() => {
         this.isModalOpen = true;
@@ -524,8 +532,8 @@ struct MedsPage {
                   Text('−')
                     .width(40)
                     .height(40)
-                    .backgroundColor('#F1F2F5')
-                    .fontColor('#1A1C21')
+                    .backgroundColor('#E8EEFF')
+                    .fontColor('#003D9B')
                     .fontSize(18)
                     .fontWeight(FontWeight.Bold)
                     .textAlign(TextAlign.Center)
@@ -543,8 +551,8 @@ struct MedsPage {
                   Text('+')
                     .width(40)
                     .height(40)
-                    .backgroundColor('#F1F2F5')
-                    .fontColor('#1A1C21')
+                    .backgroundColor('#E8EEFF')
+                    .fontColor('#003D9B')
                     .fontSize(18)
                     .fontWeight(FontWeight.Bold)
                     .textAlign(TextAlign.Center)
@@ -566,8 +574,8 @@ struct MedsPage {
                   Text('−')
                     .width(40)
                     .height(40)
-                    .backgroundColor('#F1F2F5')
-                    .fontColor('#1A1C21')
+                    .backgroundColor('#E8EEFF')
+                    .fontColor('#003D9B')
                     .fontSize(18)
                     .fontWeight(FontWeight.Bold)
                     .textAlign(TextAlign.Center)
@@ -585,8 +593,8 @@ struct MedsPage {
                   Text('+')
                     .width(40)
                     .height(40)
-                    .backgroundColor('#F1F2F5')
-                    .fontColor('#1A1C21')
+                    .backgroundColor('#E8EEFF')
+                    .fontColor('#003D9B')
                     .fontSize(18)
                     .fontWeight(FontWeight.Bold)
                     .textAlign(TextAlign.Center)
@@ -612,7 +620,7 @@ struct MedsPage {
                       .fontWeight(FontWeight.Medium)
                       .textAlign(TextAlign.Center)
                       .fontColor(this.mealTiming === option ? Color.White : '#1A1C21')
-                      .backgroundColor(this.mealTiming === option ? '#1A1C21' : '#F8F9FB')
+                      .backgroundColor(this.mealTiming === option ? '#003D9B' : '#F8F9FB')
                       .borderRadius(8)
                       .margin({ right: 4, left: 4 })
                       .onClick(() => {
@@ -648,10 +656,10 @@ struct MedsPage {
                       .fontSize(12)
                       .fontWeight(FontWeight.Medium)
                       .fontColor(this.selectedDays[index] ? Color.White : '#8F92A1')
-                      .backgroundColor(this.selectedDays[index] ? '#1A1C21' : '#F8F9FB')
+                      .backgroundColor(this.selectedDays[index] ? '#003D9B' : '#F8F9FB')
                       .borderRadius(16)
                       .textAlign(TextAlign.Center)
-                      .border({ width: 1, color: this.selectedDays[index] ? '#1A1C21' : '#EBECEF' })
+                      .border({ width: 1, color: this.selectedDays[index] ? '#003D9B' : '#EBECEF' })
                       .onClick(() => {
                         let temp = [...this.selectedDays];
                         temp[index] = !temp[index];
@@ -675,7 +683,7 @@ struct MedsPage {
                   Row() {
                     Checkbox()
                       .select(this.isMorningSelected)
-                      .selectedColor('#1A1C21')
+                      .selectedColor('#003D9B')
                       .onChange((value: boolean) => { this.isMorningSelected = value; })
                     Text('Morning')
                       .fontSize(14)
@@ -700,7 +708,7 @@ struct MedsPage {
                   Row() {
                     Checkbox()
                       .select(this.isAfternoonSelected)
-                      .selectedColor('#1A1C21')
+                      .selectedColor('#003D9B')
                       .onChange((value: boolean) => { this.isAfternoonSelected = value; })
                     Text('Afternoon')
                       .fontSize(14)
@@ -725,7 +733,7 @@ struct MedsPage {
                   Row() {
                     Checkbox()
                       .select(this.isEveningSelected)
-                      .selectedColor('#1A1C21')
+                      .selectedColor('#003D9B')
                       .onChange((value: boolean) => { this.isEveningSelected = value; })
                     Text('Evening')
                       .fontSize(14)
@@ -751,22 +759,22 @@ struct MedsPage {
 
                 // 7. Actions
                 Row() {
-                  Button('Cancel')
+                  Button('Cancel', { type: ButtonType.Normal })
                     .layoutWeight(1)
                     .height(44)
                     .backgroundColor(Color.Transparent)
-                    .fontColor('#1A1C21')
+                    .fontColor('#003D9B')
+                    .border({ width: 1, color: '#003D9B', radius: 8 })
                     .borderRadius(8)
-                    .border({ width: 1, color: '#EBECEF' })
                     .margin({ right: 12 })
                     .onClick(() => {
                       this.isModalOpen = false;
                     })
 
-                  Button('Save')
+                  Button('Save', { type: ButtonType.Normal })
                     .layoutWeight(1)
                     .height(44)
-                    .backgroundColor('#1A1C21')
+                    .backgroundColor('#003D9B')
                     .fontColor(Color.White)
                     .borderRadius(8)
                     .onClick(() => {
@@ -804,6 +812,18 @@ struct MedsPage {
                         times: chosenTimes,
                         days: activeDays
                       });
+
+                      // Add to dashboardMeds (AppStorage) for Patient Dashboard
+                      chosenTimes.forEach((time) => {
+                        this.dashboardMeds.push({
+                          id: `${baseId}_${time.slot}`,
+                          name: this.selectedMedName,
+                          dosage: `1 Pill • ${this.mealTiming}`,
+                          time: time.specificTime ? time.specificTime : time.slot,
+                          taken: false
+                        });
+                      });
+                      this.dashboardMeds = [...this.dashboardMeds];
 
                       // Reset fields
                       this.isMorningSelected = false;

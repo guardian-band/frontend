@@ -1,5 +1,12 @@
 import { router, promptAction } from '@kit.ArkUI';
 
+interface DoctorProfile {
+  hospital: string;
+  specialty: string;
+  email: string;
+  isVerified: boolean;
+}
+
 @Entry
 @Component
 struct ProfileSetupPage {
@@ -18,18 +25,35 @@ struct ProfileSetupPage {
   @State isDiseasesExpanded: boolean = false;
   @State otherChronicDisease: string = '';
   
-  // Family / Responder fields
+  // Family fields
   @State email: string = '';
+  @State canGoBack: boolean = false;
+
+  // Doctor fields
+  @State doctorHospital: string = '';
+  @State doctorEmail: string = '';
+  @State verificationCode: string = '';
+  @State isCodeSent: boolean = false;
+  @State isDoctorVerified: boolean = false;
+  @State doctorSpecialty: string = 'General Medicine';
+  @State otherDoctorSpecialty: string = '';
+  @State isSpecialtyExpanded: boolean = false;
 
   private scroller: Scroller = new Scroller();
   
   private diseaseOptions: string[] = ['Hypertension', 'Diabetes', 'Asthma', 'Heart Failure', 'Alzheimer\'s', 'Other'];
   private bloodTypes: string[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', '0+', '0-'];
+  private specialtyOptions: string[] = ['General Medicine', 'Cardiology', 'Neurology', 'Geriatrics', 'Pediatrics', 'Other'];
 
   aboutToAppear() {
-    const params = router.getParams() as Record<string, string>;
-    if (params && params.role) {
-      this.role = params.role;
+    const params = router.getParams() as Record<string, string | boolean>;
+    if (params) {
+      if (params.role) {
+        this.role = params.role as string;
+      }
+      if (params.canGoBack) {
+        this.canGoBack = params.canGoBack as boolean;
+      }
     }
   }
 
@@ -79,19 +103,43 @@ struct ProfileSetupPage {
       Scroll(this.scroller) {
         Column() {
           // 1. Header
-          Column() {
-            Text('GuardianBand')
-              .fontSize(30)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#003D9B')
-              .margin({ bottom: 8, top: 20 })
+          Row() {
+            if (this.canGoBack) {
+              Row() {
+                Text('⬅')
+                  .fontSize(18)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#003D9B')
+              }
+              .width(40)
+              .height(40)
+              .borderRadius(20)
+              .backgroundColor('#E8EEFF')
+              .justifyContent(FlexAlign.Center)
+              .alignItems(VerticalAlign.Center)
+              .position({ x: 0, y: 15 })
+              .onClick(() => {
+                router.back();
+              })
+            }
 
-            Text('Complete your profile to continue.')
-              .fontSize(15)
-              .fontColor('#434654')
-              .textAlign(TextAlign.Center)
+            Column() {
+              Text('GuardianBand')
+                .fontSize(30)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#003D9B')
+                .margin({ bottom: 8, top: 20 })
+
+              Text('Complete your profile to continue.')
+                .fontSize(15)
+                .fontColor('#434654')
+                .textAlign(TextAlign.Center)
+            }
+            .alignItems(HorizontalAlign.Center)
+            .width('100%')
           }
-          .alignItems(HorizontalAlign.Center)
+          .width('100%')
+          .justifyContent(FlexAlign.Center)
           .margin({ bottom: 24 })
 
           // 2. Profile Setup Card
@@ -574,8 +622,189 @@ struct ProfileSetupPage {
               .width('100%')
               .margin({ bottom: 24 })
 
+            } else if (this.role === 'doctor') {
+              // DOCTOR FORM FIELDS
+
+              // Hospital / Clinic Input
+              Column() {
+                Text('Hospital / Clinic Name')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#434654')
+                  .alignSelf(ItemAlign.Start)
+                  .margin({ left: 4, bottom: 8 })
+
+                Row() {
+                  Image($r('app.media.place'))
+                    .width(20)
+                    .height(20)
+                    .margin({ left: 16, right: 8 })
+
+                  TextInput({ placeholder: 'e.g. City General Hospital', text: this.doctorHospital })
+                    .placeholderColor('rgba(115, 118, 133, 0.5)')
+                    .fontSize(16)
+                    .backgroundColor(Color.Transparent)
+                    .height('100%')
+                    .layoutWeight(1)
+                    .onChange((value: string) => {
+                      this.doctorHospital = value;
+                    })
+                }
+                .width('100%')
+                .height(56)
+                .backgroundColor('#F3F4F5')
+                .borderRadius(16)
+                .alignItems(VerticalAlign.Center)
+                .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })
+              }
+              .width('100%')
+              .margin({ bottom: 20 })
+
+              // Doctor Email Address Input
+              Column() {
+                Text('Doctor Email Address')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#434654')
+                  .alignSelf(ItemAlign.Start)
+                  .margin({ left: 4, bottom: 8 })
+
+                Row() {
+                  Image($r('app.media.email'))
+                    .width(20)
+                    .height(20)
+                    .margin({ left: 16, right: 8 })
+
+                  TextInput({ placeholder: 'doctor@hospital.com', text: this.doctorEmail })
+                    .placeholderColor('rgba(115, 118, 133, 0.5)')
+                    .fontSize(16)
+                    .backgroundColor(Color.Transparent)
+                    .height('100%')
+                    .layoutWeight(1)
+                    .onChange((value: string) => {
+                      this.doctorEmail = value;
+                    })
+                }
+                .width('100%')
+                .height(56)
+                .backgroundColor('#F3F4F5')
+                .borderRadius(16)
+                .alignItems(VerticalAlign.Center)
+                .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })
+              }
+              .width('100%')
+              .margin({ bottom: 20 })
+
+              // Specialized Area Select Pills Grid (Collapsible/Accordion Menu)
+              Column() {
+                // Collapsible Header Row
+                Row() {
+                  Image($r('app.media.doctor'))
+                    .width(20)
+                    .height(20)
+                    .margin({ right: 8 })
+
+                  Column() {
+                    Text('Specialized Area / Department')
+                      .fontSize(14)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor('#434654')
+                      .margin({ bottom: 2 })
+
+                    Text(this.doctorSpecialty === 'Other' && this.otherDoctorSpecialty ? this.otherDoctorSpecialty : this.doctorSpecialty)
+                      .fontSize(12)
+                      .fontColor('#003D9B')
+                      .fontWeight(FontWeight.Medium)
+                  }
+                  .alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)
+
+                  Text(this.isSpecialtyExpanded ? '▲' : '▼')
+                    .fontSize(12)
+                    .fontColor('#737685')
+                    .margin({ right: 8 })
+                }
+                .width('100%')
+                .padding(14)
+                .backgroundColor('#FFFFFF')
+                .borderRadius(16)
+                .border({ width: 1, color: 'rgba(0, 61, 155, 0.15)', style: BorderStyle.Solid })
+                .onClick(() => {
+                  this.isSpecialtyExpanded = !this.isSpecialtyExpanded;
+                })
+
+                // Expanded Section showing the pills
+                if (this.isSpecialtyExpanded) {
+                  Column() {
+                    Flex({ wrap: FlexWrap.Wrap }) {
+                      ForEach(this.specialtyOptions, (spec: string) => {
+                        Row() {
+                          Text(spec)
+                            .fontSize(14)
+                            .fontWeight(FontWeight.Medium)
+                            .fontColor(this.doctorSpecialty === spec ? Color.White : '#434654')
+                        }
+                        .padding({ left: 16, right: 16, top: 10, bottom: 10 })
+                        .margin(4)
+                        .backgroundColor(this.doctorSpecialty === spec ? '#003D9B' : '#FFFFFF')
+                        .borderRadius(20)
+                        .border({ width: this.doctorSpecialty === spec ? 0 : 1, color: '#C3C6D6', style: BorderStyle.Solid })
+                        .onClick(() => {
+                          this.doctorSpecialty = spec;
+                          if (spec !== 'Other') {
+                            this.isSpecialtyExpanded = false;
+                          }
+                        })
+                      }, (item: string) => item)
+                    }
+                    .width('100%')
+                  }
+                  .width('100%')
+                  .padding({ top: 12, bottom: 4 })
+                }
+
+                // Custom Specialty Input (if "Other" is chosen)
+                if (this.doctorSpecialty === 'Other') {
+                  Column() {
+                    Text('Specify Specialty')
+                      .fontSize(12)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor('#434654')
+                      .alignSelf(ItemAlign.Start)
+                      .margin({ left: 4, bottom: 6 })
+
+                    Row() {
+                      Image($r('app.media.pencil'))
+                        .width(18)
+                        .height(18)
+                        .margin({ left: 16, right: 8 })
+
+                      TextInput({ placeholder: 'e.g. Cardiothoracic Surgery', text: this.otherDoctorSpecialty })
+                        .placeholderColor('rgba(115, 118, 133, 0.5)')
+                        .fontSize(15)
+                        .backgroundColor(Color.Transparent)
+                        .height('100%')
+                        .layoutWeight(1)
+                        .onChange((value: string) => {
+                          this.otherDoctorSpecialty = value;
+                        })
+                    }
+                    .width('100%')
+                    .height(48)
+                    .backgroundColor('#F3F4F5')
+                    .borderRadius(12)
+                    .alignItems(VerticalAlign.Center)
+                    .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })
+                  }
+                  .width('100%')
+                  .margin({ top: 16 })
+                }
+              }
+              .width('100%')
+              .margin({ bottom: 24 })
+
             } else {
-              // FAMILY MEMBER / RESPONDER FORM FIELDS
+              // FAMILY MEMBER FORM FIELDS
 
               // Email Input
               Column() {
@@ -670,15 +899,43 @@ struct ProfileSetupPage {
                   pacemaker: this.pacemaker,
                   hearingAid: this.hearingAid
                 });
+              } else if (this.role === 'doctor') {
+                if (!this.doctorHospital || !this.doctorEmail) {
+                  promptAction.showToast({ message: 'Please fill in hospital name and email address.' });
+                  return;
+                }
+                if (this.doctorSpecialty === 'Other' && !this.otherDoctorSpecialty) {
+                  promptAction.showToast({ message: 'Please specify your specialized area.' });
+                  return;
+                }
+
+                const finalSpecialty = this.doctorSpecialty === 'Other' ? this.otherDoctorSpecialty : this.doctorSpecialty;
+
+                // Log Doctor Profile Data
+                console.log("\n==================================================");
+                console.log(`[PROFILE SAVED] DOCTOR DATA:`);
+                console.log(`- Hospital: ${this.doctorHospital}`);
+                console.log(`- Email: ${this.doctorEmail}`);
+                console.log(`- Specialty: ${finalSpecialty}`);
+                console.log("==================================================\n");
+
+                // Store in AppStorage for local frontend use - initially NOT verified
+                const docProfileData: DoctorProfile = {
+                  hospital: this.doctorHospital,
+                  specialty: finalSpecialty,
+                  email: this.doctorEmail,
+                  isVerified: false
+                };
+                AppStorage.setOrCreate('doctorProfile', docProfileData);
               } else {
                 if (!this.email) {
                   promptAction.showToast({ message: 'Please enter a valid email address.' });
                   return;
                 }
                 
-                // Log Family/Responder Profile Data
+                // Log Family Profile Data
                 console.log("\n==================================================");
-                console.log(`[PROFILE SAVED] ${this.role.toUpperCase()} DATA:`);
+                console.log(`[PROFILE SAVED] FAMILY DATA:`);
                 console.log(`- Email: ${this.email}`);
                 console.log("==================================================\n");
                 
