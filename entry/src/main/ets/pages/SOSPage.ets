@@ -193,7 +193,7 @@ struct PatientSOSView {
 
   useMockLocation() {
     this.locationAddress = '123 Silver Oak Lane, Palo Alto, CA';
-    this.locationAccuracy = '3.0m (Simulated)';
+    this.locationAccuracy = '3.0m';
     this.mapUrl = 'https://static-maps.yandex.ru/1.x/?ll=-122.1697,37.4275&z=16&l=map&size=600,200';
   }
 
@@ -890,10 +890,10 @@ struct DoctorSOSView {
 
           // Actions row
           Row() {
-            Button('Direct Call Patient', { type: ButtonType.Normal })
+            Button('Call Patient', { type: ButtonType.Normal })
               .layoutWeight(1)
               .height(38)
-              .fontSize(12)
+              .fontSize(11)
               .fontWeight(FontWeight.Bold)
               .fontColor(Color.White)
               .backgroundColor('#003D9B')
@@ -903,10 +903,10 @@ struct DoctorSOSView {
                 promptAction.showToast({ message: `Calling patient ${this.selectedAlarmPatient}...` });
               })
 
-            Button('Dispatch Ambulance', { type: ButtonType.Normal })
+            Button('Send Ambulance', { type: ButtonType.Normal })
               .layoutWeight(1)
               .height(38)
-              .fontSize(12)
+              .fontSize(11)
               .fontWeight(FontWeight.Bold)
               .fontColor(Color.White)
               .backgroundColor('#BA1A1A')
@@ -982,6 +982,7 @@ struct DoctorSOSView {
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
+        .margin({ right: 12 })
 
         Button('CALL', { type: ButtonType.Normal })
           .fontSize(12)
@@ -990,6 +991,7 @@ struct DoctorSOSView {
           .backgroundColor('#BA1A1A')
           .borderRadius(8)
           .height(30)
+          .width(64)
           .onClick(() => {
             promptAction.showToast({ message: 'Calling ER Triage Desk...' });
           })
@@ -999,7 +1001,7 @@ struct DoctorSOSView {
       .backgroundColor(Color.White)
       .borderRadius(20)
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-      .margin({ bottom: 12 })
+      .margin({ bottom: 16 })
 
       // Ambulance Service Card
       Row() {
@@ -1029,6 +1031,7 @@ struct DoctorSOSView {
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
+        .margin({ right: 12 })
 
         Button('CALL', { type: ButtonType.Normal })
           .fontSize(12)
@@ -1037,6 +1040,7 @@ struct DoctorSOSView {
           .backgroundColor('#003D9B')
           .borderRadius(8)
           .height(30)
+          .width(64)
           .onClick(() => {
             promptAction.showToast({ message: 'Calling Ambulance Dispatcher...' });
           })
@@ -1046,7 +1050,7 @@ struct DoctorSOSView {
       .backgroundColor(Color.White)
       .borderRadius(20)
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-      .margin({ bottom: 24 })
+      .margin({ bottom: 16 })
 
       // Chief of Medicine Card
       Row() {
@@ -1076,6 +1080,7 @@ struct DoctorSOSView {
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
+        .margin({ right: 12 })
 
         Button('CALL', { type: ButtonType.Normal })
           .fontSize(12)
@@ -1084,6 +1089,7 @@ struct DoctorSOSView {
           .backgroundColor('#006E2F')
           .borderRadius(8)
           .height(30)
+          .width(64)
           .onClick(() => {
             promptAction.showToast({ message: 'Calling ER Department Head...' });
           })
@@ -1093,7 +1099,7 @@ struct DoctorSOSView {
       .backgroundColor(Color.White)
       .borderRadius(20)
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-      .margin({ bottom: 20 })
+      .margin({ bottom: 16 })
     }
     .width('100%')
   }

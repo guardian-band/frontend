@@ -6,6 +6,7 @@ import { ApiService } from '../services/ApiService';
 struct LoginPage {
   @State identifier: string = '';
   @State password: string = '';
+  @State isLoading: boolean = false;
 
   build() {
     Stack() {
@@ -163,15 +164,17 @@ struct LoginPage {
           // Login Button
           Button() {
             Row() {
-              Text('Login')
+              Text(this.isLoading ? 'Logging in...' : 'Login')
                 .fontSize(18)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(Color.White)
                 .margin({ right: 8 })
-              Text('➔')
-                .fontSize(18)
-                .fontColor(Color.White)
-                .fontWeight(FontWeight.Bold)
+              if (!this.isLoading) {
+                Text('➔')
+                  .fontSize(18)
+                  .fontColor(Color.White)
+                  .fontWeight(FontWeight.Bold)
+              }
             }
           }
           .width('100%')
@@ -180,9 +183,11 @@ struct LoginPage {
           .borderRadius(16)
           .shadow({ radius: 8, color: 'rgba(0, 61, 155, 0.2)', offsetX: 0, offsetY: 4 })
           .onClick(() => {
+            if (this.isLoading) return;
             if (!this.identifier || !this.password) {
               promptAction.showToast({ message: 'Please fill in all fields' })
             } else {
+              this.isLoading = true;
               ApiService.login(this.identifier, this.password)
                 .then((token: string) => {
                   // BAŞARILI LOG ÇIKTISI (Terminale doğrudan basar)
@@ -194,7 +199,7 @@ struct LoginPage {
                   AppStorage.setOrCreate('userRole', 'patient')
                   AppStorage.setOrCreate('doctorProfile', { hospital: '', specialty: '', email: '', isVerified: false })
                   promptAction.showToast({ message: 'Logged in successfully!' })
-                  router.pushUrl({ url: 'pages/HomePage' })
+                  router.replaceUrl({ url: 'pages/HomePage' })
                 })
                 .catch((err: Error) => {
                   // HATALI LOG ÇIKTISI (Terminale doğrudan basar)
@@ -203,6 +208,9 @@ struct LoginPage {
                   console.log("==================================================\n");
 
                   promptAction.showToast({ message: `Login Failed: ${err.message}` })
+                })
+                .finally(() => {
+                  this.isLoading = false;
                 })
             }
           })

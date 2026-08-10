@@ -35,11 +35,19 @@ interface DashboardMedItem {
 @Entry
 @Component
 struct MedsPage {
+  @StorageLink('userRole') userRole: string = 'patient';
   @StorageLink('dashboardMeds') dashboardMeds: Array<DashboardMedItem> = [];
   private scroller: Scroller = new Scroller();
   private modalScroller: Scroller = new Scroller();
 
   @StorageLink('medications') medications: Array<MedicationItem> = [];
+
+  aboutToAppear() {
+    if (this.userRole !== 'patient') {
+      promptAction.showToast({ message: 'Access Denied: Only patients have access to the Meds page.' });
+      router.replaceUrl({ url: 'pages/HomePage' });
+    }
+  }
 
   // Modal and Search States
   @State isModalOpen: boolean = false;
@@ -450,15 +458,28 @@ struct MedsPage {
                   Blank()
 
                   // Real Camera / OCR Scan Button
-                  Button('Scan Label')
-                    .fontSize(12)
-                    .backgroundColor('#F0F4FF')
-                    .fontColor('#003D9B')
-                    .height(30)
-                    .borderRadius(15)
-                    .onClick(() => {
-                      this.performRealOCRScan();
-                    })
+                  Button({ type: ButtonType.Normal }) {
+                    Row() {
+                      Image($r('app.media.camera'))
+                        .width(18)
+                        .height(18)
+                        .objectFit(ImageFit.Contain)
+                        .margin({ right: 6 })
+
+                      Text('Scan Label')
+                        .fontSize(13)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#003D9B')
+                    }
+                  }
+                  .backgroundColor('#E8EEFF')
+                  .height(36)
+                  .padding({ left: 14, right: 14 })
+                  .borderRadius(18)
+                  .border({ width: 1, color: 'rgba(0, 61, 155, 0.3)', style: BorderStyle.Solid, radius: 18 })
+                  .onClick(() => {
+                    this.performRealOCRScan();
+                  })
                 }
                 .width('100%')
                 .margin({ bottom: 20 })
@@ -471,23 +492,33 @@ struct MedsPage {
                   .alignSelf(ItemAlign.Start)
 
                 Stack({ alignContent: Alignment.TopStart }) {
-                  TextInput({ placeholder: 'Tap or type to search...', text: this.searchQuery })
-                    .height(44)
-                    .backgroundColor(Color.White)
-                    .border({ width: 1, color: '#EBECEF' })
-                    .borderRadius(8)
-                    .fontSize(14)
-                    .onClick(() => { this.isDropdownOpen = true; })
-                    .onChange((value: string) => {
-                      this.searchQuery = value;
-                      this.isDropdownOpen = true;
-                    })
+                  // Custom Dropdown Trigger (Row + Text instead of TextInput to prevent keyboard opening)
+                  Row() {
+                    Text(this.searchQuery || 'Select medication...')
+                      .fontSize(14)
+                      .fontColor(this.searchQuery ? '#1A1C21' : 'rgba(115, 118, 133, 0.5)')
+                      .layoutWeight(1)
+
+                    Text('▼')
+                      .fontSize(10)
+                      .fontColor('#737685')
+                  }
+                  .height(44)
+                  .width('100%')
+                  .padding({ left: 16, right: 16 })
+                  .backgroundColor(Color.White)
+                  .border({ width: 1, color: '#EBECEF', style: BorderStyle.Solid })
+                  .borderRadius(8)
+                  .alignItems(VerticalAlign.Center)
+                  .onClick(() => {
+                    this.isDropdownOpen = !this.isDropdownOpen;
+                  })
 
                   if (this.isDropdownOpen) {
                     Column() {
                       List() {
                         ForEach(
-                          this.allMeds.filter((med: string) => med.toLowerCase().includes(this.searchQuery.toLowerCase())),
+                          this.allMeds,
                           (filteredMed: string) => {
                             ListItem() {
                               Text(filteredMed)
@@ -518,7 +549,7 @@ struct MedsPage {
                   }
                 }
                 .width('100%')
-                .margin({ bottom: this.isDropdownOpen ? 125 : 20 })
+                .margin({ bottom: 20 })
 
                 // 2. Duration (Days to Use)
                 Text('Duration (Days)')

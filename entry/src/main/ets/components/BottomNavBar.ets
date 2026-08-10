@@ -3,6 +3,7 @@ import { router, promptAction } from '@kit.ArkUI';
 @Component
 export struct BottomNavBar {
   @Prop activeTab: string = 'home';
+  @StorageLink('userRole') userRole: string = 'patient';
 
   build() {
     Row() {
@@ -35,32 +36,34 @@ export struct BottomNavBar {
       })
 
       // Meds Tab (İlaç Sayfasına Geçiş Yapar!)
-      Column() {
-        Image($r('app.media.medicine'))
-          .width(28)
-          .height(28)
-          .objectFit(ImageFit.Contain)
-          .margin({ bottom: 4 })
-        Text('Meds')
-          .fontSize(13)
-          .fontWeight(this.activeTab === 'meds' ? FontWeight.Bold : FontWeight.Normal)
-          .fontColor(this.activeTab === 'meds' ? '#003D9B' : '#737685')
-      }
-      .layoutWeight(1)
-      .justifyContent(FlexAlign.Center)
-      .backgroundColor(this.activeTab === 'meds' ? '#E8EEFF' : Color.Transparent)
-      .borderRadius(16)
-      .height('100%')
-      .onClick(() => {
-        if (this.activeTab !== 'meds') {
-          router.pushUrl({ url: 'pages/MedsPage' }, (err) => {
-            if (err) {
-              promptAction.showToast({ message: `Routing Error: ${err.message}` })
-              console.error(`Routing to MedsPage failed: ${err.code} - ${err.message}`)
-            }
-          });
+      if (this.userRole === 'patient') {
+        Column() {
+          Image($r('app.media.medicine'))
+            .width(28)
+            .height(28)
+            .objectFit(ImageFit.Contain)
+            .margin({ bottom: 4 })
+          Text('Meds')
+            .fontSize(13)
+            .fontWeight(this.activeTab === 'meds' ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(this.activeTab === 'meds' ? '#003D9B' : '#737685')
         }
-      })
+        .layoutWeight(1)
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor(this.activeTab === 'meds' ? '#E8EEFF' : Color.Transparent)
+        .borderRadius(16)
+        .height('100%')
+        .onClick(() => {
+          if (this.activeTab !== 'meds') {
+            router.pushUrl({ url: 'pages/MedsPage' }, (err) => {
+              if (err) {
+                promptAction.showToast({ message: `Routing Error: ${err.message}` })
+                console.error(`Routing to MedsPage failed: ${err.code} - ${err.message}`)
+              }
+            });
+          }
+        })
+      }
 
       // SOS Tab
       Column() {

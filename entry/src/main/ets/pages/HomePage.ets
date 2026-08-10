@@ -165,7 +165,7 @@ struct HomePage {
           } else if (this.userRole === 'family') {
             FamilyDashboardView({ fullName: this.fullName, onQrScanClick: () => { this.startQrScanner(); } })
           } else if (this.userRole === 'doctor') {
-            DoctorDashboardView()
+            DoctorDashboardView({ onQrScanClick: () => { this.startQrScanner(); } })
           }
 
           Blank().height(100)
@@ -1365,9 +1365,21 @@ struct FamilyDashboardView {
   @State mapUrl: string = 'https://static-maps.yandex.ru/1.x/?ll=-122.1697,37.4275&z=16&l=map&size=600,300';
   @State locationLabel: string = 'Home • 5 mins ago';
 
-  @State selectedMember: string = 'Father';
+  @StorageLink('selectedFamilyMember') selectedMember: string = 'Father';
   @State showDropdown: boolean = false;
   private hrIntervalId: number = -1;
+  @StorageLink('profilePicture') profilePicture: string = '';
+
+  getInitials(name: string): string {
+    if (!name) return 'GB';
+    const parts: string[] = name.trim().split(' ');
+    if (parts.length >= 2) {
+      const first = parts[0].charAt(0);
+      const last = parts[parts.length - 1].charAt(0);
+      return (first + last).toUpperCase();
+    }
+    return name.substring(0, Math.min(2, name.length)).toUpperCase();
+  }
 
   getPatientLocation() {
     if (this.selectedMember === 'Mother') {
@@ -1423,48 +1435,43 @@ struct FamilyDashboardView {
 
   build() {
     Column() {
-      // 1. Header Bar Mimicking Design
+      AppHeader({ title: 'GuardianBand Home' })
+        .margin({ bottom: 16 })
+
       Row() {
-        Row() {
+        if (this.profilePicture === '') {
           Row() {
-            Text('FP')
-              .fontSize(14)
+            Text(this.getInitials(this.fullName))
+              .fontSize(12)
               .fontWeight(FontWeight.Bold)
-              .fontColor('#001848')
+              .fontColor(Color.White)
           }
-          .width(40)
-          .height(40)
-          .borderRadius(20)
-          .backgroundColor('#dae2ff')
+          .width(32)
+          .height(32)
+          .backgroundColor('#003D9B')
+          .borderRadius(16)
           .justifyContent(FlexAlign.Center)
           .alignItems(VerticalAlign.Center)
-          .border({ width: 2, color: Color.White, style: BorderStyle.Solid })
-          .shadow({ radius: 4, color: 'rgba(0,0,0,0.1)' })
-          .margin({ right: 8 })
-
-          Text('GuardianBand')
-            .fontSize(22)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#003D9B')
+          .border({ width: 2, color: '#E8EEFF', style: BorderStyle.Solid })
+          .margin({ right: 10 })
+        } else {
+          Image(this.profilePicture)
+            .width(32)
+            .height(32)
+            .borderRadius(16)
+            .objectFit(ImageFit.Cover)
+            .border({ width: 2, color: '#E8EEFF', style: BorderStyle.Solid })
+            .margin({ right: 10 })
         }
-        .alignItems(VerticalAlign.Center)
 
-        Blank()
-
-        Row() {
-          Row() {
-            Image($r('app.media.bell'))
-              .width(22)
-              .height(22)
-              .objectFit(ImageFit.Contain)
-          }
-          .onClick(() => {
-            promptAction.showToast({ message: 'No new notifications.' });
-          })
-        }
-        .alignItems(VerticalAlign.Center)
+        Text(`Welcome, ${this.fullName}`)
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#434654')
+          .layoutWeight(1)
       }
       .width('100%')
+      .alignItems(VerticalAlign.Center)
       .margin({ bottom: 20 })
 
       // Emergency Watch Scanner Banner Card
@@ -2300,6 +2307,19 @@ struct DoctorDashboardView {
 
   @State selectedPatient: MonitoredPatient | null = null;
   @State isInspectorOpen: boolean = false;
+  onQrScanClick: () => void = () => {};
+  @StorageLink('profilePicture') profilePicture: string = '';
+
+  getInitials(name: string): string {
+    if (!name) return 'GB';
+    const parts: string[] = name.trim().split(' ');
+    if (parts.length >= 2) {
+      const first = parts[0].charAt(0);
+      const last = parts[parts.length - 1].charAt(0);
+      return (first + last).toUpperCase();
+    }
+    return name.substring(0, Math.min(2, name.length)).toUpperCase();
+  }
 
   async scanPatientQr() {
     promptAction.showToast({ message: 'Opening camera...', duration: 800 });
@@ -2368,71 +2388,98 @@ struct DoctorDashboardView {
       if (!this.isInspectorOpen) {
         // --- DOCTOR PORTAL DASHBOARD MAIN VIEW ---
         
-        // 1. Doctor Header Info Card
+        AppHeader({ title: 'GuardianBand Home' })
+          .margin({ bottom: 16 })
+
+        Row() {
+          if (this.profilePicture === '') {
+            Row() {
+              Text(this.getInitials(this.fullName))
+                .fontSize(12)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(Color.White)
+            }
+            .width(32)
+            .height(32)
+            .backgroundColor('#003D9B')
+            .borderRadius(16)
+            .justifyContent(FlexAlign.Center)
+            .alignItems(VerticalAlign.Center)
+            .border({ width: 2, color: '#E8EEFF', style: BorderStyle.Solid })
+            .margin({ right: 10 })
+          } else {
+            Image(this.profilePicture)
+              .width(32)
+              .height(32)
+              .borderRadius(16)
+              .objectFit(ImageFit.Cover)
+              .border({ width: 2, color: '#E8EEFF', style: BorderStyle.Solid })
+              .margin({ right: 10 })
+          }
+
+          Text(`Welcome, ${this.fullName}`)
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#434654')
+            .layoutWeight(1)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
+        .margin({ bottom: 20 })
+
+        // Emergency Watch Scanner Banner Card
         Column() {
           Row() {
             Row() {
-              Image($r('app.media.doctor'))
-                .width(42)
-                .height(42)
+              Image($r('app.media.qr'))
+                .width(26)
+                .height(26)
                 .objectFit(ImageFit.Contain)
             }
-            .width(52)
-            .height(52)
-            .borderRadius(26)
-            .backgroundColor('#E8EEFF')
+            .width(44)
+            .height(44)
+            .borderRadius(10)
+            .backgroundColor('rgba(0, 61, 155, 0.08)')
             .justifyContent(FlexAlign.Center)
             .alignItems(VerticalAlign.Center)
-            .margin({ right: 14 })
+            .margin({ right: 12 })
 
             Column() {
-              Text(this.fullName)
-                .fontSize(20)
+              Text('Emergency Watch Scanner')
+                .fontSize(15)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#003D9B')
                 .margin({ bottom: 4 })
 
-              Text(`${this.doctorProfile.specialty || 'Specialist'} • ${this.doctorProfile.hospital || 'Hospital'}`)
-                .fontSize(13)
+              Text("Scan patient's smartwatch QR code to quickly retrieve live vitals and emergency contact info.")
+                .fontSize(12)
                 .fontColor('#737685')
+                .lineHeight(16)
             }
             .alignItems(HorizontalAlign.Start)
             .layoutWeight(1)
-
-            Row() {
-              Text('ACTIVE')
-                .fontSize(10)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#006E2F')
-            }
-            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-            .backgroundColor('#E6F9ED')
-            .borderRadius(6)
           }
           .width('100%')
           .margin({ bottom: 12 })
 
-          Row() {
-            Text('Doctor Email:')
-              .fontSize(12)
-              .fontWeight(FontWeight.Medium)
-              .fontColor('#737685')
-              .margin({ right: 6 })
-
-            Text(this.doctorProfile.email || 'dr.care@metro.com')
-              .fontSize(12)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#191C1D')
-          }
-          .alignItems(VerticalAlign.Center)
+          Button('Scan Smartwatch QR', { type: ButtonType.Normal })
+            .width('100%')
+            .height(36)
+            .fontSize(13)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+            .backgroundColor('#003D9B')
+            .borderRadius(8)
+            .onClick(() => {
+              this.onQrScanClick();
+            })
         }
         .width('100%')
-        .padding(20)
+        .padding(16)
         .backgroundColor(Color.White)
-        .borderRadius(24)
-        .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-        .shadow({ radius: 10, color: 'rgba(0, 0, 0, 0.03)', offsetY: 4 })
-        .margin({ bottom: 20 })
+        .borderRadius(20)
+        .border({ width: 1, color: 'rgba(0, 61, 155, 0.2)', style: BorderStyle.Solid })
+        .margin({ bottom: 24 })
 
         // 2. Action Card: Match Patient via QR
         Column() {

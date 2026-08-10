@@ -148,6 +148,8 @@ struct ProfilePage {
   @State showRoleSwitcher: boolean = false;
   @State expandedMedId: string = '';
   @State isMyQrModalOpen: boolean = false;
+  @StorageLink('selectedFamilyMember') selectedMember: string = 'Father';
+  @State showMemberDropdown: boolean = false;
 
   dialogController: CustomDialogController = new CustomDialogController({
     builder: AddContactDialog({
@@ -179,6 +181,32 @@ struct ProfilePage {
       return (first + last).toUpperCase();
     }
     return name.substring(0, Math.min(2, name.length)).toUpperCase();
+  }
+
+  // Helper to generate a patient ID dynamically based on fullName and email
+  getPatientId(): string {
+    if (!this.fullName || this.fullName === 'User') {
+      return 'GP-8321-2026';
+    }
+    let code = 0;
+    for (let i = 0; i < this.fullName.length; i++) {
+      code += this.fullName.charCodeAt(i);
+    }
+    const num = (code * 17) % 9000 + 1000;
+    return `GP-${num}-2026`;
+  }
+
+  // Helper to generate a unique QR code value representing patient details
+  getQrCodeValue(): string {
+    const data: Record<string, string | string[]> = {
+      'id': this.getPatientId(),
+      'name': this.fullName,
+      'email': this.userEmail || '',
+      'bloodType': this.medicalProfile.bloodType || 'N/A',
+      'allergies': this.medicalProfile.allergies || 'None',
+      'diseases': this.medicalProfile.diseases || []
+    };
+    return JSON.stringify(data);
   }
 
   // Photo picker function to change profile picture from gallery
@@ -950,19 +978,127 @@ struct ProfilePage {
           if (this.userRole === 'family') {
             // Monitored Family Member Card
             Column() {
-              Text('Monitored Member')
-                .fontSize(16)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#434654')
-                .alignSelf(ItemAlign.Start)
-                .margin({ left: 4, bottom: 12 })
+              Row() {
+                Text('Monitored Member')
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#434654')
+
+                Blank()
+
+                // Switch Member Button
+                Row() {
+                  Text(this.selectedMember === 'Father' ? 'Father' : 'Mother')
+                    .fontSize(13)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#003D9B')
+                    .margin({ right: 6 })
+                  Text('▼')
+                    .fontSize(10)
+                    .fontColor('#003D9B')
+                }
+                .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                .backgroundColor('#E8EEFF')
+                .borderRadius(10)
+                .onClick(() => {
+                  this.showMemberDropdown = !this.showMemberDropdown;
+                })
+              }
+              .width('100%')
+              .margin({ left: 4, bottom: 12 })
+
+              // Dropdown Menu for choosing Monitored Member
+              if (this.showMemberDropdown) {
+                Column() {
+                  // Option 1: Father
+                  Row() {
+                    Row() {
+                      Text('JD')
+                        .fontSize(11)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor(Color.White)
+                    }
+                    .width(26)
+                    .height(26)
+                    .borderRadius(13)
+                    .backgroundColor('#006E2F')
+                    .justifyContent(FlexAlign.Center)
+                    .alignItems(VerticalAlign.Center)
+                    .margin({ right: 10 })
+
+                    Text("Father (John Doe)")
+                      .fontSize(14)
+                      .fontWeight(this.selectedMember === 'Father' ? FontWeight.Bold : FontWeight.Normal)
+                      .fontColor(this.selectedMember === 'Father' ? '#003D9B' : '#191C1D')
+
+                    Blank()
+
+                    if (this.selectedMember === 'Father') {
+                      Text('✓')
+                        .fontSize(14)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#003D9B')
+                    }
+                  }
+                  .width('100%')
+                  .padding(12)
+                  .onClick(() => {
+                    this.selectedMember = 'Father';
+                    this.showMemberDropdown = false;
+                  })
+                  .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.15)' })
+
+                  // Option 2: Mother
+                  Row() {
+                    Row() {
+                      Text('MD')
+                        .fontSize(11)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor(Color.White)
+                    }
+                    .width(26)
+                    .height(26)
+                    .borderRadius(13)
+                    .backgroundColor('#854E00')
+                    .justifyContent(FlexAlign.Center)
+                    .alignItems(VerticalAlign.Center)
+                    .margin({ right: 10 })
+
+                    Text("Mother (Mary Doe)")
+                      .fontSize(14)
+                      .fontWeight(this.selectedMember === 'Mother' ? FontWeight.Bold : FontWeight.Normal)
+                      .fontColor(this.selectedMember === 'Mother' ? '#003D9B' : '#191C1D')
+
+                    Blank()
+
+                    if (this.selectedMember === 'Mother') {
+                      Text('✓')
+                        .fontSize(14)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#003D9B')
+                    }
+                  }
+                  .width('100%')
+                  .padding(12)
+                  .onClick(() => {
+                    this.selectedMember = 'Mother';
+                    this.showMemberDropdown = false;
+                  })
+                }
+                .width('100%')
+                .backgroundColor(Color.White)
+                .borderRadius(16)
+                .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
+                .margin({ bottom: 12 })
+                .shadow({ radius: 8, color: 'rgba(0,0,0,0.06)' })
+              }
 
               Column() {
                 // Header of the monitored person
                 Row() {
                   // Avatar with initials
                   Row() {
-                    Text('JD')
+                    Text(this.selectedMember === 'Father' ? 'JD' : 'MD')
                       .fontSize(16)
                       .fontWeight(FontWeight.Bold)
                       .fontColor(Color.White)
@@ -970,14 +1106,14 @@ struct ProfilePage {
                   .width(48)
                   .height(48)
                   .borderRadius(24)
-                  .backgroundColor('#006E2F')
+                  .backgroundColor(this.selectedMember === 'Father' ? '#006E2F' : '#854E00')
                   .justifyContent(FlexAlign.Center)
                   .alignItems(VerticalAlign.Center)
                   .margin({ right: 12 })
 
                   Column() {
                     Row() {
-                      Text('John Doe (Father)')
+                      Text(this.selectedMember === 'Father' ? 'John Doe (Father)' : 'Mary Doe (Mother)')
                         .fontSize(16)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#191C1D')
@@ -985,7 +1121,7 @@ struct ProfilePage {
                       Row()
                         .width(8)
                         .height(8)
-                        .backgroundColor('#006E2F')
+                        .backgroundColor(this.selectedMember === 'Father' ? '#006E2F' : '#854E00')
                         .borderRadius(4)
                         .margin({ left: 8 })
                     }
@@ -994,7 +1130,7 @@ struct ProfilePage {
 
                     Text('Band Connected • Signal Strong')
                       .fontSize(12)
-                      .fontColor('#006E2F')
+                      .fontColor(this.selectedMember === 'Father' ? '#006E2F' : '#854E00')
                   }
                   .alignItems(HorizontalAlign.Start)
                 }
@@ -1015,7 +1151,7 @@ struct ProfilePage {
                         .height(14)
                         .objectFit(ImageFit.Contain)
                         .margin({ right: 4 })
-                      Text('72 bpm')
+                      Text(this.selectedMember === 'Father' ? '72 bpm' : '80 bpm')
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#BA1A1A')
@@ -1040,7 +1176,7 @@ struct ProfilePage {
                         .height(14)
                         .objectFit(ImageFit.Contain)
                         .margin({ right: 4 })
-                      Text('98%')
+                      Text(this.selectedMember === 'Father' ? '98%' : '99%')
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#003D9B')
@@ -1065,7 +1201,7 @@ struct ProfilePage {
                         .height(14)
                         .objectFit(ImageFit.Contain)
                         .margin({ right: 4 })
-                      Text('4,820')
+                      Text(this.selectedMember === 'Father' ? '4,820' : '6,150')
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#006E2F')
@@ -1099,7 +1235,13 @@ struct ProfilePage {
                   .borderRadius(8)
                   .margin({ right: 12 })
                   .onClick(() => {
-                    promptAction.showToast({ message: "Opening live dashboard for John Doe..." });
+                    promptAction.showToast({ message: `Opening live dashboard for ${this.selectedMember === 'Father' ? 'John Doe' : 'Mary Doe'}...` });
+                    router.pushUrl({ url: 'pages/HomePage' }, (err) => {
+                      if (err) {
+                        promptAction.showToast({ message: `Routing Error: ${err.message}` });
+                        console.error(`Routing to HomePage failed: ${err.code} - ${err.message}`);
+                      }
+                    });
                   })
 
                   Button() {
@@ -1120,7 +1262,7 @@ struct ProfilePage {
                   .backgroundColor('rgba(0, 110, 47, 0.06)')
                   .borderRadius(8)
                   .onClick(() => {
-                    promptAction.showToast({ message: "Calling John Doe..." });
+                    promptAction.showToast({ message: `Calling ${this.selectedMember === 'Father' ? 'John Doe' : 'Mary Doe'}...` });
                   })
                 }
                 .width('100%')
@@ -1228,8 +1370,8 @@ struct ProfilePage {
             .margin({ bottom: 20 })
           }
 
-          // Emergency Contacts - Rendered for Patients and Family
-          if (this.userRole === 'patient' || this.userRole === 'family') {
+          // Emergency Contacts - Rendered only for Patients
+          if (this.userRole === 'patient') {
             Column() {
               Row() {
                 Text('Emergency Contacts')
@@ -1348,16 +1490,29 @@ struct ProfilePage {
           }
 
           // Sign Out Button
-          Button('Sign Out')
+          Button() {
+            Row() {
+              Image($r('app.media.logout'))
+                .width(20)
+                .height(20)
+                .margin({ right: 8 })
+                .objectFit(ImageFit.Contain)
+              Text('Sign Out')
+                .fontSize(16)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#8C0013')
+            }
             .width('100%')
-            .height(56)
-            .fontSize(16)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#8C0013')
-            .backgroundColor('rgba(140, 0, 19, 0.08)')
-            .borderRadius(16)
-            .margin({ top: 24, bottom: 20 })
-            .onClick(() => {
+            .height('100%')
+            .justifyContent(FlexAlign.Center)
+            .alignItems(VerticalAlign.Center)
+          }
+          .width('100%')
+          .height(56)
+          .backgroundColor('rgba(140, 0, 19, 0.08)')
+          .borderRadius(16)
+          .margin({ top: 8, bottom: 20 })
+          .onClick(() => {
               AppStorage.setOrCreate('token', '');
               AppStorage.setOrCreate('fullName', '');
               AppStorage.setOrCreate('profilePicture', '');
@@ -1628,14 +1783,21 @@ struct ProfilePage {
             .width('100%')
             .margin({ bottom: 20 })
 
-            // Display QR Code Image
-            Image($r('app.media.qr_patient'))
-              .width(220)
-              .height(220)
-              .objectFit(ImageFit.Contain)
-              .margin({ bottom: 16 })
-              .border({ width: 1, color: '#E8EEFF', style: BorderStyle.Solid })
-              .borderRadius(16)
+            // Display Dynamic QR Code Container
+            Row() {
+              QRCode(this.getQrCodeValue())
+                .width(180)
+                .height(180)
+                .color('#003D9B')
+            }
+            .width(220)
+            .height(220)
+            .justifyContent(FlexAlign.Center)
+            .alignItems(VerticalAlign.Center)
+            .backgroundColor(Color.White)
+            .border({ width: 1, color: '#E8EEFF', style: BorderStyle.Solid })
+            .borderRadius(16)
+            .margin({ bottom: 16 })
 
             Text(this.fullName)
               .fontSize(18)
@@ -1643,7 +1805,7 @@ struct ProfilePage {
               .fontColor('#191C1D')
               .margin({ bottom: 4 })
 
-            Text('Patient ID: GP-83A-2026')
+            Text(`Patient ID: ${this.getPatientId()}`)
               .fontSize(12)
               .fontColor('#737685')
               .margin({ bottom: 16 })
