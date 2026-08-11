@@ -608,6 +608,13 @@ struct PatientDashboardView {
         this.oxygenHistory.shift();
       }
 
+      // NEW: Silently send these generated vitals to the backend API
+      let token = AppStorage.get<string>('token') || '';
+      if (token) {
+        ApiService.sendVitals(token, this.currentHeartRate, this.currentOxygen)
+          .catch((err: Error) => console.error("Background vitals sync error: ", err.message));
+      }
+
       if (this.isGraphModalOpen) {
         if (this.selectedMetric === 'Heart Rate') {
           this.selectedValue = this.currentHeartRate;

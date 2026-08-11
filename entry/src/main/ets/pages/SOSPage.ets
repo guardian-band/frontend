@@ -3,6 +3,7 @@ import { BottomNavBar } from '../components/BottomNavBar';
 import { AppHeader } from '../components/AppHeader';
 import { geoLocationManager } from '@kit.LocationKit';
 import { abilityAccessCtrl, common } from '@kit.AbilityKit';
+import { ApiService } from '../services/ApiService'; // IMPORT: Required for background SOS trigger
 
 interface EmergencyContact {
   id: string;
@@ -92,6 +93,7 @@ struct SOSPage {
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
+      // Background Radial Gradients for visual effect
       Row()
         .width(500)
         .height(500)
@@ -120,6 +122,7 @@ struct SOSPage {
 
       Scroll(this.scroller) {
         Column() {
+          // Render different views based on the user's role
           if (this.userRole === 'patient') {
             PatientSOSView({ fullName: this.fullName })
           } else if (this.userRole === 'family') {
@@ -128,7 +131,7 @@ struct SOSPage {
             DoctorSOSView()
           }
 
-          Blank().height(100)
+          Blank().height(100) // Spacer for bottom nav
         }
         .width('100%')
         .padding({ left: 24, right: 24, top: 20 })
@@ -174,6 +177,7 @@ struct PatientSOSView {
     this.clearTimer();
   }
 
+  // Request location permissions from the user
   requestLocationPermission() {
     try {
       let context = getContext(this) as common.UIAbilityContext;
@@ -191,12 +195,14 @@ struct PatientSOSView {
     }
   }
 
+  // Use a fallback location if permission is denied or retrieval fails
   useMockLocation() {
     this.locationAddress = '123 Silver Oak Lane, Palo Alto, CA';
     this.locationAccuracy = '3.0m';
     this.mapUrl = 'https://static-maps.yandex.ru/1.x/?ll=-122.1697,37.4275&z=16&l=map&size=600,200';
   }
 
+  // Fetch the current GPS location
   getCurrentLocation() {
     try {
       let requestInfo: geoLocationManager.CurrentLocationRequest = {
@@ -227,6 +233,7 @@ struct PatientSOSView {
     }
   }
 
+  // Handle the SOS button press and hold logic
   handleTouch(event: TouchEvent) {
     if (this.sosSent) return;
 
@@ -241,6 +248,30 @@ struct PatientSOSView {
           this.sosSent = true;
           this.isPressing = false;
           promptAction.showToast({ message: 'EMERGENCY ALERT BROADCASTED TO ALL CONTACTS!' });
+
+          // NEW: Silently trigger the SOS incident on the backend API
+          // This ensures the backend knows about the emergency without interrupting the UI
+          let token = AppStorage.get<string>('token') || '';
+          if (token) {
+            // Attempt to parse the latitude and longitude from the string, or use mock coordinates
+            let lat = 37.4275; // Fallback mock latitude
+            let lng = -122.1697; // Fallback mock longitude
+            try {
+              if (this.locationAddress.includes('Lat:')) {
+                const parts = this.locationAddress.split(',');
+                lat = parseFloat(parts[0].replace('Lat:', '').trim());
+                lng = parseFloat(parts[1].replace('Lng:', '').trim());
+              }
+            } catch (e) {
+              console.error("Could not parse coordinates", e);
+            }
+
+            // Clean the accuracy string (e.g., "3.0m" -> 3.0)
+            let accuracy = parseFloat(this.locationAccuracy.replace('m', '').trim()) || 0;
+
+            ApiService.triggerSOS(token, lat, lng, accuracy, this.locationAddress)
+              .catch((err: Error) => console.error("Background SOS trigger error: ", err.message));
+          }
         }
       }, 400);
 
@@ -251,6 +282,7 @@ struct PatientSOSView {
     }
   }
 
+  // Get initials for the contact avatar
   getInitials(name: string): string {
     if (!name) return 'C';
     const parts = name.trim().split(' ');
@@ -262,11 +294,11 @@ struct PatientSOSView {
 
   build() {
     Column() {
-      // Temizlenmiş ve düzeltilmiş üst başlık (Çift yazılar kaldırıldı)
+      // Cleaned up header
       AppHeader({ title: 'Emergency' })
         .margin({ bottom: 24 })
 
-      // Sadece durum bilgilendirme yazısı kaldı
+      // Status text
       Column() {
         Text(this.sosSent ? 'Emergency alert broadcasted.' : 'Stay calm. Help is on the way.')
           .fontSize(16)
@@ -367,7 +399,7 @@ struct PatientSOSView {
         .padding({ left: 4, right: 4 })
 
         Column() {
-          // Dinamik eklenen kullanıcılar ve öncelik sıralamaları
+          // Dynamically added contacts and priority rankings
           ForEach(this.sosContacts, (contact: EmergencyContact, index: number) => {
             Row() {
               Row() {
@@ -391,13 +423,13 @@ struct PatientSOSView {
                   .fontColor('#191C1D')
                   .margin({ bottom: 4 })
 
-                // Öncelik Sırası Rozeti ve Unvan
+                // Priority Badge and Title
                 Row() {
                   Text(index === 0 ? '1st to Call' : '2nd to Call')
                     .fontSize(10)
                     .fontWeight(FontWeight.Bold)
                     .fontColor(Color.White)
-                    .backgroundColor(index === 0 ? '#BA1A1A' : '#854E00') // 1. Sıra Kırmızı, 2. Sıra Turuncu
+                    .backgroundColor(index === 0 ? '#BA1A1A' : '#854E00') // 1st Red, 2nd Orange
                     .padding({ left: 6, right: 6, top: 2, bottom: 2 })
                     .borderRadius(4)
                     .margin({ right: 6 })

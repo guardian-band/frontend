@@ -1,4 +1,3 @@
-// MedsPage.ets
 import { router, promptAction } from '@kit.ArkUI';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
@@ -7,6 +6,7 @@ import { textRecognition } from '@kit.CoreVisionKit';
 import { image } from '@kit.ImageKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
+import { ApiService } from '../services/ApiService'; // IMPORT: Required for background uploads
 
 interface MedTime {
   slot: string; // 'Morning', 'Afternoon', 'Evening'
@@ -168,6 +168,19 @@ struct MedsPage {
 
       if (pickerResult && pickerResult.resultUri) {
         promptAction.showToast({ message: 'Processing label, please wait...' });
+
+        // NEW: Silently upload the scanned image to the backend cloud storage
+        // This ensures the prescription is archived without interrupting the UI flow
+        // FIX: Added (err: Error) to strictly type the catch block and prevent ArkTS errors
+        let token = AppStorage.get<string>('token') || '';
+        if (token) {
+          ApiService.uploadDocument(
+            token,
+            pickerResult.resultUri,
+            'prescription',
+            'Scanned Prescription - ' + new Date().toLocaleTimeString()
+          ).catch((err: Error) => console.error("Background upload error", err.message));
+        }
 
         // Read the image and convert it to a PixelMap
         let file = fileIo.openSync(pickerResult.resultUri, fileIo.OpenMode.READ_ONLY);
