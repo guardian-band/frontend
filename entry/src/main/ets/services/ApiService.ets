@@ -18,6 +18,20 @@ export interface PatientProfile {
   timezone: string;
 }
 
+export interface ClinicianPatient {
+  id: string;
+  patientId: string;
+  name: string;
+  relationship: string;
+  bloodType: string;
+  birthDate: string;
+}
+
+export interface VitalsResponse {
+  heartRate: number;
+  bloodOxygen: number;
+}
+
 export interface CreateMedicationRequest {
   name: string;
   strength: string;
@@ -111,16 +125,46 @@ export class ApiService {
     } catch (err) { console.error(err); } finally { httpRequest.destroy(); }
   }
 
-  public static async triggerSOS(token: string, lat: number, lng: number, accuracy: number, address: string): Promise<void> {
+  public static async triggerSOS(token: string, lat: number, lng: number, accuracy: number, address: string): Promise<string> {
+    if (ApiService.MOCK_MODE) { return 'mock-incident-123'; }
+    let httpRequest = http.createHttp();
+    try {
+      let response = await httpRequest.request(`${ApiService.BASE_URL}/api/sos/incidents`, {
+        method: http.RequestMethod.POST,
+        header: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        extraData: JSON.stringify({ latitude: lat, longitude: lng, accuracyMeters: accuracy, address: address }),
+        expectDataType: http.HttpDataType.STRING,
+        readTimeout: 10000, connectTimeout: 10000
+      });
+      if (response.responseCode === 201) {
+        const resObj = JSON.parse(response.result as string) as Record<string, string>;
+        return resObj.id;
+      } else {
+        throw new Error(`SOS trigger failed (Code ${response.responseCode})`);
+      }
+    } catch (err) {
+      throw new Error((err as Error).message);
+    } finally {
+      httpRequest.destroy();
+    }
+  }
+
+  public static async sendSOSAllClear(token: string, incidentId: string): Promise<void> {
     if (ApiService.MOCK_MODE) { return; }
     let httpRequest = http.createHttp();
     try {
-      await httpRequest.request(`${ApiService.BASE_URL}/api/sos/incidents`, {
+      let response = await httpRequest.request(`${ApiService.BASE_URL}/api/sos/incidents/${incidentId}/all-clear`, {
         method: http.RequestMethod.POST,
-        header: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        extraData: JSON.stringify({ latitude: lat, longitude: lng, accuracyMeters: accuracy, address: address })
+        header: { 'Authorization': `Bearer ${token}` }
       });
-    } catch (err) { console.error(err); } finally { httpRequest.destroy(); }
+      if (response.responseCode !== 200) {
+        throw new Error(`All-clear failed (Code ${response.responseCode})`);
+      }
+    } catch (err) {
+      throw new Error((err as Error).message);
+    } finally {
+      httpRequest.destroy();
+    }
   }
 
   public static async putProfile(token: string, profile: PatientProfile): Promise<void> {
@@ -156,5 +200,80 @@ export class ApiService {
         header: { 'Authorization': `Bearer ${token}` }
       });
     } catch (err) { console.error(err); } finally { httpRequest.destroy(); }
+  }
+
+  public static async linkPatient(token: string, phone: string, displayName: string, relationship: string): Promise<void> {
+    if (ApiService.MOCK_MODE) { return; }
+    let httpRequest = http.createHttp();
+    try {
+      let response = await httpRequest.request(`${ApiService.BASE_URL}/api/patient-links`, {
+        method: http.RequestMethod.POST,
+        header: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        extraData: JSON.stringify({
+          phone: phone,
+          displayName: displayName,
+          relationship: relationship,
+          kind: 'clinician',
+          canMonitor: true,
+          isEmergencyContact: false,
+          isPrimary: false
+        })
+      });
+      if (response.responseCode !== 201) {
+        throw new Error(`Linking failed (Code ${response.responseCode})`);
+      }
+    } catch (err) {
+      throw new Error((err as Error).message);
+    } finally {
+      httpRequest.destroy();
+    }
+  }
+
+  public static async getClinicianPatients(token: string): Promise<ClinicianPatient[]> {
+    if (ApiService.MOCK_MODE) {
+      return [
+        { id: '1', patientId: 'p1', name: 'Alice Smith', relationship: 'Physician', bloodType: 'A+', birthDate: '1985-05-12' },
+        { id: '2', patientId: 'p2', name: 'John Doe', relationship: 'Physician', bloodType: 'B-', birthDate: '1979-11-20' }
+      ];
+    }
+    let httpRequest = http.createHttp();
+    try {
+      let response = await httpRequest.request(`${ApiService.BASE_URL}/api/clinician/patients`, {
+        method: http.RequestMethod.GET,
+        header: { 'Authorization': `Bearer ${token}` },
+        expectDataType: http.HttpDataType.STRING
+      });
+      if (response.responseCode === 200) {
+        return JSON.parse(response.result as string) as ClinicianPatient[];
+      } else {
+        throw new Error(`Failed to fetch patients (Code ${response.responseCode})`);
+      }
+    } catch (err) {
+      throw new Error((err as Error).message);
+    } finally {
+      httpRequest.destroy();
+    }
+  }
+
+  public static async getVitalsLatest(token: string, userId: string): Promise<VitalsResponse> {
+    if (ApiService.MOCK_MODE) { return { heartRate: 72, bloodOxygen: 98 } as VitalsResponse; }
+    let httpRequest = http.createHttp();
+    try {
+      let response = await httpRequest.request(`${ApiService.BASE_URL}/api/vitals/${userId}/latest`, {
+        method: http.RequestMethod.GET,
+        header: { 'Authorization': `Bearer ${token}` },
+        expectDataType: http.HttpDataType.STRING
+      });
+      if (response.responseCode === 200) {
+        const resObj = JSON.parse(response.result as string) as VitalsResponse;
+        return resObj;
+      } else {
+        throw new Error(`Failed to fetch vitals (Code ${response.responseCode})`);
+      }
+    } catch (err) {
+      throw new Error((err as Error).message);
+    } finally {
+      httpRequest.destroy();
+    }
   }
 }

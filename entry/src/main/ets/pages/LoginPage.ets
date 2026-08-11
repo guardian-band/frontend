@@ -196,6 +196,7 @@ struct LoginPage {
                   console.log("==================================================\n");
 
                   AppStorage.setOrCreate('token', token)
+                  AppStorage.setOrCreate('userPhone', this.identifier)
                   AppStorage.setOrCreate('userRole', 'patient')
                   AppStorage.setOrCreate('doctorProfile', { hospital: '', specialty: '', email: '', isVerified: false })
                   promptAction.showToast({ message: 'Logged in successfully!' })

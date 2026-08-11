@@ -649,7 +649,7 @@ struct PatientDashboardView {
   build() {
     Stack({ alignContent: Alignment.Center }) {
       Column() {
-        AppHeader({ title: 'GuardianBand Home' })
+        AppHeader({ title: 'GuardianBand Home', onCameraClick: () => { this.onQrScanClick(); } })
           .margin({ bottom: 16 })
 
         Row() {
@@ -1442,7 +1442,7 @@ struct FamilyDashboardView {
 
   build() {
     Column() {
-      AppHeader({ title: 'GuardianBand Home' })
+      AppHeader({ title: 'GuardianBand Home', onCameraClick: () => { this.onQrScanClick(); } })
         .margin({ bottom: 16 })
 
       Row() {
@@ -2307,15 +2307,56 @@ struct DoctorDashboardView {
     isVerified: false
   };
 
-  @State doctorPatients: MonitoredPatient[] = [
-    { id: '1', name: 'John Doe', gender: 'Male', bloodType: 'A+', heartRate: 72, oxygen: 98, calories: 1450, sleep: '6h 45m', meds: 'Atorvastatin (20mg)', location: 'Palo Alto • Live' },
-    { id: '2', name: 'Alice Smith', gender: 'Female', bloodType: 'O-', heartRate: 68, oxygen: 99, calories: 1120, sleep: '7h 15m', meds: 'Lisinopril (10mg)', location: 'San Jose • Live' }
-  ];
-
+  @State doctorPatients: MonitoredPatient[] = [];
   @State selectedPatient: MonitoredPatient | null = null;
   @State isInspectorOpen: boolean = false;
   onQrScanClick: () => void = () => {};
   @StorageLink('profilePicture') profilePicture: string = '';
+
+  @State isLinkModalOpen: boolean = false;
+  @State linkPatientPhone: string = '';
+  @State linkPatientName: string = '';
+
+  aboutToAppear() {
+    this.loadDoctorPatients();
+  }
+
+  async loadDoctorPatients() {
+    let token = AppStorage.get<string>('token') || '';
+    if (token) {
+      try {
+        let backendPatients = await ApiService.getClinicianPatients(token);
+        let list: MonitoredPatient[] = [];
+        for (let bp of backendPatients) {
+          let heart = 75;
+          let oxy = 98;
+          try {
+            let vitals = await ApiService.getVitalsLatest(token, bp.patientId);
+            if (vitals && vitals.heartRate) heart = vitals.heartRate;
+            if (vitals && vitals.bloodOxygen) oxy = vitals.bloodOxygen;
+          } catch (e) {
+            console.error("Vitals fetch error for " + bp.patientId, e);
+          }
+
+          list.push({
+            id: bp.id,
+            name: bp.name,
+            gender: 'Male',
+            bloodType: bp.bloodType || 'N/A',
+            heartRate: heart,
+            oxygen: oxy,
+            calories: 1450,
+            sleep: '7h 15m',
+            meds: 'None',
+            location: 'Palo Alto • Live'
+          });
+        }
+        this.doctorPatients = list;
+      } catch (err) {
+        console.error("Failed to load doctor roster", err);
+      }
+    }
+  }
 
   getInitials(name: string): string {
     if (!name) return 'GB';
@@ -2338,64 +2379,24 @@ struct DoctorDashboardView {
         cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK
       };
 
-      // Launch system camera picker (matching OCR Scan label camera picker flow)
       let pickerResult = await cameraPicker.pick(context, [cameraPicker.PickerMediaType.PHOTO], pickerProfile);
 
       if (pickerResult && pickerResult.resultUri) {
-        promptAction.showToast({ message: 'Processing QR code, please wait...' });
-
-        // Simulating matching & adding the new patient Bob Johnson
-        setTimeout(() => {
-          if (this.doctorPatients.findIndex(p => p.id === '3') === -1) {
-            this.doctorPatients.push({
-              id: '3',
-              name: 'Bob Johnson',
-              gender: 'Male',
-              bloodType: 'O+',
-              heartRate: 75,
-              oxygen: 98,
-              calories: 1320,
-              sleep: '6h 50m',
-              meds: 'Metoprolol (50mg)',
-              location: 'Mountain View • Live'
-            });
-            promptAction.showToast({ message: 'Successfully matched & linked with Bob Johnson!' });
-          } else {
-            promptAction.showToast({ message: 'Patient Bob Johnson is already linked.' });
-          }
-        }, 1200);
+        this.isLinkModalOpen = true;
       }
     } catch (e) {
-      // Fallback: Simulator mode when camera picker cannot launch on emulator environments
-      promptAction.showToast({ message: 'Simulator Mode: Loading camera...' });
-      setTimeout(() => {
-        if (this.doctorPatients.findIndex(p => p.id === '3') === -1) {
-          this.doctorPatients.push({
-            id: '3',
-            name: 'Bob Johnson',
-            gender: 'Male',
-            bloodType: 'O+',
-            heartRate: 75,
-            oxygen: 98,
-            calories: 1320,
-            sleep: '6h 50m',
-            meds: 'Metoprolol (50mg)',
-            location: 'Mountain View • Live'
-          });
-          promptAction.showToast({ message: 'Linked with Bob Johnson (Simulator Mode)' });
-        } else {
-          promptAction.showToast({ message: 'Patient Bob Johnson is already linked.' });
-        }
-      }, 1500);
+      promptAction.showToast({ message: 'Simulator Mode: Opening manual entry form...' });
+      this.isLinkModalOpen = true;
     }
   }
 
   build() {
-    Column() {
+    Stack() {
+      Column() {
       if (!this.isInspectorOpen) {
         // --- DOCTOR PORTAL DASHBOARD MAIN VIEW ---
         
-        AppHeader({ title: 'GuardianBand Home' })
+        AppHeader({ title: 'GuardianBand Home', onCameraClick: () => { this.scanPatientQr(); } })
           .margin({ bottom: 16 })
 
         Row() {
@@ -2829,7 +2830,92 @@ struct DoctorDashboardView {
           .width('100%')
         }
       }
-    }
-    .width('100%')
+    }.width('100%')
+
+    if (this.isLinkModalOpen) {
+        Column() {
+          Column() {
+            Text('Link Patient via QR / Manual Entry')
+              .fontSize(18)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#191C1D')
+              .margin({ bottom: 16 })
+
+            Text('Enter Patient Name')
+              .fontSize(12)
+              .fontColor('#737685')
+              .alignSelf(ItemAlign.Start)
+              .margin({ bottom: 4 })
+            TextInput({ placeholder: 'Bob Johnson', text: this.linkPatientName })
+              .width('100%')
+              .height(48)
+              .margin({ bottom: 12 })
+              .onChange((val) => this.linkPatientName = val)
+
+            Text('Enter Patient Phone Number')
+              .fontSize(12)
+              .fontColor('#737685')
+              .alignSelf(ItemAlign.Start)
+              .margin({ bottom: 4 })
+            TextInput({ placeholder: 'e.g. 1234 or +905321112233', text: this.linkPatientPhone })
+              .width('100%')
+              .height(48)
+              .margin({ bottom: 20 })
+              .onChange((val) => this.linkPatientPhone = val)
+
+            Row() {
+              Button('Cancel', { type: ButtonType.Normal })
+                .width(100)
+                .height(44)
+                .backgroundColor(Color.Transparent)
+                .fontColor('#737685')
+                .onClick(() => {
+                  this.isLinkModalOpen = false;
+                  this.linkPatientName = '';
+                  this.linkPatientPhone = '';
+                })
+
+              Blank()
+
+              Button('Link Patient', { type: ButtonType.Normal })
+                .width(130)
+                .height(44)
+                .backgroundColor('#003D9B')
+                .fontColor(Color.White)
+                .borderRadius(8)
+                .onClick(async () => {
+                  if (!this.linkPatientName || !this.linkPatientPhone) {
+                    promptAction.showToast({ message: 'Please fill in all fields' });
+                    return;
+                  }
+                  let token = AppStorage.get<string>('token') || '';
+                  if (token) {
+                    try {
+                      await ApiService.linkPatient(token, this.linkPatientPhone, this.linkPatientName, 'Physician');
+                      promptAction.showToast({ message: `Successfully linked with ${this.linkPatientName}!` });
+                      this.isLinkModalOpen = false;
+                      this.linkPatientName = '';
+                      this.linkPatientPhone = '';
+                      await this.loadDoctorPatients();
+                    } catch (e) {
+                      promptAction.showToast({ message: `Linking failed: ${(e as Error).message}` });
+                    }
+                  }
+                })
+            }.width('100%')
+          }.width('90%')
+          .padding(24)
+          .backgroundColor(Color.White)
+          .borderRadius(24)
+          .shadow({ radius: 24, color: 'rgba(0,0,0,0.15)' })
+        }.width('100%')
+        .height('100%')
+        .backgroundColor('rgba(0,0,0,0.4)')
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .position({ x: 0, y: 0 })
+      }
+    }.width('100%').height('100%')
   }
 }
+

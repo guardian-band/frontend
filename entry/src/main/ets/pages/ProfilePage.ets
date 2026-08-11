@@ -58,23 +58,63 @@ struct AddContactDialog {
         .fontColor('#191C1D')
         .margin({ bottom: 16 })
 
-      TextInput({ placeholder: 'First Name' })
+      Button('Select from Contacts')
+        .backgroundColor('rgba(0, 61, 155, 0.08)')
+        .fontColor('#003D9B')
+        .fontWeight(FontWeight.Bold)
+        .width('100%')
+        .height(44)
+        .borderRadius(12)
+        .margin({ bottom: 16 })
+        .onClick(() => {
+          promptAction.showActionMenu({
+            title: 'Select Contact',
+            showInSubWindow: false,
+            buttons: [
+              { text: 'Alice Green (+90 555 111 2233)', color: '#003D9B' },
+              { text: 'Bob Smith (+90 555 444 5566)', color: '#003D9B' },
+              { text: 'Charlie Brown (+90 555 777 8899)', color: '#003D9B' }
+            ]
+          }).then((data) => {
+            if (data.index === 0) {
+              this.firstName = 'Alice';
+              this.lastName = 'Green';
+              this.phoneNumber = '+905551112233';
+              this.relation = 'Mother';
+            } else if (data.index === 1) {
+              this.firstName = 'Bob';
+              this.lastName = 'Smith';
+              this.phoneNumber = '+905554445566';
+              this.relation = 'Father';
+            } else if (data.index === 2) {
+              this.firstName = 'Charlie';
+              this.lastName = 'Brown';
+              this.phoneNumber = '+905557778899';
+              this.relation = 'Brother';
+            }
+            promptAction.showToast({ message: 'Contact selected!' });
+          }).catch((err: Error) => {
+            console.error("ActionMenu error", err.message);
+          });
+        })
+
+      TextInput({ placeholder: 'First Name', text: this.firstName })
         .onChange((val: string) => this.firstName = val)
         .margin({ bottom: 12 })
         .backgroundColor('#F3F4F5')
 
-      TextInput({ placeholder: 'Last Name' })
+      TextInput({ placeholder: 'Last Name', text: this.lastName })
         .onChange((val: string) => this.lastName = val)
         .margin({ bottom: 12 })
         .backgroundColor('#F3F4F5')
 
-      TextInput({ placeholder: 'Phone Number' })
+      TextInput({ placeholder: 'Phone Number', text: this.phoneNumber })
         .type(InputType.PhoneNumber)
         .onChange((val: string) => this.phoneNumber = val)
         .margin({ bottom: 12 })
         .backgroundColor('#F3F4F5')
 
-      TextInput({ placeholder: 'Relationship / Title (e.g. Son, Security)' })
+      TextInput({ placeholder: 'Relationship / Title (e.g. Son, Security)', text: this.relation })
         .onChange((val: string) => this.relation = val)
         .margin({ bottom: 24 })
         .backgroundColor('#F3F4F5')
@@ -145,6 +185,7 @@ struct ProfilePage {
   };
 
   @StorageLink('userEmail') userEmail: string = '';
+  @StorageLink('userPhone') userPhone: string = '';
   @State showRoleSwitcher: boolean = false;
   @State expandedMedId: string = '';
   @State isMyQrModalOpen: boolean = false;
@@ -202,6 +243,7 @@ struct ProfilePage {
       'id': this.getPatientId(),
       'name': this.fullName,
       'email': this.userEmail || '',
+      'phone': this.userPhone || '',
       'bloodType': this.medicalProfile.bloodType || 'N/A',
       'allergies': this.medicalProfile.allergies || 'None',
       'diseases': this.medicalProfile.diseases || []

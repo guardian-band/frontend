@@ -30,23 +30,63 @@ struct AddContactDialog {
         .fontColor('#191C1D')
         .margin({ bottom: 16 })
 
-      TextInput({ placeholder: 'First Name' })
+      Button('Select from Contacts')
+        .backgroundColor('rgba(0, 61, 155, 0.08)')
+        .fontColor('#003D9B')
+        .fontWeight(FontWeight.Bold)
+        .width('100%')
+        .height(44)
+        .borderRadius(12)
+        .margin({ bottom: 16 })
+        .onClick(() => {
+          promptAction.showActionMenu({
+            title: 'Select Contact',
+            showInSubWindow: false,
+            buttons: [
+              { text: 'Alice Green (+90 555 111 2233)', color: '#003D9B' },
+              { text: 'Bob Smith (+90 555 444 5566)', color: '#003D9B' },
+              { text: 'Charlie Brown (+90 555 777 8899)', color: '#003D9B' }
+            ]
+          }).then((data) => {
+            if (data.index === 0) {
+              this.firstName = 'Alice';
+              this.lastName = 'Green';
+              this.phoneNumber = '+905551112233';
+              this.relation = 'Mother';
+            } else if (data.index === 1) {
+              this.firstName = 'Bob';
+              this.lastName = 'Smith';
+              this.phoneNumber = '+905554445566';
+              this.relation = 'Father';
+            } else if (data.index === 2) {
+              this.firstName = 'Charlie';
+              this.lastName = 'Brown';
+              this.phoneNumber = '+905557778899';
+              this.relation = 'Brother';
+            }
+            promptAction.showToast({ message: 'Contact selected!' });
+          }).catch((err: Error) => {
+            console.error("ActionMenu error", err.message);
+          });
+        })
+
+      TextInput({ placeholder: 'First Name', text: this.firstName })
         .onChange((val: string) => this.firstName = val)
         .margin({ bottom: 12 })
         .backgroundColor('#F3F4F5')
 
-      TextInput({ placeholder: 'Last Name' })
+      TextInput({ placeholder: 'Last Name', text: this.lastName })
         .onChange((val: string) => this.lastName = val)
         .margin({ bottom: 12 })
         .backgroundColor('#F3F4F5')
 
-      TextInput({ placeholder: 'Phone Number' })
+      TextInput({ placeholder: 'Phone Number', text: this.phoneNumber })
         .type(InputType.PhoneNumber)
         .onChange((val: string) => this.phoneNumber = val)
         .margin({ bottom: 12 })
         .backgroundColor('#F3F4F5')
 
-      TextInput({ placeholder: 'Relationship / Title (e.g. Son, Security)' })
+      TextInput({ placeholder: 'Relationship / Title (e.g. Son, Security)', text: this.relation })
         .onChange((val: string) => this.relation = val)
         .margin({ bottom: 24 })
         .backgroundColor('#F3F4F5')
@@ -163,6 +203,7 @@ struct PatientSOSView {
   @State countdown: number = 5;
   @State sosSent: boolean = false;
   @State intervalId: number = -1;
+  @State activeIncidentId: string = '';
 
   @State locationAddress: string = 'Locating...';
   @State locationAccuracy: string = 'Calculating...';
@@ -233,52 +274,40 @@ struct PatientSOSView {
     }
   }
 
-  // Handle the SOS button press and hold logic
+  // Handle the SOS button press and hold logic (Now instant trigger)
   handleTouch(event: TouchEvent) {
     if (this.sosSent) return;
 
     if (event.type === TouchType.Down) {
-      this.isPressing = true;
-      this.countdown = 5;
-
-      this.intervalId = setInterval(() => {
-        this.countdown--;
-        if (this.countdown <= 0) {
-          this.clearTimer();
-          this.sosSent = true;
-          this.isPressing = false;
-          promptAction.showToast({ message: 'EMERGENCY ALERT BROADCASTED TO ALL CONTACTS!' });
-
-          // NEW: Silently trigger the SOS incident on the backend API
-          // This ensures the backend knows about the emergency without interrupting the UI
-          let token = AppStorage.get<string>('token') || '';
-          if (token) {
-            // Attempt to parse the latitude and longitude from the string, or use mock coordinates
-            let lat = 37.4275; // Fallback mock latitude
-            let lng = -122.1697; // Fallback mock longitude
-            try {
-              if (this.locationAddress.includes('Lat:')) {
-                const parts = this.locationAddress.split(',');
-                lat = parseFloat(parts[0].replace('Lat:', '').trim());
-                lng = parseFloat(parts[1].replace('Lng:', '').trim());
-              }
-            } catch (e) {
-              console.error("Could not parse coordinates", e);
-            }
-
-            // Clean the accuracy string (e.g., "3.0m" -> 3.0)
-            let accuracy = parseFloat(this.locationAccuracy.replace('m', '').trim()) || 0;
-
-            ApiService.triggerSOS(token, lat, lng, accuracy, this.locationAddress)
-              .catch((err: Error) => console.error("Background SOS trigger error: ", err.message));
-          }
-        }
-      }, 400);
-
-    } else if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
-      this.clearTimer();
+      this.sosSent = true;
       this.isPressing = false;
-      this.countdown = 5;
+      promptAction.showToast({ message: 'EMERGENCY ALERT BROADCASTED TO ALL CONTACTS!' });
+
+      // Trigger the SOS incident on the backend API instantly
+      let token = AppStorage.get<string>('token') || '';
+      if (token) {
+        // Attempt to parse the latitude and longitude from the string, or use mock coordinates
+        let lat = 37.4275; // Fallback mock latitude
+        let lng = -122.1697; // Fallback mock longitude
+        try {
+          if (this.locationAddress.includes('Lat:')) {
+            const parts = this.locationAddress.split(',');
+            lat = parseFloat(parts[0].replace('Lat:', '').trim());
+            lng = parseFloat(parts[1].replace('Lng:', '').trim());
+          }
+        } catch (e) {
+          console.error("Could not parse coordinates", e);
+        }
+
+        // Clean the accuracy string (e.g., "3.0m" -> 3.0)
+        let accuracy = parseFloat(this.locationAccuracy.replace('m', '').trim()) || 0;
+
+        ApiService.triggerSOS(token, lat, lng, accuracy, this.locationAddress)
+          .then((incidentId: string) => {
+            this.activeIncidentId = incidentId;
+          })
+          .catch((err: Error) => console.error("Background SOS trigger error: ", err.message));
+      }
     }
   }
 
@@ -353,7 +382,7 @@ struct PatientSOSView {
                 .fontSize(44)
                 .margin({ bottom: 8 })
 
-              Text('HOLD TO SEND')
+              Text('TAP TO SEND')
                 .fontSize(14)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(Color.White)
@@ -587,10 +616,21 @@ struct PatientSOSView {
       .backgroundColor('rgba(186, 26, 26, 0.08)')
       .borderRadius(16)
       .onClick(() => {
+        let token = AppStorage.get<string>('token') || '';
+        if (token && this.activeIncidentId) {
+          ApiService.sendSOSAllClear(token, this.activeIncidentId)
+            .then(() => {
+              promptAction.showToast({ message: 'All-clear notification sent to contacts!' });
+            })
+            .catch((err: Error) => {
+              promptAction.showToast({ message: 'Could not send all-clear: ' + err.message });
+            });
+        }
         this.sosSent = false;
         this.isPressing = false;
         this.countdown = 5;
         this.clearTimer();
+        this.activeIncidentId = '';
         promptAction.showToast({ message: 'SOS request cancelled.' });
       })
     }

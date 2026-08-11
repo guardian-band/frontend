@@ -3,6 +3,7 @@ import { router } from '@kit.ArkUI';
 @Component
 export struct AppHeader {
   @Prop title: string = '';
+  onCameraClick: () => void = () => {};
 
   build() {
     Row() {
@@ -37,6 +38,21 @@ export struct AppHeader {
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
+
+      // Quick Access Emergency Camera / QR Scan Button
+      Row() {
+        Text('📷')
+          .fontSize(20)
+      }
+      .width(44)
+      .height(44)
+      .backgroundColor('rgba(0, 61, 155, 0.08)')
+      .borderRadius(22)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(VerticalAlign.Center)
+      .onClick(() => {
+        this.onCameraClick();
+      })
     }
     .width('100%')
     .margin({ top: 0, bottom: 5 })
