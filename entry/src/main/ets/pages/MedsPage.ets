@@ -1,12 +1,26 @@
 import { router, promptAction } from '@kit.ArkUI';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
+import { SafetyAnalysisCard, AnalysisResult } from '../components/SafetyAnalysisCard';
 import { cameraPicker, camera } from '@kit.CameraKit';
 import { textRecognition } from '@kit.CoreVisionKit';
 import { image } from '@kit.ImageKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { ApiService } from '../services/ApiService'; // IMPORT: Required for background uploads
+
+export interface MedicalProfile {
+  gender?: string;
+  birthDate?: string;
+  height?: number;
+  weight?: number;
+  bloodType?: string;
+  diseases?: string[];
+  otherChronicDisease?: string;
+  allergies?: string;
+  pacemaker?: boolean;
+  hearingAid?: boolean;
+}
 
 interface MedTime {
   slot: string; // 'Morning', 'Afternoon', 'Evening'
@@ -41,6 +55,24 @@ struct MedsPage {
   private modalScroller: Scroller = new Scroller();
 
   @StorageLink('medications') medications: Array<MedicationItem> = [];
+  @StorageLink('medicalProfile') medicalProfile: MedicalProfile | undefined = undefined;
+  // MOCK STATE FOR AI BODY ANALYSIS
+  @State currentAnalysisIndex: number = 0;
+  private mockAnalyses: AnalysisResult[] = [
+    {
+      overallStatus: 'medium',
+      message: 'Moderate risk of stomach irritation detected. Please review the details below.',
+      organs: [
+        { 
+          organId: 'stomach', 
+          riskLevel: 'low',
+          culpritMeds: ['Aspirin', 'Ibuprofen'],
+          detailMessage: 'Taking these two medications together can increase stomach acid and lead to mild irritation. It is strongly advised to take them after a full meal and drink plenty of water.'
+        }
+      ]
+    }
+  ];
+  @State currentAnalysis: AnalysisResult = this.mockAnalyses[0];
 
   aboutToAppear() {
     if (this.userRole !== 'patient') {
@@ -307,8 +339,17 @@ struct MedsPage {
         AppHeader({ title: 'Medication Schedule' })
           .margin({ bottom: 12 })
 
+        // --------------------------------
+
         Scroll(this.scroller) {
           Column() {
+            // --- Safety (Side Effect Analysis) Section ---
+            SafetyAnalysisCard({ 
+              analysisResult: this.currentAnalysis, 
+              userGender: (this.medicalProfile?.gender || 'Female').toLowerCase() 
+            })
+              .margin({ left: 12, right: 12, bottom: 8 })
+            
             // Empty State
             if (this.medications.length === 0) {
               Column() {
