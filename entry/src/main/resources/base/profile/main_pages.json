@@ -9,6 +9,7 @@
     "pages/MedsPage",
     "pages/ProfileSetupPage",
     "pages/SOSPage",
-    "pages/ProfilePage"
+    "pages/ProfilePage",
+    "pages/CameraPage"
   ]
 }

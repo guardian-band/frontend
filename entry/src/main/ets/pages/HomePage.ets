@@ -1,12 +1,28 @@
 // HomePage.ets
 import { router, promptAction } from '@kit.ArkUI';
-import { ApiService } from '../services/ApiService';
+import { ApiService, ClinicianPatient } from '../services/ApiService';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { geoLocationManager } from '@kit.LocationKit';
 import { camera, cameraPicker } from '@kit.CameraKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+
+interface ScannedPatientVitals {
+  heartRate?: string;
+  oxygen?: string;
+  location?: string;
+}
+
+interface ScannedPatient {
+  id: string;
+  name: string;
+  email: string;
+  bloodType: string;
+  allergies: string;
+  diseases: Array<string>;
+  vitals?: ScannedPatientVitals;
+}
 
 interface MedicationItem {
   id: string;
@@ -49,6 +65,15 @@ struct HomePage {
   @StorageLink('previousRole') previousRole: string = 'patient';
   @State isDoctorVerificationModalOpen: boolean = false;
   @State enteredVerificationCode: string = '';
+  @State isScannedPatientModalOpen: boolean = false;
+  @State scannedPatientInfo: ScannedPatient = {
+    id: '',
+    name: '',
+    email: '',
+    bloodType: '',
+    allergies: '',
+    diseases: []
+  };
 
   @State isQrModalOpen: boolean = false;
   @State isQrScanning: boolean = false;
@@ -57,26 +82,8 @@ struct HomePage {
   private scanIntervalId: number = -1;
 
   async startQrScanner() {
-    promptAction.showToast({ message: 'Opening camera...', duration: 800 });
-
     try {
-      const context = getContext(this) as common.UIAbilityContext;
-
-      let pickerProfile: cameraPicker.PickerProfile = {
-        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK
-      };
-
-      // Launch the real system Camera Picker (matching meds page scanner logic!)
-      let pickerResult = await cameraPicker.pick(context, [cameraPicker.PickerMediaType.PHOTO], pickerProfile);
-
-      if (pickerResult && pickerResult.resultUri) {
-        promptAction.showToast({ message: 'Processing QR code, please wait...' });
-        
-        // Simulating QR code decoding from the captured smartwatch photo
-        setTimeout(() => {
-          this.handleScanSuccess();
-        }, 1000);
-      }
+      router.pushUrl({ url: 'pages/CameraPage' });
     } catch (e) {
       // Fallback for emulator environments
       this.launchFallbackScanner();
@@ -109,14 +116,80 @@ struct HomePage {
 
   handleScanSuccess() {
     clearInterval(this.scanIntervalId);
-    this.showTelemetryResult = true;
-    promptAction.showToast({ message: 'Vitals telemetry scanned successfully!' });
+    this.isQrModalOpen = false;
+    this.showTelemetryResult = false;
+    let mockVitals: ScannedPatientVitals = {
+      heartRate: '135 bpm (High!)',
+      oxygen: '94% (Low Alert)',
+      location: 'Palo Alto, Live'
+    };
+    this.scannedPatientInfo = {
+      id: 'GP-8321-2026',
+      name: 'John Doe (Father)',
+      email: 'john.doe@example.com',
+      bloodType: 'A-',
+      allergies: 'None',
+      diseases: ['Diabetes', 'Hypertension'],
+      vitals: mockVitals
+    };
+    this.isScannedPatientModalOpen = true;
   }
 
   closeQrScanner() {
     clearInterval(this.scanIntervalId);
     this.isQrModalOpen = false;
     this.showTelemetryResult = false;
+  }
+
+  onPageShow() {
+    let scannedResult = AppStorage.get<string>('scannedQrResult');
+    if (scannedResult) {
+      console.info('[HomePage] Scanned QR Result retrieved: ' + scannedResult);
+
+      let isWatchScan = AppStorage.get<boolean>('doctorIsWatchScan') || false;
+
+      if (this.userRole === 'doctor' && !isWatchScan) {
+        // Doctor "Match Patient" scan → link to roster
+        AppStorage.setOrCreate('scannedPatientLinkRequest', scannedResult);
+      } else {
+        // Patient / Family / Doctor "Emergency Watch Scanner" → show patient info popup
+        AppStorage.setOrCreate('doctorIsWatchScan', false);
+        try {
+          let parsed = JSON.parse(scannedResult) as ScannedPatient;
+          let defaultVitals: ScannedPatientVitals = {
+            heartRate: '135 bpm (High!)',
+            oxygen: '94% (Low Alert)',
+            location: 'Palo Alto, Live'
+          };
+          this.scannedPatientInfo = {
+            id: parsed.id || 'GP-8321-2026',
+            name: parsed.name || 'John Doe',
+            email: parsed.email || '',
+            bloodType: parsed.bloodType || 'A-',
+            allergies: parsed.allergies || 'None',
+            diseases: parsed.diseases || [],
+            vitals: parsed.vitals || defaultVitals
+          };
+        } catch (e) {
+          let fallbackVitals: ScannedPatientVitals = {
+            heartRate: '135 bpm (High!)',
+            oxygen: '94% (Low Alert)',
+            location: 'Palo Alto, Live'
+          };
+          this.scannedPatientInfo = {
+            id: 'GP-8321-2026',
+            name: 'John Doe',
+            email: 'john.doe@example.com',
+            bloodType: 'A-',
+            allergies: 'None',
+            diseases: ['Diabetes', 'Hypertension'],
+            vitals: fallbackVitals
+          };
+        }
+        this.isScannedPatientModalOpen = true;
+      }
+      AppStorage.setOrCreate('scannedQrResult', '');
+    }
   }
 
   aboutToAppear() {
@@ -176,6 +249,7 @@ struct HomePage {
       .scrollBar(BarState.Off)
       .width('100%')
       .height('100%')
+      .padding({ bottom: 80 })
 
       BottomNavBar({ activeTab: 'home' })
         .zIndex(1)
@@ -533,6 +607,222 @@ struct HomePage {
         .width('100%')
         .height('100%')
         .zIndex(20)
+      }
+
+      // Centered Pop-up Modal for Scanned Patient Details (List style)
+      if (this.isScannedPatientModalOpen) {
+        Stack() {
+          // Dark background overlay
+          Column()
+            .width('100%')
+            .height('100%')
+            .backgroundColor('rgba(0, 0, 0, 0.6)')
+            .onClick(() => {
+              this.isScannedPatientModalOpen = false;
+            })
+
+          // Modal Card
+          Column() {
+            // Header
+            Row() {
+              Image($r('app.media.alert'))
+                .width(24)
+                .height(24)
+                .margin({ right: 8 })
+              
+              Text('Emergency Patient Vitals')
+                .fontSize(18)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#BA1A1A')
+              
+              Blank()
+              
+              Text('✕')
+                .fontSize(20)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#737685')
+                .onClick(() => {
+                  this.isScannedPatientModalOpen = false;
+                })
+            }
+            .width('100%')
+            .margin({ bottom: 20 })
+
+            // Highlight Header Info Card
+            Row() {
+              Row() {
+                Text(this.scannedPatientInfo.name ? this.scannedPatientInfo.name.substring(0, 2).toUpperCase() : 'PT')
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(Color.White)
+              }
+              .width(44)
+              .height(44)
+              .borderRadius(22)
+              .backgroundColor('#BA1A1A')
+              .justifyContent(FlexAlign.Center)
+              .alignItems(VerticalAlign.Center)
+              .margin({ right: 12 })
+
+              Column() {
+                Text(this.scannedPatientInfo.name || 'Unknown Patient')
+                  .fontSize(16)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#191C1D')
+                  .margin({ bottom: 2 })
+
+                Text(`ID: ${this.scannedPatientInfo.id || 'GP-XXXX-XXXX'}`)
+                  .fontSize(12)
+                  .fontColor('#737685')
+              }
+              .alignItems(HorizontalAlign.Start)
+            }
+            .width('100%')
+            .padding(12)
+            .backgroundColor('#FFEBEA')
+            .borderRadius(16)
+            .margin({ bottom: 20 })
+
+            // List Details
+            Column() {
+              // Blood Type Row
+              Row() {
+                Text('Blood Type')
+                  .fontSize(14)
+                  .fontColor('#737685')
+                  .layoutWeight(1)
+                Text(this.scannedPatientInfo.bloodType || 'Not Specified')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#191C1D')
+              }
+              .width('100%')
+              .padding({ top: 12, bottom: 12 })
+              .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+              // Allergies Row
+              Row() {
+                Text('Allergies')
+                  .fontSize(14)
+                  .fontColor('#737685')
+                  .layoutWeight(1)
+                Text(this.scannedPatientInfo.allergies || 'None')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#191C1D')
+              }
+              .width('100%')
+              .padding({ top: 12, bottom: 12 })
+              .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+              // Chronic Conditions Row
+              Row() {
+                Text('Chronic Conditions')
+                  .fontSize(14)
+                  .fontColor('#737685')
+                  .layoutWeight(1)
+                Text(this.scannedPatientInfo.diseases && this.scannedPatientInfo.diseases.length > 0 ? this.scannedPatientInfo.diseases.join(', ') : 'None')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#BA1A1A')
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .textAlign(TextAlign.End)
+              }
+              .width('100%')
+              .padding({ top: 12, bottom: 12 })
+              .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+              // Heart Rate Row
+              Row() {
+                Text('Heart Rate')
+                  .fontSize(14)
+                  .fontColor('#737685')
+                  .layoutWeight(1)
+                Text(this.scannedPatientInfo.vitals?.heartRate || '72 bpm')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(this.scannedPatientInfo.vitals?.heartRate && this.scannedPatientInfo.vitals.heartRate.includes('High') ? '#BA1A1A' : '#003D9B')
+              }
+              .width('100%')
+              .padding({ top: 12, bottom: 12 })
+              .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+              // Oxygen Saturation Row
+              Row() {
+                Text('Oxygen Saturation')
+                  .fontSize(14)
+                  .fontColor('#737685')
+                  .layoutWeight(1)
+                Text(this.scannedPatientInfo.vitals?.oxygen || '98%')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(this.scannedPatientInfo.vitals?.oxygen && this.scannedPatientInfo.vitals.oxygen.includes('Low') ? '#854E00' : '#006E2F')
+              }
+              .width('100%')
+              .padding({ top: 12, bottom: 12 })
+              .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+              // Location Row
+              Row() {
+                Text('Last Location')
+                  .fontSize(14)
+                  .fontColor('#737685')
+                  .layoutWeight(1)
+                Text(this.scannedPatientInfo.vitals?.location || 'Palo Alto, Live')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#191C1D')
+                  .textAlign(TextAlign.End)
+              }
+              .width('100%')
+              .padding({ top: 12, bottom: 12 })
+            }
+            .width('100%')
+            .padding({ left: 16, right: 16 })
+            .backgroundColor(Color.White)
+            .borderRadius(16)
+            .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
+            .margin({ bottom: 24 })
+
+            // Actions Row
+            Row() {
+              Button('Call Emergency', { type: ButtonType.Normal })
+                .layoutWeight(1)
+                .height(44)
+                .backgroundColor('rgba(186, 26, 26, 0.08)')
+                .fontColor('#BA1A1A')
+                .fontWeight(FontWeight.Bold)
+                .borderRadius(12)
+                .margin({ right: 12 })
+                .onClick(() => {
+                  promptAction.showToast({ message: 'Calling emergency contacts...' });
+                })
+
+              Button('Dismiss', { type: ButtonType.Normal })
+                .layoutWeight(1)
+                .height(44)
+                .backgroundColor('#003D9B')
+                .fontColor(Color.White)
+                .fontWeight(FontWeight.Bold)
+                .borderRadius(12)
+                .onClick(() => {
+                  this.isScannedPatientModalOpen = false;
+                })
+            }
+            .width('100%')
+          }
+          .width('90%')
+          .padding(24)
+          .backgroundColor(Color.White)
+          .borderRadius(24)
+          .shadow({ radius: 16, color: 'rgba(0,0,0,0.15)', offsetY: 8 })
+          .zIndex(20)
+        }
+        .width('100%')
+        .height('100%')
+        .position({ x: 0, y: 0 })
+        .zIndex(150)
       }
     }
     .width('100%')
@@ -2312,10 +2602,16 @@ struct DoctorDashboardView {
   @State isInspectorOpen: boolean = false;
   onQrScanClick: () => void = () => {};
   @StorageLink('profilePicture') profilePicture: string = '';
+  @StorageLink('scannedPatientLinkRequest') @Watch('onLinkRequestChanged') scannedPatientLinkRequest: string = '';
+  @StorageLink('doctorWatchScanResult') @Watch('onWatchScanResultChanged') doctorWatchScanResult: string = '';
 
   @State isLinkModalOpen: boolean = false;
   @State linkPatientPhone: string = '';
   @State linkPatientName: string = '';
+  @State isDoctorWatchPopupOpen: boolean = false;
+  @State doctorWatchPatientInfo: ScannedPatient = {
+    id: '', name: '', email: '', bloodType: '', allergies: '', diseases: []
+  };
 
   aboutToAppear() {
     this.loadDoctorPatients();
@@ -2326,6 +2622,17 @@ struct DoctorDashboardView {
     if (token) {
       try {
         let backendPatients = await ApiService.getClinicianPatients(token);
+        
+        if (ApiService.MOCK_MODE) {
+          let mockListStr = AppStorage.get<string>('mockLinkedPatients') || '[]';
+          let localMockList = JSON.parse(mockListStr) as ClinicianPatient[];
+          for (let lp of localMockList) {
+            if (!backendPatients.some(bp => bp.patientId === lp.patientId)) {
+              backendPatients.push(lp);
+            }
+          }
+        }
+
         let list: MonitoredPatient[] = [];
         for (let bp of backendPatients) {
           let heart = 75;
@@ -2369,21 +2676,116 @@ struct DoctorDashboardView {
     return name.substring(0, Math.min(2, name.length)).toUpperCase();
   }
 
-  async scanPatientQr() {
-    promptAction.showToast({ message: 'Opening camera...', duration: 800 });
+  async onWatchScanResultChanged() {
+    if (!this.doctorWatchScanResult) return;
+    let scanned = this.doctorWatchScanResult;
+    AppStorage.setOrCreate('doctorWatchScanResult', '');
+    try {
+      let parsed = JSON.parse(scanned) as ScannedPatient;
+      let fallbackVitals: ScannedPatientVitals = {
+        heartRate: '135 bpm (High!)',
+        oxygen: '94% (Low Alert)',
+        location: 'Palo Alto, Live'
+      };
+      this.doctorWatchPatientInfo = {
+        id: parsed.id || 'GP-8321-2026',
+        name: parsed.name || 'John Doe',
+        email: parsed.email || '',
+        bloodType: parsed.bloodType || 'A-',
+        allergies: parsed.allergies || 'None',
+        diseases: parsed.diseases || [],
+        vitals: parsed.vitals || fallbackVitals
+      };
+    } catch (e) {
+      let fallbackVitals: ScannedPatientVitals = {
+        heartRate: '135 bpm (High!)',
+        oxygen: '94% (Low Alert)',
+        location: 'Palo Alto, Live'
+      };
+      this.doctorWatchPatientInfo = {
+        id: 'GP-8321-2026',
+        name: 'John Doe',
+        email: 'john.doe@example.com',
+        bloodType: 'A-',
+        allergies: 'None',
+        diseases: ['Diabetes', 'Hypertension'],
+        vitals: fallbackVitals
+      };
+    }
+    this.isDoctorWatchPopupOpen = true;
+  }
+
+  async onLinkRequestChanged() {
+    if (!this.scannedPatientLinkRequest) return;
+    
+    let scanned = this.scannedPatientLinkRequest;
+    AppStorage.setOrCreate('scannedPatientLinkRequest', '');
 
     try {
-      const context = getContext(this) as common.UIAbilityContext;
+      let parsed = JSON.parse(scanned) as ScannedPatient;
+      let patientName = parsed.name || 'Unknown Patient';
+      let patientPhone = parsed.email || 'scanned-patient';
 
-      let pickerProfile: cameraPicker.PickerProfile = {
-        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK
-      };
+      promptAction.showToast({ message: `Linking with patient ${patientName}...` });
 
-      let pickerResult = await cameraPicker.pick(context, [cameraPicker.PickerMediaType.PHOTO], pickerProfile);
-
-      if (pickerResult && pickerResult.resultUri) {
-        this.isLinkModalOpen = true;
+      let token = AppStorage.get<string>('token') || '';
+      if (token) {
+        await ApiService.linkPatient(token, patientPhone, patientName, 'Physician');
+        
+        if (ApiService.MOCK_MODE) {
+          let mockList = AppStorage.get<string>('mockLinkedPatients') || '[]';
+          let list: ClinicianPatient[] = JSON.parse(mockList) as ClinicianPatient[];
+          
+          if (!list.some(p => p.patientId === parsed.id)) {
+            list.push({
+              id: (list.length + 3).toString(),
+              patientId: parsed.id || 'p' + (list.length + 3),
+              name: patientName,
+              relationship: 'Physician',
+              bloodType: parsed.bloodType || 'A-',
+              birthDate: '1980-01-01'
+            });
+            AppStorage.setOrCreate('mockLinkedPatients', JSON.stringify(list));
+          }
+        }
+        
+        await this.loadDoctorPatients();
+        promptAction.showToast({ message: `Successfully linked with ${patientName}!` });
       }
+    } catch (e) {
+      console.error("Link request failed", e);
+      promptAction.showToast({ message: `Linking failed: ${(e as Error).message}` });
+    }
+  }
+
+  async scanWatchQr() {
+    AppStorage.setOrCreate('doctorIsWatchScan', true);
+    try {
+      router.pushUrl({ url: 'pages/CameraPage' });
+    } catch (e) {
+      // Fallback: show mock patient info directly
+      AppStorage.setOrCreate('doctorIsWatchScan', false);
+      let fallbackVitals: ScannedPatientVitals = {
+        heartRate: '135 bpm (High!)',
+        oxygen: '94% (Low Alert)',
+        location: 'Palo Alto, Live'
+      };
+      this.doctorWatchPatientInfo = {
+        id: 'GP-8321-2026',
+        name: 'John Doe',
+        email: 'john.doe@example.com',
+        bloodType: 'A-',
+        allergies: 'None',
+        diseases: ['Diabetes', 'Hypertension'],
+        vitals: fallbackVitals
+      };
+      this.isDoctorWatchPopupOpen = true;
+    }
+  }
+
+  async scanPatientQr() {
+    try {
+      router.pushUrl({ url: 'pages/CameraPage' });
     } catch (e) {
       promptAction.showToast({ message: 'Simulator Mode: Opening manual entry form...' });
       this.isLinkModalOpen = true;
@@ -2479,7 +2881,7 @@ struct DoctorDashboardView {
             .backgroundColor('#003D9B')
             .borderRadius(8)
             .onClick(() => {
-              this.onQrScanClick();
+              this.scanWatchQr();
             })
         }
         .width('100%')
@@ -2612,6 +3014,8 @@ struct DoctorDashboardView {
             this.isInspectorOpen = true;
           })
         }, (item: MonitoredPatient) => item.id)
+
+        // Spacer absorbed into Column padding — removed Blank() to avoid double spacing
 
       } else {
         // --- PATIENT VITALS INSPECTOR (DETAIL VIEW) ---
@@ -2828,9 +3232,129 @@ struct DoctorDashboardView {
             .margin({ bottom: 20 })
           }
           .width('100%')
+          .padding({ bottom: 110 })
         }
       }
     }.width('100%')
+
+    // Emergency Watch Scanner patient info popup (doctor role)
+    if (this.isDoctorWatchPopupOpen) {
+      Stack() {
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor('rgba(0, 0, 0, 0.6)')
+          .onClick(() => { this.isDoctorWatchPopupOpen = false; })
+
+        Column() {
+          Row() {
+            Image($r('app.media.alert'))
+              .width(24).height(24).margin({ right: 8 })
+            Text('Emergency Patient Vitals')
+              .fontSize(18).fontWeight(FontWeight.Bold).fontColor('#BA1A1A')
+            Blank()
+            Text('✕')
+              .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#737685')
+              .onClick(() => { this.isDoctorWatchPopupOpen = false; })
+          }
+          .width('100%').margin({ bottom: 20 })
+
+          Row() {
+            Row() {
+              Text(this.doctorWatchPatientInfo.name ? this.doctorWatchPatientInfo.name.substring(0, 2).toUpperCase() : 'PT')
+                .fontSize(16).fontWeight(FontWeight.Bold).fontColor(Color.White)
+            }
+            .width(44).height(44).borderRadius(22).backgroundColor('#BA1A1A')
+            .justifyContent(FlexAlign.Center).alignItems(VerticalAlign.Center).margin({ right: 12 })
+
+            Column() {
+              Text(this.doctorWatchPatientInfo.name || 'Unknown Patient')
+                .fontSize(16).fontWeight(FontWeight.Bold).fontColor('#191C1D').margin({ bottom: 2 })
+              Text(`ID: ${this.doctorWatchPatientInfo.id || 'GP-XXXX-XXXX'}`)
+                .fontSize(12).fontColor('#737685')
+            }
+            .alignItems(HorizontalAlign.Start)
+          }
+          .width('100%').padding(12).backgroundColor('#FFEBEA').borderRadius(16).margin({ bottom: 20 })
+
+          Column() {
+            Row() {
+              Text('Blood Type').fontSize(14).fontColor('#737685').layoutWeight(1)
+              Text(this.doctorWatchPatientInfo.bloodType || 'N/A')
+                .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#191C1D')
+            }
+            .width('100%').padding({ top: 12, bottom: 12 })
+            .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+            Row() {
+              Text('Allergies').fontSize(14).fontColor('#737685').layoutWeight(1)
+              Text(this.doctorWatchPatientInfo.allergies || 'None')
+                .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#191C1D')
+            }
+            .width('100%').padding({ top: 12, bottom: 12 })
+            .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+            Row() {
+              Text('Chronic Conditions').fontSize(14).fontColor('#737685').layoutWeight(1)
+              Text(this.doctorWatchPatientInfo.diseases && this.doctorWatchPatientInfo.diseases.length > 0
+                ? this.doctorWatchPatientInfo.diseases.join(', ') : 'None')
+                .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#BA1A1A')
+                .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).textAlign(TextAlign.End)
+            }
+            .width('100%').padding({ top: 12, bottom: 12 })
+            .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+            Row() {
+              Text('Heart Rate').fontSize(14).fontColor('#737685').layoutWeight(1)
+              Text(this.doctorWatchPatientInfo.vitals?.heartRate || '72 bpm')
+                .fontSize(14).fontWeight(FontWeight.Bold)
+                .fontColor(this.doctorWatchPatientInfo.vitals?.heartRate &&
+                  this.doctorWatchPatientInfo.vitals.heartRate.includes('High') ? '#BA1A1A' : '#003D9B')
+            }
+            .width('100%').padding({ top: 12, bottom: 12 })
+            .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+            Row() {
+              Text('Oxygen Saturation').fontSize(14).fontColor('#737685').layoutWeight(1)
+              Text(this.doctorWatchPatientInfo.vitals?.oxygen || '98%')
+                .fontSize(14).fontWeight(FontWeight.Bold)
+                .fontColor(this.doctorWatchPatientInfo.vitals?.oxygen &&
+                  this.doctorWatchPatientInfo.vitals.oxygen.includes('Low') ? '#854E00' : '#006E2F')
+            }
+            .width('100%').padding({ top: 12, bottom: 12 })
+            .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+            Row() {
+              Text('Last Location').fontSize(14).fontColor('#737685').layoutWeight(1)
+              Text(this.doctorWatchPatientInfo.vitals?.location || 'Palo Alto, Live')
+                .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#191C1D').textAlign(TextAlign.End)
+            }
+            .width('100%').padding({ top: 12, bottom: 12 })
+          }
+          .width('100%').padding({ left: 16, right: 16 })
+          .backgroundColor(Color.White).borderRadius(16)
+          .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' }).margin({ bottom: 24 })
+
+          Row() {
+            Button('Call Emergency', { type: ButtonType.Normal })
+              .layoutWeight(1).height(44)
+              .backgroundColor('rgba(186, 26, 26, 0.08)').fontColor('#BA1A1A')
+              .fontWeight(FontWeight.Bold).borderRadius(12).margin({ right: 12 })
+              .onClick(() => { promptAction.showToast({ message: 'Calling emergency contacts...' }); })
+
+            Button('Dismiss', { type: ButtonType.Normal })
+              .layoutWeight(1).height(44)
+              .backgroundColor('#003D9B').fontColor(Color.White)
+              .fontWeight(FontWeight.Bold).borderRadius(12)
+              .onClick(() => { this.isDoctorWatchPopupOpen = false; })
+          }
+          .width('100%')
+        }
+        .width('90%').padding(24).backgroundColor(Color.White)
+        .borderRadius(24).shadow({ radius: 16, color: 'rgba(0,0,0,0.15)', offsetY: 8 }).zIndex(20)
+      }
+      .width('100%').height('100%').position({ x: 0, y: 0 }).zIndex(150)
+    }
 
     if (this.isLinkModalOpen) {
         Column() {
@@ -2915,7 +3439,7 @@ struct DoctorDashboardView {
         .alignItems(HorizontalAlign.Center)
         .position({ x: 0, y: 0 })
       }
-    }.width('100%').height('100%')
+    }.width('100%')
   }
 }
 
