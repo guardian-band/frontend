@@ -3,6 +3,10 @@ import { BottomNavBar } from '../components/BottomNavBar';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { contact } from '@kit.ContactsKit';
 
+interface ContactWithDisplayName {
+  displayName: string;
+}
+
 interface MedTime {
   slot: string;
   specificTime: string;
@@ -79,8 +83,9 @@ struct AddContactDialog {
                 if (selected.name) {
                   displayName = selected.name.fullName || '';
                 }
-                if (!displayName && (selected as any).displayName) {
-                  displayName = (selected as any).displayName;
+                let selectedWithDisplayName = selected as ContactWithDisplayName;
+                if (!displayName && selectedWithDisplayName.displayName) {
+                  displayName = selectedWithDisplayName.displayName;
                 }
                 if (!displayName) {
                   displayName = 'Unknown Contact';

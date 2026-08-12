@@ -6,6 +6,10 @@ import { geoLocationManager } from '@kit.LocationKit';
 import { abilityAccessCtrl, common } from '@kit.AbilityKit';
 import { ApiService } from '../services/ApiService'; // IMPORT: Required for background SOS trigger
 
+interface ContactWithDisplayName {
+  displayName: string;
+}
+
 interface EmergencyContact {
   id: string;
   fullName: string;
@@ -51,8 +55,9 @@ struct AddContactDialog {
                 if (selected.name) {
                   displayName = selected.name.fullName || '';
                 }
-                if (!displayName && (selected as any).displayName) {
-                  displayName = (selected as any).displayName;
+                let selectedWithDisplayName = selected as ContactWithDisplayName;
+                if (!displayName && selectedWithDisplayName.displayName) {
+                  displayName = selectedWithDisplayName.displayName;
                 }
                 if (!displayName) {
                   displayName = 'Unknown Contact';
@@ -175,8 +180,10 @@ struct SOSPage {
             DoctorSOSView()
           }
 
-          Blank().height(100) // Spacer for bottom nav}.width('100%')
-        .padding({ left: 24, right: 24, top: 20 })}.scrollBar(BarState.Off)
+          Blank().height(100) // Spacer for bottom nav
+        }.width('100%')
+        .padding({ left: 24, right: 24, top: 20 })
+      }.scrollBar(BarState.Off)
       .width('100%')
       .height('100%')
 
