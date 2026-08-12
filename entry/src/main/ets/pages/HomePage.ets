@@ -2623,7 +2623,7 @@ struct DoctorDashboardView {
       try {
         let backendPatients = await ApiService.getClinicianPatients(token);
         
-        if (ApiService.MOCK_MODE) {
+        if (ApiService.isMockMode()) {
           let mockListStr = AppStorage.get<string>('mockLinkedPatients') || '[]';
           let localMockList = JSON.parse(mockListStr) as ClinicianPatient[];
           for (let lp of localMockList) {
@@ -2732,7 +2732,7 @@ struct DoctorDashboardView {
       if (token) {
         await ApiService.linkPatient(token, patientPhone, patientName, 'Physician');
         
-        if (ApiService.MOCK_MODE) {
+        if (ApiService.isMockMode()) {
           let mockList = AppStorage.get<string>('mockLinkedPatients') || '[]';
           let list: ClinicianPatient[] = JSON.parse(mockList) as ClinicianPatient[];
           

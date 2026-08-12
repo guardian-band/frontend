@@ -43,6 +43,8 @@ export class ApiService {
   private static readonly BASE_URL: string = 'http://localhost:3000';
   private static readonly MOCK_MODE: boolean = false;
 
+  public static isMockMode(): boolean { return ApiService.MOCK_MODE; }
+
   public static async register(phoneNumber: string, password: string): Promise<void> {
     if (ApiService.MOCK_MODE) { return; }
     let httpRequest = http.createHttp();
@@ -230,7 +232,7 @@ export class ApiService {
   }
 
   public static async getClinicianPatients(token: string): Promise<ClinicianPatient[]> {
-    if (ApiService.MOCK_MODE) {
+    if (ApiService.isMockMode()) {
       return [
         { id: '1', patientId: 'p1', name: 'Alice Smith', relationship: 'Physician', bloodType: 'A+', birthDate: '1985-05-12' },
         { id: '2', patientId: 'p2', name: 'John Doe', relationship: 'Physician', bloodType: 'B-', birthDate: '1979-11-20' }
