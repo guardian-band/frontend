@@ -1,6 +1,7 @@
 import { router, promptAction } from '@kit.ArkUI';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { AppHeader } from '../components/AppHeader';
+import { contact } from '@kit.ContactsKit';
 import { geoLocationManager } from '@kit.LocationKit';
 import { abilityAccessCtrl, common } from '@kit.AbilityKit';
 import { ApiService } from '../services/ApiService'; // IMPORT: Required for background SOS trigger
@@ -39,35 +40,42 @@ struct AddContactDialog {
         .borderRadius(12)
         .margin({ bottom: 16 })
         .onClick(() => {
-          promptAction.showActionMenu({
-            title: 'Select Contact',
-            showInSubWindow: false,
-            buttons: [
-              { text: 'Alice Green (+90 555 111 2233)', color: '#003D9B' },
-              { text: 'Bob Smith (+90 555 444 5566)', color: '#003D9B' },
-              { text: 'Charlie Brown (+90 555 777 8899)', color: '#003D9B' }
-            ]
-          }).then((data) => {
-            if (data.index === 0) {
-              this.firstName = 'Alice';
-              this.lastName = 'Green';
-              this.phoneNumber = '+905551112233';
-              this.relation = 'Mother';
-            } else if (data.index === 1) {
-              this.firstName = 'Bob';
-              this.lastName = 'Smith';
-              this.phoneNumber = '+905554445566';
-              this.relation = 'Father';
-            } else if (data.index === 2) {
-              this.firstName = 'Charlie';
-              this.lastName = 'Brown';
-              this.phoneNumber = '+905557778899';
-              this.relation = 'Brother';
-            }
-            promptAction.showToast({ message: 'Contact selected!' });
-          }).catch((err: Error) => {
-            console.error("ActionMenu error", err.message);
-          });
+          let selectionOptions: contact.ContactSelectionOptions = {
+            isMultiSelect: false
+          };
+          contact.selectContacts(selectionOptions)
+            .then((contacts) => {
+              if (contacts && contacts.length > 0) {
+                let selected = contacts[0];
+                let displayName = '';
+                if (selected.name) {
+                  displayName = selected.name.fullName || '';
+                }
+                if (!displayName && (selected as any).displayName) {
+                  displayName = (selected as any).displayName;
+                }
+                if (!displayName) {
+                  displayName = 'Unknown Contact';
+                }
+                let parts = displayName.trim().split(' ');
+                this.firstName = parts[0] || '';
+                this.lastName = parts.slice(1).join(' ') || '';
+
+                let phone = '';
+                if (selected.phoneNumbers && selected.phoneNumbers.length > 0) {
+                  phone = selected.phoneNumbers[0].phoneNumber || '';
+                }
+                this.phoneNumber = phone.replace(/\s+/g, '');
+                this.relation = 'Other';
+                promptAction.showToast({ message: 'Contact selected successfully!' });
+              } else {
+                this.fallbackMockContacts();
+              }
+            })
+            .catch((err: Error) => {
+              console.error("selectContacts error, falling back to mock", err.message);
+              this.fallbackMockContacts();
+            });
         })
 
       TextInput({ placeholder: 'First Name', text: this.firstName })
@@ -112,11 +120,7 @@ struct AddContactDialog {
             } else {
               promptAction.showToast({ message: 'Name and Phone are required!' });
             }
-          })
-      }
-      .width('100%')
-    }
-    .padding(24)
+          })}.width('100%')}.padding(24)
     .backgroundColor(Color.White)
     .borderRadius(20)
   }
@@ -171,19 +175,13 @@ struct SOSPage {
             DoctorSOSView()
           }
 
-          Blank().height(100) // Spacer for bottom nav
-        }
-        .width('100%')
-        .padding({ left: 24, right: 24, top: 20 })
-      }
-      .scrollBar(BarState.Off)
+          Blank().height(100) // Spacer for bottom nav}.width('100%')
+        .padding({ left: 24, right: 24, top: 20 })}.scrollBar(BarState.Off)
       .width('100%')
       .height('100%')
 
       BottomNavBar({ activeTab: 'sos' })
-        .zIndex(1)
-    }
-    .width('100%')
+        .zIndex(1)}.width('100%')
     .height('100%')
     .backgroundColor('#F8F9FA')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
@@ -321,6 +319,38 @@ struct PatientSOSView {
     return name.substring(0, 2).toUpperCase();
   }
 
+  fallbackMockContacts() {
+    promptAction.showActionMenu({
+      title: 'Select Contact (Simulator)',
+      showInSubWindow: false,
+      buttons: [
+        { text: 'Alice Green (+90 555 111 2233)', color: '#003D9B' },
+        { text: 'Bob Smith (+90 555 444 5566)', color: '#003D9B' },
+        { text: 'Charlie Brown (+90 555 777 8899)', color: '#003D9B' }
+      ]
+    }).then((data) => {
+      if (data.index === 0) {
+        this.firstName = 'Alice';
+        this.lastName = 'Green';
+        this.phoneNumber = '+905551112233';
+        this.relation = 'Mother';
+      } else if (data.index === 1) {
+        this.firstName = 'Bob';
+        this.lastName = 'Smith';
+        this.phoneNumber = '+905554445566';
+        this.relation = 'Father';
+      } else if (data.index === 2) {
+        this.firstName = 'Charlie';
+        this.lastName = 'Brown';
+        this.phoneNumber = '+905557778899';
+        this.relation = 'Brother';
+      }
+      promptAction.showToast({ message: 'Contact selected!' });
+    }).catch((err: Error) => {
+      console.error("ActionMenu error", err.message);
+    });
+  }
+
   build() {
     Column() {
       // Cleaned up header
@@ -332,9 +362,7 @@ struct PatientSOSView {
         Text(this.sosSent ? 'Emergency alert broadcasted.' : 'Stay calm. Help is on the way.')
           .fontSize(16)
           .fontWeight(FontWeight.Medium)
-          .fontColor('#434654')
-      }
-      .width('100%')
+          .fontColor('#434654')}.width('100%')
       .margin({ bottom: 28 })
       .alignItems(HorizontalAlign.Center)
 
@@ -393,23 +421,17 @@ struct PatientSOSView {
                 .fontWeight(FontWeight.Bold)
                 .fontColor(Color.White)
                 .letterSpacing(2)
-            }
-          }
-          .justifyContent(FlexAlign.Center)
+            }}.justifyContent(FlexAlign.Center)
           .alignItems(HorizontalAlign.Center)
           .width('100%')
-          .height('100%')
-        }
-        .width(180)
+          .height('100%')}.width(180)
         .height(180)
         .borderRadius(90)
         .backgroundColor(this.sosSent ? '#006E2F' : '#BA1A1A')
         .shadow({ radius: 20, color: this.sosSent ? 'rgba(0, 110, 47, 0.3)' : 'rgba(186, 26, 26, 0.3)' })
         .onTouch((event: TouchEvent) => {
           this.handleTouch(event);
-        })
-      }
-      .width('100%')
+        })}.width('100%')
       .height(240)
       .margin({ bottom: 24 })
 
@@ -421,9 +443,7 @@ struct PatientSOSView {
             .fontWeight(FontWeight.Bold)
             .fontColor('#434654')
 
-          Blank()
-        }
-        .width('100%')
+          Blank()}.width('100%')
         .margin({ bottom: 12 })
         .padding({ left: 4, right: 4 })
 
@@ -435,9 +455,7 @@ struct PatientSOSView {
                 Text(this.getInitials(contact.fullName))
                   .fontSize(14)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor('#003D9B')
-              }
-              .width(44)
+                  .fontColor('#003D9B')}.width(44)
               .height(44)
               .borderRadius(22)
               .backgroundColor('#E8EEFF')
@@ -466,18 +484,14 @@ struct PatientSOSView {
                   Text(contact.relation)
                     .fontSize(12)
                     .fontColor('#003D9B')
-                    .fontWeight(FontWeight.Medium)
-                }
-                .margin({ bottom: 4 })
+                    .fontWeight(FontWeight.Medium)}.margin({ bottom: 4 })
 
                 Row() {
                   Text(this.sosSent ? 'Notified' : contact.phone)
                     .fontSize(13)
                     .fontWeight(this.sosSent ? FontWeight.Bold : FontWeight.Normal)
                     .fontColor(this.sosSent ? '#006E2F' : '#737685')
-                }
-              }
-              .alignItems(HorizontalAlign.Start)
+                }}.alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
 
               // Call Button
@@ -485,9 +499,7 @@ struct PatientSOSView {
                 Image($r('app.media.phone'))
                   .width(16)
                   .height(16)
-                  .objectFit(ImageFit.Contain)
-              }
-              .width(36)
+                  .objectFit(ImageFit.Contain)}.width(36)
               .height(36)
               .borderRadius(18)
               .backgroundColor('#003D9B')
@@ -495,9 +507,7 @@ struct PatientSOSView {
               .alignItems(VerticalAlign.Center)
               .onClick(() => {
                 promptAction.showToast({ message: `Calling ${contact.fullName}...` });
-              })
-            }
-            .width('100%')
+              })}.width('100%')
             .padding({ top: 12, bottom: 12 })
             .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
           }, (contact: EmergencyContact) => contact.id)
@@ -508,9 +518,7 @@ struct PatientSOSView {
               Image($r('app.media.ambulance'))
                 .width(24)
                 .height(24)
-                .objectFit(ImageFit.Contain)
-            }
-            .width(44)
+                .objectFit(ImageFit.Contain)}.width(44)
             .height(44)
             .borderRadius(22)
             .backgroundColor(this.sosSent ? '#E6F9ED' : '#FFEBEA')
@@ -536,21 +544,13 @@ struct PatientSOSView {
                     .fontSize(13)
                     .fontColor('#737685')
                 }
-              }
-            }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
-          }
-          .width('100%')
-          .padding({ top: 12, bottom: 12 })
-        }
-        .width('100%')
+              }}.alignItems(HorizontalAlign.Start)
+            .layoutWeight(1)}.width('100%')
+          .padding({ top: 12, bottom: 12 })}.width('100%')
         .padding({ left: 16, right: 16 })
         .backgroundColor(Color.White)
         .borderRadius(20)
-        .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-      }
-      .width('100%')
+        .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })}.width('100%')
       .margin({ bottom: 20 })
 
       // Location Card
@@ -570,9 +570,7 @@ struct PatientSOSView {
           Blank()
           Text(`Accuracy: ${this.locationAccuracy}`)
             .fontSize(12)
-            .fontColor('#737685')
-        }
-        .width('100%')
+            .fontColor('#737685')}.width('100%')
         .margin({ bottom: 12 })
 
         Image(this.mapUrl)
@@ -586,9 +584,7 @@ struct PatientSOSView {
           .fontSize(15)
           .fontWeight(FontWeight.Bold)
           .fontColor('#191C1D')
-          .alignSelf(ItemAlign.Start)
-      }
-      .width('100%')
+          .alignSelf(ItemAlign.Start)}.width('100%')
       .padding(16)
       .backgroundColor(Color.White)
       .borderRadius(20)
@@ -606,12 +602,8 @@ struct PatientSOSView {
           Text('Cancel SOS Request')
             .fontSize(16)
             .fontWeight(FontWeight.Bold)
-            .fontColor('#BA1A1A')
-        }
-        .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
-      }
-      .width('100%')
+            .fontColor('#BA1A1A')}.justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)}.width('100%')
       .height(56)
       .backgroundColor('rgba(186, 26, 26, 0.08)')
       .borderRadius(16)
@@ -632,9 +624,7 @@ struct PatientSOSView {
         this.clearTimer();
         this.activeIncidentId = '';
         promptAction.showToast({ message: 'SOS request cancelled.' });
-      })
-    }
-    .width('100%')
+      })}.width('100%')
   }
 }
 
@@ -666,9 +656,7 @@ struct FamilySOSView {
 
         Text('Stay calm. Action is required.')
           .fontSize(13)
-          .fontColor('#434654')
-      }
-      .width('100%')
+          .fontColor('#434654')}.width('100%')
       .padding(20)
       .backgroundColor('#FFEBEA')
       .borderRadius(24)
@@ -692,9 +680,7 @@ struct FamilySOSView {
             Text('135 bpm')
               .fontSize(18)
               .fontWeight(FontWeight.Bold)
-              .fontColor('#BA1A1A')
-          }
-          .layoutWeight(1)
+              .fontColor('#BA1A1A')}.layoutWeight(1)
           .alignItems(HorizontalAlign.Start)
 
           Column() {
@@ -705,18 +691,12 @@ struct FamilySOSView {
             Text('91 %')
               .fontSize(18)
               .fontWeight(FontWeight.Bold)
-              .fontColor('#BA1A1A')
-          }
-          .layoutWeight(1)
-          .alignItems(HorizontalAlign.Start)
-        }
-        .width('100%')
+              .fontColor('#BA1A1A')}.layoutWeight(1)
+          .alignItems(HorizontalAlign.Start)}.width('100%')
         .padding(16)
         .backgroundColor(Color.White)
         .borderRadius(20)
-        .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-      }
-      .width('100%')
+        .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })}.width('100%')
       .margin({ bottom: 20 })
 
       Column() {
@@ -737,19 +717,11 @@ struct FamilySOSView {
             Text('Dispatch EMS')
               .fontSize(16)
               .fontWeight(FontWeight.Bold)
-              .fontColor(Color.White)
-          }
-          .justifyContent(FlexAlign.Center)
-          .alignItems(VerticalAlign.Center)
-        }
-        .width('100%')
+              .fontColor(Color.White)}.justifyContent(FlexAlign.Center)
+          .alignItems(VerticalAlign.Center)}.width('100%')
         .height(50)
         .backgroundColor('#BA1A1A')
-        .borderRadius(12)
-      }
-      .width('100%')
-    }
-    .width('100%')
+        .borderRadius(12)}.width('100%')}.width('100%')
   }
 }
 
@@ -778,9 +750,7 @@ struct ResponderSOSView {
             .fontColor(Color.White)
             .padding({ left: 10, right: 10, top: 4, bottom: 4 })
             .backgroundColor('#BA1A1A')
-            .borderRadius(8)
-        }
-        .width('100%')
+            .borderRadius(8)}.width('100%')
         .margin({ bottom: 12 })
 
         Text('Patient: John Doe (Age 74)')
@@ -788,9 +758,7 @@ struct ResponderSOSView {
           .fontWeight(FontWeight.Bold)
           .fontColor('#191C1D')
           .alignSelf(ItemAlign.Start)
-          .margin({ bottom: 4 })
-      }
-      .width('100%')
+          .margin({ bottom: 4 })}.width('100%')
       .padding(16)
       .backgroundColor('#FFEBEA')
       .borderRadius(20)
@@ -801,9 +769,7 @@ struct ResponderSOSView {
         .width('100%')
         .height(50)
         .backgroundColor('#006E2F')
-        .borderRadius(12)
-    }
-    .width('100%')
+        .borderRadius(12)}.width('100%')
   }
 }
 
@@ -870,16 +836,12 @@ struct ResponderLockView {
             } else {
               promptAction.showToast({ message: 'Invalid credentials. Access denied.' });
             }
-          })
-      }
-      .width('100%')
+          })}.width('100%')
       .padding(24)
       .backgroundColor(Color.White)
       .borderRadius(24)
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-      .shadow({ radius: 10, color: 'rgba(0, 0, 0, 0.04)', offsetY: 4 })
-    }
-    .width('100%')
+      .shadow({ radius: 10, color: 'rgba(0, 0, 0, 0.04)', offsetY: 4 })}.width('100%')
   }
 }
 
@@ -906,9 +868,7 @@ struct DoctorSOSView {
             Text('CRITICAL PATIENT ALARM')
               .fontSize(12)
               .fontWeight(FontWeight.Bold)
-              .fontColor('#BA1A1A')
-          }
-          .margin({ bottom: 8 })
+              .fontColor('#BA1A1A')}.margin({ bottom: 8 })
 
           Text(`Critical telemetry received from patient ${this.selectedAlarmPatient}:`)
             .fontSize(14)
@@ -931,11 +891,7 @@ struct DoctorSOSView {
                 Text(`${this.alarmHeartRate} BPM`)
                   .fontSize(20)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor('#BA1A1A')
-              }
-              .alignItems(HorizontalAlign.Start)
-            }
-            .layoutWeight(1)
+                  .fontColor('#BA1A1A')}.alignItems(HorizontalAlign.Start)}.layoutWeight(1)
 
             Row() {
               Image($r('app.media.place'))
@@ -951,13 +907,7 @@ struct DoctorSOSView {
                 Text('Palo Alto')
                   .fontSize(16)
                   .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-              }
-              .alignItems(HorizontalAlign.Start)
-            }
-            .layoutWeight(1)
-          }
-          .width('100%')
+                  .fontColor('#191C1D')}.alignItems(HorizontalAlign.Start)}.layoutWeight(1)}.width('100%')
           .margin({ bottom: 16 })
 
           // Actions row
@@ -986,11 +936,7 @@ struct DoctorSOSView {
               .onClick(() => {
                 promptAction.showToast({ message: `Ambulance dispatched to Palo Alto for ${this.selectedAlarmPatient}!` });
                 this.activeAlertsCount = 0; // clear alert mockup
-              })
-          }
-          .width('100%')
-        }
-        .width('100%')
+              })}.width('100%')}.width('100%')
         .padding(18)
         .backgroundColor('#FFEBEA')
         .borderRadius(20)
@@ -1008,9 +954,7 @@ struct DoctorSOSView {
           Text('All linked patients vitals stable')
             .fontSize(14)
             .fontWeight(FontWeight.Bold)
-            .fontColor('#006E2F')
-        }
-        .width('100%')
+            .fontColor('#006E2F')}.width('100%')
         .padding(16)
         .backgroundColor('#E6F9ED')
         .borderRadius(20)
@@ -1032,9 +976,7 @@ struct DoctorSOSView {
           Image($r('app.media.emergency'))
             .width(28)
             .height(28)
-            .objectFit(ImageFit.Contain)
-        }
-        .width(44)
+            .objectFit(ImageFit.Contain)}.width(44)
         .height(44)
         .borderRadius(10)
         .backgroundColor('rgba(186, 26, 26, 0.08)')
@@ -1050,9 +992,7 @@ struct DoctorSOSView {
             .margin({ bottom: 2 })
           Text('Direct line to hospital emergency room')
             .fontSize(12)
-            .fontColor('#737685')
-        }
-        .alignItems(HorizontalAlign.Start)
+            .fontColor('#737685')}.alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
         .margin({ right: 12 })
 
@@ -1066,9 +1006,7 @@ struct DoctorSOSView {
           .width(64)
           .onClick(() => {
             promptAction.showToast({ message: 'Calling ER Triage Desk...' });
-          })
-      }
-      .width('100%')
+          })}.width('100%')
       .padding(14)
       .backgroundColor(Color.White)
       .borderRadius(20)
@@ -1081,9 +1019,7 @@ struct DoctorSOSView {
           Image($r('app.media.ambulance'))
             .width(28)
             .height(28)
-            .objectFit(ImageFit.Contain)
-        }
-        .width(44)
+            .objectFit(ImageFit.Contain)}.width(44)
         .height(44)
         .borderRadius(10)
         .backgroundColor('rgba(0, 61, 155, 0.08)')
@@ -1099,9 +1035,7 @@ struct DoctorSOSView {
             .margin({ bottom: 2 })
           Text('Priority service dispatcher hotline')
             .fontSize(12)
-            .fontColor('#737685')
-        }
-        .alignItems(HorizontalAlign.Start)
+            .fontColor('#737685')}.alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
         .margin({ right: 12 })
 
@@ -1115,9 +1049,7 @@ struct DoctorSOSView {
           .width(64)
           .onClick(() => {
             promptAction.showToast({ message: 'Calling Ambulance Dispatcher...' });
-          })
-      }
-      .width('100%')
+          })}.width('100%')
       .padding(14)
       .backgroundColor(Color.White)
       .borderRadius(20)
@@ -1130,9 +1062,7 @@ struct DoctorSOSView {
           Image($r('app.media.doctor'))
             .width(28)
             .height(28)
-            .objectFit(ImageFit.Contain)
-        }
-        .width(44)
+            .objectFit(ImageFit.Contain)}.width(44)
         .height(44)
         .borderRadius(10)
         .backgroundColor('rgba(0, 110, 47, 0.08)')
@@ -1148,9 +1078,7 @@ struct DoctorSOSView {
             .margin({ bottom: 2 })
           Text('Chief medical director emergency desk')
             .fontSize(12)
-            .fontColor('#737685')
-        }
-        .alignItems(HorizontalAlign.Start)
+            .fontColor('#737685')}.alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
         .margin({ right: 12 })
 
@@ -1164,15 +1092,11 @@ struct DoctorSOSView {
           .width(64)
           .onClick(() => {
             promptAction.showToast({ message: 'Calling ER Department Head...' });
-          })
-      }
-      .width('100%')
+          })}.width('100%')
       .padding(14)
       .backgroundColor(Color.White)
       .borderRadius(20)
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-      .margin({ bottom: 16 })
-    }
-    .width('100%')
+      .margin({ bottom: 16 })}.width('100%')
   }
 }

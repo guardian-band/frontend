@@ -1,6 +1,7 @@
 import { router, promptAction } from '@kit.ArkUI';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import { contact } from '@kit.ContactsKit';
 
 interface MedTime {
   slot: string;
@@ -67,35 +68,42 @@ struct AddContactDialog {
         .borderRadius(12)
         .margin({ bottom: 16 })
         .onClick(() => {
-          promptAction.showActionMenu({
-            title: 'Select Contact',
-            showInSubWindow: false,
-            buttons: [
-              { text: 'Alice Green (+90 555 111 2233)', color: '#003D9B' },
-              { text: 'Bob Smith (+90 555 444 5566)', color: '#003D9B' },
-              { text: 'Charlie Brown (+90 555 777 8899)', color: '#003D9B' }
-            ]
-          }).then((data) => {
-            if (data.index === 0) {
-              this.firstName = 'Alice';
-              this.lastName = 'Green';
-              this.phoneNumber = '+905551112233';
-              this.relation = 'Mother';
-            } else if (data.index === 1) {
-              this.firstName = 'Bob';
-              this.lastName = 'Smith';
-              this.phoneNumber = '+905554445566';
-              this.relation = 'Father';
-            } else if (data.index === 2) {
-              this.firstName = 'Charlie';
-              this.lastName = 'Brown';
-              this.phoneNumber = '+905557778899';
-              this.relation = 'Brother';
-            }
-            promptAction.showToast({ message: 'Contact selected!' });
-          }).catch((err: Error) => {
-            console.error("ActionMenu error", err.message);
-          });
+          let selectionOptions: contact.ContactSelectionOptions = {
+            isMultiSelect: false
+          };
+          contact.selectContacts(selectionOptions)
+            .then((contacts) => {
+              if (contacts && contacts.length > 0) {
+                let selected = contacts[0];
+                let displayName = '';
+                if (selected.name) {
+                  displayName = selected.name.fullName || '';
+                }
+                if (!displayName && (selected as any).displayName) {
+                  displayName = (selected as any).displayName;
+                }
+                if (!displayName) {
+                  displayName = 'Unknown Contact';
+                }
+                let parts = displayName.trim().split(' ');
+                this.firstName = parts[0] || '';
+                this.lastName = parts.slice(1).join(' ') || '';
+
+                let phone = '';
+                if (selected.phoneNumbers && selected.phoneNumbers.length > 0) {
+                  phone = selected.phoneNumbers[0].phoneNumber || '';
+                }
+                this.phoneNumber = phone.replace(/\s+/g, '');
+                this.relation = 'Other';
+                promptAction.showToast({ message: 'Contact selected successfully!' });
+              } else {
+                this.fallbackMockContacts();
+              }
+            })
+            .catch((err: Error) => {
+              console.error("selectContacts error, falling back to mock", err.message);
+              this.fallbackMockContacts();
+            });
         })
 
       TextInput({ placeholder: 'First Name', text: this.firstName })
@@ -140,11 +148,7 @@ struct AddContactDialog {
             } else {
               promptAction.showToast({ message: 'Name and Phone are required!' });
             }
-          })
-      }
-      .width('100%')
-    }
-    .padding(24)
+          })}.width('100%')}.padding(24)
     .backgroundColor(Color.White)
     .borderRadius(20)
   }
@@ -222,6 +226,38 @@ struct ProfilePage {
       return (first + last).toUpperCase();
     }
     return name.substring(0, Math.min(2, name.length)).toUpperCase();
+  }
+
+  fallbackMockContacts() {
+    promptAction.showActionMenu({
+      title: 'Select Contact (Simulator)',
+      showInSubWindow: false,
+      buttons: [
+        { text: 'Alice Green (+90 555 111 2233)', color: '#003D9B' },
+        { text: 'Bob Smith (+90 555 444 5566)', color: '#003D9B' },
+        { text: 'Charlie Brown (+90 555 777 8899)', color: '#003D9B' }
+      ]
+    }).then((data) => {
+      if (data.index === 0) {
+        this.firstName = 'Alice';
+        this.lastName = 'Green';
+        this.phoneNumber = '+905551112233';
+        this.relation = 'Mother';
+      } else if (data.index === 1) {
+        this.firstName = 'Bob';
+        this.lastName = 'Smith';
+        this.phoneNumber = '+905554445566';
+        this.relation = 'Father';
+      } else if (data.index === 2) {
+        this.firstName = 'Charlie';
+        this.lastName = 'Brown';
+        this.phoneNumber = '+905557778899';
+        this.relation = 'Brother';
+      }
+      promptAction.showToast({ message: 'Contact selected!' });
+    }).catch((err: Error) => {
+      console.error("ActionMenu error", err.message);
+    });
   }
 
   // Helper to generate a patient ID dynamically based on fullName and email
@@ -351,9 +387,7 @@ struct ProfilePage {
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#003D9B')
-            }
-          }
-          .width('100%')
+            }}.width('100%')
           .margin({ bottom: 20 })
 
           // Setup Prompt Banner
@@ -372,9 +406,7 @@ struct ProfilePage {
               Text('➔')
                 .fontSize(14)
                 .fontWeight(FontWeight.Bold)
-                .fontColor('#BA1A1A')
-            }
-            .width('100%')
+                .fontColor('#BA1A1A')}.width('100%')
             .padding(16)
             .backgroundColor('#FFEBEA')
             .borderRadius(16)
@@ -401,9 +433,7 @@ struct ProfilePage {
               Text('➔')
                 .fontSize(14)
                 .fontWeight(FontWeight.Bold)
-                .fontColor('#BA1A1A')
-            }
-            .width('100%')
+                .fontColor('#BA1A1A')}.width('100%')
             .padding(16)
             .backgroundColor('#FFEBEA')
             .borderRadius(16)
@@ -430,9 +460,7 @@ struct ProfilePage {
               Text('➔')
                 .fontSize(14)
                 .fontWeight(FontWeight.Bold)
-                .fontColor('#BA1A1A')
-            }
-            .width('100%')
+                .fontColor('#BA1A1A')}.width('100%')
             .padding(16)
             .backgroundColor('#FFEBEA')
             .borderRadius(16)
@@ -454,9 +482,7 @@ struct ProfilePage {
                   Text(this.getInitials(this.fullName))
                     .fontSize(32)
                     .fontWeight(FontWeight.Bold)
-                    .fontColor(Color.White)
-                }
-                .width(100)
+                    .fontColor(Color.White)}.width(100)
                 .height(100)
                 .borderRadius(50)
                 .backgroundColor('#003D9B')
@@ -470,9 +496,7 @@ struct ProfilePage {
                   .borderRadius(50)
                   .objectFit(ImageFit.Cover)
                   .border({ width: 3, color: '#FFFFFF', style: BorderStyle.Solid })
-              }
-            }
-            .width(100)
+              }}.width(100)
             .height(100)
             .margin({ bottom: 16 })
             .onClick(() => {
@@ -507,9 +531,7 @@ struct ProfilePage {
                 .fontSize(12)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(this.userRole === 'patient' ? '#003D9B' : 
-                  (this.userRole === 'doctor' ? '#854E00' : '#006E2F'))
-            }
-            .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+                  (this.userRole === 'doctor' ? '#854E00' : '#006E2F'))}.padding({ left: 12, right: 12, top: 8, bottom: 8 })
             .backgroundColor(this.userRole === 'patient' ? '#E8EEFF' : 
               (this.userRole === 'doctor' ? '#FFF4E5' : '#E6F9ED'))
             .borderRadius(16)
@@ -528,9 +550,7 @@ struct ProfilePage {
                   .margin({ right: 6 })
                 Text(this.medicalProfile.birthDate ? `${this.formatBirthDate(this.medicalProfile.birthDate)} (${this.getAge(this.medicalProfile.birthDate)} Years Old)` : 'Birth Date & Age: Not Set')
                   .fontSize(14)
-                  .fontColor('#737685')
-              }
-              .margin({ bottom: 16 })
+                  .fontColor('#737685')}.margin({ bottom: 16 })
               .justifyContent(FlexAlign.Center)
             } else if (this.userRole === 'doctor') {
               Row() {
@@ -541,9 +561,7 @@ struct ProfilePage {
                   .margin({ right: 6 })
                 Text(this.doctorProfile.hospital ? `${this.doctorProfile.hospital}` : 'Hospital Name: Not Set')
                   .fontSize(14)
-                  .fontColor('#737685')
-              }
-              .margin({ bottom: 16 })
+                  .fontColor('#737685')}.margin({ bottom: 16 })
               .justifyContent(FlexAlign.Center)
             } else {
               Row() {
@@ -554,9 +572,7 @@ struct ProfilePage {
                   .margin({ right: 6 })
                 Text(this.userEmail ? this.userEmail : 'Email: Not Set')
                   .fontSize(14)
-                  .fontColor('#737685')
-              }
-              .margin({ bottom: 16 })
+                  .fontColor('#737685')}.margin({ bottom: 16 })
               .justifyContent(FlexAlign.Center)
             }
 
@@ -574,9 +590,7 @@ struct ProfilePage {
                     Text(`Specialty: ${this.doctorProfile.specialty}`)
                       .fontSize(12)
                       .fontWeight(FontWeight.Bold)
-                      .fontColor('#003D9B')
-                  }
-                  .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                      .fontColor('#003D9B')}.padding({ left: 12, right: 12, top: 6, bottom: 6 })
                   .backgroundColor('#E8EEFF')
                   .borderRadius(16)
                   .margin(4)
@@ -593,15 +607,11 @@ struct ProfilePage {
                     Text(`Verified Email: ${this.doctorProfile.email}`)
                       .fontSize(12)
                       .fontWeight(FontWeight.Bold)
-                      .fontColor('#006E2F')
-                  }
-                  .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                      .fontColor('#006E2F')}.padding({ left: 12, right: 12, top: 6, bottom: 6 })
                   .backgroundColor('#E6F9ED')
                   .borderRadius(16)
                   .margin(4)
-                }
-              }
-              .width('95%')
+                }}.width('95%')
               .margin({ bottom: 10 })
             }
 
@@ -618,9 +628,7 @@ struct ProfilePage {
                     Text(`Blood: ${this.medicalProfile.bloodType}`)
                       .fontSize(12)
                       .fontWeight(FontWeight.Bold)
-                      .fontColor('#BA1A1A')
-                  }
-                  .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                      .fontColor('#BA1A1A')}.padding({ left: 12, right: 12, top: 6, bottom: 6 })
                   .backgroundColor('#FFEBEA')
                   .borderRadius(16)
                   .margin(4)
@@ -637,9 +645,7 @@ struct ProfilePage {
                     Text(`Allergy: ${this.medicalProfile.allergies}`)
                       .fontSize(12)
                       .fontWeight(FontWeight.Bold)
-                      .fontColor('#854E00')
-                  }
-                  .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                      .fontColor('#854E00')}.padding({ left: 12, right: 12, top: 6, bottom: 6 })
                   .backgroundColor('#FFF4E5')
                   .borderRadius(16)
                   .margin(4)
@@ -656,9 +662,7 @@ struct ProfilePage {
                     Text(disease === 'Other' && this.medicalProfile.otherChronicDisease ? this.medicalProfile.otherChronicDisease : disease)
                       .fontSize(12)
                       .fontWeight(FontWeight.Bold)
-                      .fontColor('#434654')
-                  }
-                  .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                      .fontColor('#434654')}.padding({ left: 12, right: 12, top: 6, bottom: 6 })
                   .backgroundColor('#F3F4F5')
                   .borderRadius(16)
                   .margin(4)
@@ -671,12 +675,8 @@ struct ProfilePage {
                     .fontColor('#737685')
                     .fontStyle(FontStyle.Italic)
                     .margin(4)
-                }
-              }
-              .width('100%')
-            }
-          }
-          .width('100%')
+                }}.width('100%')
+            }}.width('100%')
           .padding(24)
           .backgroundColor('rgba(255, 255, 255, 0.85)')
           .borderRadius(28)
@@ -692,9 +692,7 @@ struct ProfilePage {
                 Image($r('app.media.qr'))
                   .width(22)
                   .height(22)
-                  .objectFit(ImageFit.Contain)
-              }
-              .width(40)
+                  .objectFit(ImageFit.Contain)}.width(40)
               .height(40)
               .borderRadius(8)
               .backgroundColor('rgba(0, 110, 47, 0.08)')
@@ -710,9 +708,7 @@ struct ProfilePage {
                   .margin({ bottom: 2 })
                 Text('Let your doctor scan this code to link with your account.')
                   .fontSize(12)
-                  .fontColor('#737685')
-              }
-              .alignItems(HorizontalAlign.Start)
+                  .fontColor('#737685')}.alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
 
               Button('Show QR', { type: ButtonType.Normal })
@@ -724,9 +720,7 @@ struct ProfilePage {
                 .height(30)
                 .onClick(() => {
                   this.isMyQrModalOpen = true;
-                })
-            }
-            .width('100%')
+                })}.width('100%')
             .padding(14)
             .backgroundColor(Color.White)
             .borderRadius(20)
@@ -762,9 +756,7 @@ struct ProfilePage {
                   Text(`${this.medicalProfile.height} cm`)
                     .fontSize(14)
                     .fontWeight(FontWeight.Bold)
-                    .fontColor('#191C1D')
-                }
-                .width('100%')
+                    .fontColor('#191C1D')}.width('100%')
                 .padding({ top: 12, bottom: 12 })
                 .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
 
@@ -784,9 +776,7 @@ struct ProfilePage {
                   Text(`${this.medicalProfile.weight} kg`)
                     .fontSize(14)
                     .fontWeight(FontWeight.Bold)
-                    .fontColor('#191C1D')
-                }
-                .width('100%')
+                    .fontColor('#191C1D')}.width('100%')
                 .padding({ top: 12, bottom: 12 })
                 .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
 
@@ -806,9 +796,7 @@ struct ProfilePage {
                   Text(this.medicalProfile.pacemaker ? 'Active' : 'None')
                     .fontSize(14)
                     .fontWeight(FontWeight.Bold)
-                    .fontColor(this.medicalProfile.pacemaker ? '#006E2F' : '#737685')
-                }
-                .width('100%')
+                    .fontColor(this.medicalProfile.pacemaker ? '#006E2F' : '#737685')}.width('100%')
                 .padding({ top: 12, bottom: 12 })
                 .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
 
@@ -828,18 +816,12 @@ struct ProfilePage {
                   Text(this.medicalProfile.hearingAid ? 'Active' : 'None')
                     .fontSize(14)
                     .fontWeight(FontWeight.Bold)
-                    .fontColor(this.medicalProfile.hearingAid ? '#006E2F' : '#737685')
-                }
-                .width('100%')
-                .padding({ top: 12, bottom: 12 })
-              }
-              .width('100%')
+                    .fontColor(this.medicalProfile.hearingAid ? '#006E2F' : '#737685')}.width('100%')
+                .padding({ top: 12, bottom: 12 })}.width('100%')
               .padding({ left: 16, right: 16 })
               .backgroundColor(Color.White)
               .borderRadius(20)
-              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-            }
-            .width('100%')
+              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })}.width('100%')
             .margin({ bottom: 20 })
 
             // 5. Currently Used Medications
@@ -860,9 +842,7 @@ struct ProfilePage {
                           Image($r('app.media.drugs'))
                             .width(20)
                             .height(20)
-                            .objectFit(ImageFit.Contain)
-                        }
-                        .width(36)
+                            .objectFit(ImageFit.Contain)}.width(36)
                         .height(36)
                         .borderRadius(10)
                         .backgroundColor('rgba(0, 61, 155, 0.1)')
@@ -879,22 +859,16 @@ struct ProfilePage {
 
                           Text(`${med.totalPills} Pills left • ${med.mealTiming}`)
                             .fontSize(12)
-                            .fontColor('#737685')
-                        }
-                        .alignItems(HorizontalAlign.Start)
+                            .fontColor('#737685')}.alignItems(HorizontalAlign.Start)
                         .layoutWeight(1)
 
                         Row() {
                           Text(this.expandedMedId === med.id ? 'Hide Detail ▲' : 'Detail ▼')
                             .fontSize(12)
                             .fontWeight(FontWeight.Bold)
-                            .fontColor('#003D9B')
-                        }
-                        .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                            .fontColor('#003D9B')}.padding({ left: 8, right: 8, top: 4, bottom: 4 })
                         .backgroundColor('#E8EEFF')
-                        .borderRadius(6)
-                      }
-                      .width('100%')
+                        .borderRadius(6)}.width('100%')
                       .padding({ top: 12, bottom: 12 })
                       .onClick(() => {
                         this.expandedMedId = this.expandedMedId === med.id ? '' : med.id;
@@ -923,9 +897,7 @@ struct ProfilePage {
                                   .fontColor(med.days.includes(day) ? Color.White : '#8F92A1')
                                   .margin({ right: 4 })
                               }, (day: string, idx: number) => day + idx.toString())
-                            }
-                          }
-                          .width('100%')
+                            }}.width('100%')
                           .margin({ bottom: 12 })
 
                           // 2. Schedule times slot detail
@@ -947,17 +919,11 @@ struct ProfilePage {
                                     Text(` (${time.specificTime})`)
                                       .fontSize(11)
                                       .fontColor('#737685')
-                                  }
-                                }
-                                .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+                                  }}.padding({ left: 8, right: 8, top: 4, bottom: 4 })
                                 .backgroundColor('#F0F4FF')
                                 .borderRadius(6)
                                 .margin({ right: 6 })
-                              }, (time: MedTime) => time.slot)
-                            }
-                            .layoutWeight(1)
-                          }
-                          .width('100%')
+                              }, (time: MedTime) => time.slot)}.layoutWeight(1)}.width('100%')
                           .alignItems(VerticalAlign.Center)
                           .margin({ bottom: 12 })
 
@@ -973,20 +939,14 @@ struct ProfilePage {
                               .fontSize(12)
                               .fontColor('#191C1D')
 
-                            Blank().width(16)
-                          }
-                          .width('100%')
-                          .margin({ bottom: 4 })
-                        }
-                        .width('100%')
+                            Blank().width(16)}.width('100%')
+                          .margin({ bottom: 4 })}.width('100%')
                         .padding(12)
                         .backgroundColor('#F8F9FA')
                         .borderRadius(12)
                         .margin({ bottom: 12 })
                         .alignItems(HorizontalAlign.Start)
-                      }
-                    }
-                    .width('100%')
+                      }}.width('100%')
                     .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
                   }, (med: FullMedicationItem) => med.id)
                 } else {
@@ -999,20 +959,14 @@ struct ProfilePage {
                     Text('No medications scheduled.')
                       .fontSize(13)
                       .fontColor('#737685')
-                      .fontStyle(FontStyle.Italic)
-                  }
-                  .width('100%')
+                      .fontStyle(FontStyle.Italic)}.width('100%')
                   .padding(16)
                   .alignItems(HorizontalAlign.Center)
-                }
-              }
-              .width('100%')
+                }}.width('100%')
               .padding({ left: 16, right: 16 })
               .backgroundColor(Color.White)
               .borderRadius(20)
-              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-            }
-            .width('100%')
+              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })}.width('100%')
             .margin({ bottom: 20 })
           }
 
@@ -1037,16 +991,12 @@ struct ProfilePage {
                     .margin({ right: 6 })
                   Text('▼')
                     .fontSize(10)
-                    .fontColor('#003D9B')
-                }
-                .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                    .fontColor('#003D9B')}.padding({ left: 10, right: 10, top: 6, bottom: 6 })
                 .backgroundColor('#E8EEFF')
                 .borderRadius(10)
                 .onClick(() => {
                   this.showMemberDropdown = !this.showMemberDropdown;
-                })
-              }
-              .width('100%')
+                })}.width('100%')
               .margin({ left: 4, bottom: 12 })
 
               // Dropdown Menu for choosing Monitored Member
@@ -1058,9 +1008,7 @@ struct ProfilePage {
                       Text('JD')
                         .fontSize(11)
                         .fontWeight(FontWeight.Bold)
-                        .fontColor(Color.White)
-                    }
-                    .width(26)
+                        .fontColor(Color.White)}.width(26)
                     .height(26)
                     .borderRadius(13)
                     .backgroundColor('#006E2F')
@@ -1080,9 +1028,7 @@ struct ProfilePage {
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#003D9B')
-                    }
-                  }
-                  .width('100%')
+                    }}.width('100%')
                   .padding(12)
                   .onClick(() => {
                     this.selectedMember = 'Father';
@@ -1096,9 +1042,7 @@ struct ProfilePage {
                       Text('MD')
                         .fontSize(11)
                         .fontWeight(FontWeight.Bold)
-                        .fontColor(Color.White)
-                    }
-                    .width(26)
+                        .fontColor(Color.White)}.width(26)
                     .height(26)
                     .borderRadius(13)
                     .backgroundColor('#854E00')
@@ -1118,16 +1062,12 @@ struct ProfilePage {
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#003D9B')
-                    }
-                  }
-                  .width('100%')
+                    }}.width('100%')
                   .padding(12)
                   .onClick(() => {
                     this.selectedMember = 'Mother';
                     this.showMemberDropdown = false;
-                  })
-                }
-                .width('100%')
+                  })}.width('100%')
                 .backgroundColor(Color.White)
                 .borderRadius(16)
                 .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
@@ -1143,9 +1083,7 @@ struct ProfilePage {
                     Text(this.selectedMember === 'Father' ? 'JD' : 'MD')
                       .fontSize(16)
                       .fontWeight(FontWeight.Bold)
-                      .fontColor(Color.White)
-                  }
-                  .width(48)
+                      .fontColor(Color.White)}.width(48)
                   .height(48)
                   .borderRadius(24)
                   .backgroundColor(this.selectedMember === 'Father' ? '#006E2F' : '#854E00')
@@ -1165,18 +1103,12 @@ struct ProfilePage {
                         .height(8)
                         .backgroundColor(this.selectedMember === 'Father' ? '#006E2F' : '#854E00')
                         .borderRadius(4)
-                        .margin({ left: 8 })
-                    }
-                    .alignItems(VerticalAlign.Center)
+                        .margin({ left: 8 })}.alignItems(VerticalAlign.Center)
                     .margin({ bottom: 4 })
 
                     Text('Band Connected • Signal Strong')
                       .fontSize(12)
-                      .fontColor(this.selectedMember === 'Father' ? '#006E2F' : '#854E00')
-                  }
-                  .alignItems(HorizontalAlign.Start)
-                }
-                .width('100%')
+                      .fontColor(this.selectedMember === 'Father' ? '#006E2F' : '#854E00')}.alignItems(HorizontalAlign.Start)}.width('100%')
                 .padding({ bottom: 16 })
                 .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
 
@@ -1197,9 +1129,7 @@ struct ProfilePage {
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#BA1A1A')
-                    }
-                  }
-                  .layoutWeight(1)
+                    }}.layoutWeight(1)
                   .alignItems(HorizontalAlign.Center)
 
                   Row()
@@ -1222,9 +1152,7 @@ struct ProfilePage {
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#003D9B')
-                    }
-                  }
-                  .layoutWeight(1)
+                    }}.layoutWeight(1)
                   .alignItems(HorizontalAlign.Center)
 
                   Row()
@@ -1247,12 +1175,8 @@ struct ProfilePage {
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#006E2F')
-                    }
-                  }
-                  .layoutWeight(1)
-                  .alignItems(HorizontalAlign.Center)
-                }
-                .width('100%')
+                    }}.layoutWeight(1)
+                  .alignItems(HorizontalAlign.Center)}.width('100%')
                 .padding({ top: 16, bottom: 16 })
                 .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
 
@@ -1269,9 +1193,7 @@ struct ProfilePage {
                         .fontSize(12)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#003D9B')
-                    }
-                  }
-                  .layoutWeight(1)
+                    }}.layoutWeight(1)
                   .height(38)
                   .backgroundColor('rgba(0, 61, 155, 0.06)')
                   .borderRadius(8)
@@ -1297,26 +1219,18 @@ struct ProfilePage {
                         .fontSize(12)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#006E2F')
-                    }
-                  }
-                  .width(90)
+                    }}.width(90)
                   .height(38)
                   .backgroundColor('rgba(0, 110, 47, 0.06)')
                   .borderRadius(8)
                   .onClick(() => {
                     promptAction.showToast({ message: `Calling ${this.selectedMember === 'Father' ? 'John Doe' : 'Mary Doe'}...` });
-                  })
-                }
-                .width('100%')
-                .padding({ top: 16 })
-              }
-              .width('100%')
+                  })}.width('100%')
+                .padding({ top: 16 })}.width('100%')
               .padding(16)
               .backgroundColor(Color.White)
               .borderRadius(20)
-              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-            }
-            .width('100%')
+              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })}.width('100%')
             .margin({ bottom: 20 })
           }
 
@@ -1347,12 +1261,8 @@ struct ProfilePage {
                     Text(this.doctorProfile.hospital || 'Not Configured')
                       .fontSize(15)
                       .fontWeight(FontWeight.Bold)
-                      .fontColor('#191C1D')
-                  }
-                  .alignItems(HorizontalAlign.Start)
-                  .layoutWeight(1)
-                }
-                .width('100%')
+                      .fontColor('#191C1D')}.alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)}.width('100%')
                 .margin({ bottom: 16 })
 
                 // Specialty Row
@@ -1371,12 +1281,8 @@ struct ProfilePage {
                     Text(this.doctorProfile.specialty || 'Not Configured')
                       .fontSize(15)
                       .fontWeight(FontWeight.Bold)
-                      .fontColor('#191C1D')
-                  }
-                  .alignItems(HorizontalAlign.Start)
-                  .layoutWeight(1)
-                }
-                .width('100%')
+                      .fontColor('#191C1D')}.alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)}.width('100%')
                 .margin({ bottom: 16 })
 
                 // Verification Status Row
@@ -1395,20 +1301,12 @@ struct ProfilePage {
                     Text(this.doctorProfile.isVerified ? 'Verified Medical Professional' : 'Verification Required')
                       .fontSize(15)
                       .fontWeight(FontWeight.Bold)
-                      .fontColor(this.doctorProfile.isVerified ? '#006E2F' : '#BA1A1A')
-                  }
-                  .alignItems(HorizontalAlign.Start)
-                  .layoutWeight(1)
-                }
-                .width('100%')
-              }
-              .width('100%')
+                      .fontColor(this.doctorProfile.isVerified ? '#006E2F' : '#BA1A1A')}.alignItems(HorizontalAlign.Start)
+                  .layoutWeight(1)}.width('100%')}.width('100%')
               .padding(16)
               .backgroundColor(Color.White)
               .borderRadius(20)
-              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-            }
-            .width('100%')
+              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })}.width('100%')
             .margin({ bottom: 20 })
           }
 
@@ -1434,9 +1332,7 @@ struct ProfilePage {
                     .onClick(() => {
                       this.dialogController.open();
                     })
-                }
-              }
-              .width('100%')
+                }}.width('100%')
               .margin({ bottom: 12 })
               .padding({ left: 4, right: 4 })
 
@@ -1449,9 +1345,7 @@ struct ProfilePage {
                         Text(this.getInitials(contact.fullName))
                           .fontSize(14)
                           .fontWeight(FontWeight.Bold)
-                          .fontColor(Color.White)
-                      }
-                      .width(40)
+                          .fontColor(Color.White)}.width(40)
                       .height(40)
                       .borderRadius(20)
                       .backgroundColor('#003D9B')
@@ -1481,9 +1375,7 @@ struct ProfilePage {
                           Text(contact.relation)
                             .fontSize(12)
                             .fontColor('#737685')
-                        }
-                      }
-                      .alignItems(HorizontalAlign.Start)
+                        }}.alignItems(HorizontalAlign.Start)
 
                       Blank()
 
@@ -1498,9 +1390,7 @@ struct ProfilePage {
                         .onClick(() => {
                           this.sosContacts = this.sosContacts.filter(c => c.id !== contact.id);
                           this.sosContacts = [...this.sosContacts];
-                        })
-                    }
-                    .width('100%')
+                        })}.width('100%')
                     .padding({ top: 12, bottom: 12 })
                     .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
                   }, (contact: EmergencyContact) => contact.id)
@@ -1514,20 +1404,14 @@ struct ProfilePage {
                       .margin({ bottom: 4 })
                     Text('Please use the Add button above to register responders.')
                       .fontSize(12)
-                      .fontColor('#737685')
-                  }
-                  .width('100%')
+                      .fontColor('#737685')}.width('100%')
                   .padding(16)
                   .alignItems(HorizontalAlign.Center)
-                }
-              }
-              .width('100%')
+                }}.width('100%')
               .padding({ left: 16, right: 16 })
               .backgroundColor(Color.White)
               .borderRadius(20)
-              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-            }
-            .width('100%')
+              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })}.width('100%')
             .margin({ bottom: 20 })
           }
 
@@ -1542,14 +1426,10 @@ struct ProfilePage {
               Text('Sign Out')
                 .fontSize(16)
                 .fontWeight(FontWeight.Bold)
-                .fontColor('#8C0013')
-            }
-            .width('100%')
+                .fontColor('#8C0013')}.width('100%')
             .height('100%')
             .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
-          }
-          .width('100%')
+            .alignItems(VerticalAlign.Center)}.width('100%')
           .height(56)
           .backgroundColor('rgba(140, 0, 19, 0.08)')
           .borderRadius(16)
@@ -1578,12 +1458,8 @@ struct ProfilePage {
             })
 
           // Blank space to prevent overlap with BottomNavBar
-          Blank().height(100)
-        }
-        .width('100%')
-        .padding({ left: 24, right: 24, top: 20 })
-      }
-      .scrollBar(BarState.Off)
+          Blank().height(100)}.width('100%')
+        .padding({ left: 24, right: 24, top: 20 })}.scrollBar(BarState.Off)
       .width('100%')
       .height('100%')
 
@@ -1643,9 +1519,7 @@ struct ProfilePage {
               Text(this.medicalProfile.birthDate ? 'Configured' : 'Setup Required')
                 .fontSize(12)
                 .fontColor(this.medicalProfile.birthDate ? '#006E2F' : '#BA1A1A')
-                .fontWeight(FontWeight.Medium)
-            }
-            .alignItems(HorizontalAlign.Start)
+                .fontWeight(FontWeight.Medium)}.alignItems(HorizontalAlign.Start)
             .layoutWeight(1)
 
             if (this.userRole === 'patient') {
@@ -1653,9 +1527,7 @@ struct ProfilePage {
                 .fontSize(18)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#003D9B')
-            }
-          }
-          .width('100%')
+            }}.width('100%')
           .padding(16)
           .backgroundColor('#F8F9FA')
           .borderRadius(16)
@@ -1691,9 +1563,7 @@ struct ProfilePage {
               Text(this.userEmail ? 'Configured' : 'Setup Required')
                 .fontSize(12)
                 .fontColor(this.userEmail ? '#006E2F' : '#BA1A1A')
-                .fontWeight(FontWeight.Medium)
-            }
-            .alignItems(HorizontalAlign.Start)
+                .fontWeight(FontWeight.Medium)}.alignItems(HorizontalAlign.Start)
             .layoutWeight(1)
 
             if (this.userRole === 'family') {
@@ -1701,9 +1571,7 @@ struct ProfilePage {
                 .fontSize(18)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#006E2F')
-            }
-          }
-          .width('100%')
+            }}.width('100%')
           .padding(16)
           .backgroundColor('#F8F9FA')
           .borderRadius(16)
@@ -1739,9 +1607,7 @@ struct ProfilePage {
               Text(this.doctorProfile.email ? 'Configured' : 'Setup Required')
                 .fontSize(12)
                 .fontColor(this.doctorProfile.email ? '#006E2F' : '#BA1A1A')
-                .fontWeight(FontWeight.Medium)
-            }
-            .alignItems(HorizontalAlign.Start)
+                .fontWeight(FontWeight.Medium)}.alignItems(HorizontalAlign.Start)
             .layoutWeight(1)
 
             if (this.userRole === 'doctor') {
@@ -1749,9 +1615,7 @@ struct ProfilePage {
                 .fontSize(18)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#854E00')
-            }
-          }
-          .width('100%')
+            }}.width('100%')
           .padding(16)
           .backgroundColor('#F8F9FA')
           .borderRadius(16)
@@ -1781,9 +1645,7 @@ struct ProfilePage {
             .borderRadius(12)
             .onClick(() => {
               this.showRoleSwitcher = false;
-            })
-        }
-        .width('100%')
+            })}.width('100%')
         .padding({ left: 24, right: 24, top: 20, bottom: 30 })
         .backgroundColor(Color.White)
         .borderRadius({ topLeft: 32, topRight: 32 })
@@ -1816,13 +1678,9 @@ struct ProfilePage {
                 Image($r('app.media.cancel'))
                   .width(18)
                   .height(18)
-                  .objectFit(ImageFit.Contain)
-              }
-              .onClick(() => {
+                  .objectFit(ImageFit.Contain)}.onClick(() => {
                 this.isMyQrModalOpen = false;
-              })
-            }
-            .width('100%')
+              })}.width('100%')
             .margin({ bottom: 20 })
 
             // Display Dynamic QR Code Container
@@ -1830,9 +1688,7 @@ struct ProfilePage {
               QRCode(this.getQrCodeValue())
                 .width(180)
                 .height(180)
-                .color('#003D9B')
-            }
-            .width(220)
+                .color('#003D9B')}.width(220)
             .height(220)
             .justifyContent(FlexAlign.Center)
             .alignItems(VerticalAlign.Center)
@@ -1857,23 +1713,15 @@ struct ProfilePage {
               .fontColor('#434654')
               .textAlign(TextAlign.Center)
               .lineHeight(18)
-              .width('90%')
-          }
-          .width('90%')
+              .width('90%')}.width('90%')
           .padding(24)
           .backgroundColor(Color.White)
           .borderRadius(24)
-          .shadow({ radius: 12, color: 'rgba(0,0,0,0.15)' })
-        }
-        .width('100%')
+          .shadow({ radius: 12, color: 'rgba(0,0,0,0.15)' })}.width('100%')
         .height('100%')
         .position({ x: 0, y: 0 })
         .zIndex(100)
-      }
-
-
-    }
-    .width('100%')
+      }}.width('100%')
     .height('100%')
     .backgroundColor('#F8F9FA')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
