@@ -97,12 +97,12 @@ struct AddContactDialog {
                 this.relation = 'Other';
                 promptAction.showToast({ message: 'Contact selected successfully!' });
               } else {
-                this.fallbackMockContacts();
+                promptAction.showToast({ message: 'No contact was selected.' });
               }
             })
             .catch((err: Error) => {
-              console.error("selectContacts error, falling back to mock", err.message);
-              this.fallbackMockContacts();
+              console.error("selectContacts error", err.message);
+              promptAction.showToast({ message: 'Could not access device contacts.' });
             });
         })
 
@@ -226,38 +226,6 @@ struct ProfilePage {
       return (first + last).toUpperCase();
     }
     return name.substring(0, Math.min(2, name.length)).toUpperCase();
-  }
-
-  fallbackMockContacts() {
-    promptAction.showActionMenu({
-      title: 'Select Contact (Simulator)',
-      showInSubWindow: false,
-      buttons: [
-        { text: 'Alice Green (+90 555 111 2233)', color: '#003D9B' },
-        { text: 'Bob Smith (+90 555 444 5566)', color: '#003D9B' },
-        { text: 'Charlie Brown (+90 555 777 8899)', color: '#003D9B' }
-      ]
-    }).then((data) => {
-      if (data.index === 0) {
-        this.firstName = 'Alice';
-        this.lastName = 'Green';
-        this.phoneNumber = '+905551112233';
-        this.relation = 'Mother';
-      } else if (data.index === 1) {
-        this.firstName = 'Bob';
-        this.lastName = 'Smith';
-        this.phoneNumber = '+905554445566';
-        this.relation = 'Father';
-      } else if (data.index === 2) {
-        this.firstName = 'Charlie';
-        this.lastName = 'Brown';
-        this.phoneNumber = '+905557778899';
-        this.relation = 'Brother';
-      }
-      promptAction.showToast({ message: 'Contact selected!' });
-    }).catch((err: Error) => {
-      console.error("ActionMenu error", err.message);
-    });
   }
 
   // Helper to generate a patient ID dynamically based on fullName and email
