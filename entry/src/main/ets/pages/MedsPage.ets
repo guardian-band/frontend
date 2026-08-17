@@ -343,13 +343,6 @@ struct MedsPage {
 
         Scroll(this.scroller) {
           Column() {
-            // --- Safety (Side Effect Analysis) Section ---
-            SafetyAnalysisCard({ 
-              analysisResult: this.currentAnalysis, 
-              userGender: (this.medicalProfile?.gender || 'Female').toLowerCase() 
-            })
-              .margin({ left: 12, right: 12, bottom: 8 })
-            
             // Empty State
             if (this.medications.length === 0) {
               Column() {
@@ -364,6 +357,7 @@ struct MedsPage {
               .backgroundColor(Color.White)
               .borderRadius(16)
               .border({ width: 1, color: '#EBECEF' })
+              .margin({ bottom: 12 })
             } else {
               // Medication List
               Column() {
@@ -456,6 +450,13 @@ struct MedsPage {
               }
               .width('100%')
             }
+
+            // --- Safety (Side Effect Analysis) Section (Now positioned below Medication List) ---
+            SafetyAnalysisCard({ 
+              analysisResult: this.currentAnalysis, 
+              userGender: (this.medicalProfile?.gender || 'Female').toLowerCase() 
+            })
+              .margin({ left: 12, right: 12, top: 4, bottom: 12 })
 
             Blank().height(120)
           }

@@ -92,8 +92,15 @@ struct OrganRiskCard {
     Column() {
       Row() {
         Row() {
-          Text(this.getOrganIcon(this.organ.organId))
-            .fontSize(20)
+          if (this.organ.organId === 'stomach') {
+            Image($r('app.media.drugs'))
+              .width(22)
+              .height(22)
+              .objectFit(ImageFit.Contain)
+          } else {
+            Text(this.getOrganIcon(this.organ.organId))
+              .fontSize(20)
+          }
         }
         .width(40)
         .height(40)
@@ -227,8 +234,10 @@ export struct SafetyAnalysisCard {
       // --- COLLAPSIBLE HEADER (Always Visible) ---
       Row() {
         Row() {
-          Text('🩺')
-            .fontSize(20)
+          Image($r('app.media.stethoscope'))
+            .width(26)
+            .height(26)
+            .objectFit(ImageFit.Contain)
             .margin({ right: 12 })
           
           Column() {
@@ -322,9 +331,17 @@ export struct SafetyAnalysisCard {
             // Incompatibility Summary Card (Dynamic AI Message)
             Column() {
               Row() {
-                Text(this.analysisResult.overallStatus === 'safe' ? 'ℹ️' : '⚠️')
-                  .fontSize(20)
-                  .margin({ right: 8 })
+                if (this.analysisResult.overallStatus !== 'safe') {
+                  Image($r('app.media.alert'))
+                    .width(22)
+                    .height(22)
+                    .objectFit(ImageFit.Contain)
+                    .margin({ right: 8 })
+                } else {
+                  Text('ℹ️')
+                    .fontSize(20)
+                    .margin({ right: 8 })
+                }
                 Text('AI Analysis Summary')
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)

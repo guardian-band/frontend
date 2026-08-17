@@ -63,6 +63,7 @@ struct HomePage {
   @StorageLink('profilePicture') profilePicture: string = '';
   @StorageLink('doctorProfile') doctorProfile: DoctorProfile = { hospital: '', specialty: '', email: '', isVerified: false };
   @StorageLink('previousRole') previousRole: string = 'patient';
+  @StorageLink('isGraphModalOpen') isGraphModalOpen: boolean = false;
   @State isDoctorVerificationModalOpen: boolean = false;
   @State enteredVerificationCode: string = '';
   @State isScannedPatientModalOpen: boolean = false;
@@ -250,9 +251,19 @@ struct HomePage {
       .width('100%')
       .height('100%')
       .padding({ bottom: 80 })
+      .enableScrollInteraction(!this.isGraphModalOpen)
 
       BottomNavBar({ activeTab: 'home' })
         .zIndex(1)
+
+      // Full-Screen Vitals Graph Modal (zIndex 200 - covers ENTIRE screen including status bar & navbar)
+      if (this.isGraphModalOpen) {
+        VitalsGraphModal()
+          .width('100%')
+          .height('100%')
+          .position({ x: 0, y: 0 })
+          .zIndex(200)
+      }
 
       // Doctor Verification Overlay Modal
       if (this.isDoctorVerificationModalOpen) {
@@ -855,7 +866,7 @@ struct PatientDashboardView {
   @State oxygenHistory: number[] = [97, 98, 98, 97, 99, 98, 98];
 
   // --- MODAL GRAPH STATES ---
-  @State isGraphModalOpen: boolean = false;
+  @StorageLink('isGraphModalOpen') isGraphModalOpen: boolean = false;
   @State selectedMetric: string = 'Heart Rate';
   @State selectedValue: number = 72;
 
@@ -911,7 +922,6 @@ struct PatientDashboardView {
         } else if (this.selectedMetric === 'Oxygen') {
           this.selectedValue = this.currentOxygen;
         }
-        this.drawMinimalistLineChart();
       }
     }, 2000);
   }
@@ -1279,167 +1289,18 @@ struct PatientDashboardView {
           }
         }
         .width('100%')
+        .width('100%')
         .padding(16)
         .backgroundColor(Color.White)
         .borderRadius(20)
         .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
       }
       .width('100%')
-
-      // --- SWEET MINIMALIST REAL-TIME LINE CHART MODAL ---
-      if (this.isGraphModalOpen) {
-        Stack() {
-          Row()
-            .width('100%')
-            .height('100%')
-            .backgroundColor('rgba(0, 0, 0, 0.35)')
-            .onClick(() => { this.isGraphModalOpen = false; })
-
-          Column() {
-            // Header
-            Row() {
-              Column() {
-                Text(`${this.selectedMetric} Live Trend`)
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-                Text('Real-time session stream')
-                  .fontSize(12)
-                  .fontColor('#737685')
-                  .margin({ top: 2 })
-              }
-              .alignItems(HorizontalAlign.Start)
-
-              Blank()
-
-              Button('✕')
-                .type(ButtonType.Circle)
-                .width(32)
-                .height(32)
-                .backgroundColor('#F1F2F5')
-                .fontColor('#191C1D')
-                .fontSize(14)
-                .fontWeight(FontWeight.Bold)
-                .onClick(() => { this.isGraphModalOpen = false; })
-            }
-            .width('100%')
-            .margin({ bottom: 16 })
-
-            // Live Value Pill
-            Row() {
-              Text('Current Reading: ')
-                .fontSize(13)
-                .fontColor('#737685')
-              Text(`${this.selectedValue} ${this.selectedMetric === 'Heart Rate' ? 'bpm' : '%'}`)
-                .fontSize(16)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#003D9B')
-            }
-            .width('100%')
-            .padding(12)
-            .backgroundColor('#E8EEFF')
-            .borderRadius(12)
-            .margin({ bottom: 16 })
-
-            // --- MINIMALIST CLEAN CANVAS CHART ---
-            Canvas(this.chartCanvasController)
-              .width('100%')
-              .height(180)
-              .backgroundColor('#FFFFFF')
-              .borderRadius(16)
-              .border({ width: 1, color: '#EBECEF' })
-              .onReady(() => {
-                this.drawMinimalistLineChart();
-              })
-              .margin({ bottom: 20 })
-
-            // Close Button
-            Button('Done')
-              .width('100%')
-              .height(44)
-              .backgroundColor('#003D9B')
-              .fontColor(Color.White)
-              .borderRadius(12)
-              .fontSize(14)
-              .fontWeight(FontWeight.Bold)
-              .onClick(() => { this.isGraphModalOpen = false; })
-          }
-          .width('90%')
-          .padding(24)
-          .backgroundColor(Color.White)
-          .borderRadius(28)
-          .shadow({ radius: 16, color: 'rgba(0,0,0,0.15)', offsetY: 8 })
-          .zIndex(20)
-        }
-        .width('100%')
-        .height('100%')
-        .zIndex(15)
-      }
     }
     .width('100%')
   }
 
-  // Algorithm using explicit ChartPoint interface to satisfy ArkTS type safety
-  drawMinimalistLineChart() {
-    const ctx = this.chartCanvasController;
-    const width = 300;
-    const height = 180;
 
-    ctx.clearRect(0, 0, width, height);
-
-    let dataPoints = this.selectedMetric === 'Heart Rate' ? this.heartRateHistory : this.oxygenHistory;
-    if (dataPoints.length === 0) return;
-
-    ctx.strokeStyle = '#F1F2F5';
-    ctx.lineWidth = 1;
-    for (let y = 30; y < height; y += 35) {
-      ctx.beginPath();
-      ctx.moveTo(15, y);
-      ctx.lineTo(width - 15, y);
-      ctx.stroke();
-    }
-
-    let minVal = Math.min(...dataPoints);
-    let maxVal = Math.max(...dataPoints);
-    if (minVal === maxVal) {
-      minVal -= 5;
-      maxVal += 5;
-    }
-
-    let paddingX = 25;
-    let usableWidth = width - (paddingX * 2);
-    let stepX = dataPoints.length > 1 ? usableWidth / (dataPoints.length - 1) : usableWidth;
-
-    ctx.strokeStyle = '#003D9B';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-
-    let coords: ChartPoint[] = [];
-
-    for (let i = 0; i < dataPoints.length; i++) {
-      let x = paddingX + (i * stepX);
-      let normalized = (dataPoints[i] - minVal) / (maxVal - minVal);
-      let y = height - 30 - (normalized * (height - 60));
-      coords.push({ x: x, y: y });
-
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    }
-    ctx.stroke();
-
-    for (let i = 0; i < coords.length; i++) {
-      ctx.fillStyle = '#FFFFFF';
-      ctx.strokeStyle = '#003D9B';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(coords[i].x, coords[i].y, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-  }
 
   @Builder HeartRateCard() {
     Column() {
@@ -2795,7 +2656,6 @@ struct DoctorDashboardView {
   build() {
     Stack() {
       Column() {
-      if (!this.isInspectorOpen) {
         // --- DOCTOR PORTAL DASHBOARD MAIN VIEW ---
         
         AppHeader({ title: 'GuardianBand Home', onCameraClick: () => { this.scanPatientQr(); } })
@@ -2891,7 +2751,7 @@ struct DoctorDashboardView {
         .border({ width: 1, color: 'rgba(0, 61, 155, 0.2)', style: BorderStyle.Solid })
         .margin({ bottom: 24 })
 
-        // 2. Action Card: Match Patient via QR
+        // Action Card: Match Patient via QR
         Column() {
           Row() {
             Row() {
@@ -2945,297 +2805,8 @@ struct DoctorDashboardView {
         .border({ width: 1, color: 'rgba(0, 61, 155, 0.2)', style: BorderStyle.Solid })
         .margin({ bottom: 24 })
 
-        // 3. Patients List Section
-        Text('My Linked Patients')
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#191C1D')
-          .alignSelf(ItemAlign.Start)
-          .margin({ left: 4, bottom: 14 })
-
-        ForEach(this.doctorPatients, (patient: MonitoredPatient) => {
-          Row() {
-            // Initial/Avatar
-            Row() {
-              Text(patient.name.charAt(0) + patient.name.split(' ').pop()!.charAt(0))
-                .fontSize(14)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(Color.White)
-            }
-            .width(44)
-            .height(44)
-            .borderRadius(22)
-            .backgroundColor(patient.gender === 'Male' ? '#003D9B' : '#5C0099')
-            .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
-            .margin({ right: 14 })
-
-            Column() {
-              Text(patient.name)
-                .fontSize(16)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#191C1D')
-                .margin({ bottom: 4 })
-
-              Row() {
-                Text(`${patient.gender} • Blood Type: `)
-                  .fontSize(12)
-                  .fontColor('#737685')
-                Text(patient.bloodType)
-                  .fontSize(12)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#BA1A1A')
-              }
-              .alignItems(VerticalAlign.Center)
-            }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
-
-            Row() {
-              Text('Inspect')
-                .fontSize(12)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#003D9B')
-                .margin({ right: 4 })
-              Text('➔')
-                .fontSize(12)
-                .fontColor('#003D9B')
-            }
-            .alignItems(VerticalAlign.Center)
-          }
-          .width('100%')
-          .padding(16)
-          .backgroundColor(Color.White)
-          .borderRadius(20)
-          .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-          .margin({ bottom: 12 })
-          .onClick(() => {
-            this.selectedPatient = patient;
-            this.isInspectorOpen = true;
-          })
-        }, (item: MonitoredPatient) => item.id)
-
-        // Spacer absorbed into Column padding — removed Blank() to avoid double spacing
-
-      } else {
-        // --- PATIENT VITALS INSPECTOR (DETAIL VIEW) ---
-        if (this.selectedPatient !== null) {
-          Column() {
-            // Header bar
-            Row() {
-              Row() {
-                Text('⬅ Back to Roster')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#003D9B')
-              }
-              .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-              .backgroundColor('#E8EEFF')
-              .borderRadius(12)
-              .onClick(() => {
-                this.isInspectorOpen = false;
-                this.selectedPatient = null;
-              })
-
-              Blank()
-
-              Row() {
-                Circle({ width: 6, height: 6 }).fill('#006E2F').margin({ right: 4 })
-                Text('Real-time Connection')
-                  .fontSize(11)
-                  .fontColor('#006E2F')
-                  .fontWeight(FontWeight.Medium)
-              }
-            }
-            .width('100%')
-            .margin({ bottom: 16 })
-
-            // Monitored Patient Header Card
-            Row() {
-              Row() {
-                Text(this.selectedPatient.name.charAt(0) + this.selectedPatient.name.split(' ').pop()!.charAt(0))
-                  .fontSize(16)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor(Color.White)
-              }
-              .width(48)
-              .height(48)
-              .borderRadius(24)
-              .backgroundColor(this.selectedPatient.gender === 'Male' ? '#003D9B' : '#5C0099')
-              .justifyContent(FlexAlign.Center)
-              .alignItems(VerticalAlign.Center)
-              .margin({ right: 14 })
-
-              Column() {
-                Text(this.selectedPatient.name)
-                  .fontSize(20)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-                  .margin({ bottom: 4 })
-
-                Text(`Monitored Patient Account • ${this.selectedPatient.gender}`)
-                  .fontSize(13)
-                  .fontColor('#737685')
-              }
-              .alignItems(HorizontalAlign.Start)
-              .layoutWeight(1)
-            }
-            .width('100%')
-            .margin({ bottom: 20 })
-
-            // Vitals Stats Grid (Heart Rate & Oxygen)
-            Row() {
-              // Heart Rate
-              Column() {
-                Row() {
-                  Image($r('app.media.heart'))
-                    .width(28)
-                    .height(28)
-                    .objectFit(ImageFit.Contain)
-                  Blank()
-                  Text('Live')
-                    .fontSize(11)
-                    .fontColor('#737685')
-                }
-                .width('100%')
-                .margin({ bottom: 14 })
-
-                Text(`${this.selectedPatient.heartRate} BPM`)
-                  .fontSize(22)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-                  .alignSelf(ItemAlign.Start)
-                  .margin({ bottom: 4 })
-
-                Text('Heart Status: Stable')
-                  .fontSize(11)
-                  .fontColor('#006E2F')
-                  .fontWeight(FontWeight.Bold)
-                  .alignSelf(ItemAlign.Start)
-              }
-              .layoutWeight(1)
-              .padding(14)
-              .backgroundColor(Color.White)
-              .borderRadius(16)
-              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
-              .margin({ right: 8 })
-
-              // Blood Oxygen
-              Column() {
-                Row() {
-                  Image($r('app.media.oxygensaturation'))
-                    .width(36)
-                    .height(36)
-                    .objectFit(ImageFit.Contain)
-                  Blank()
-                  Text('Live')
-                    .fontSize(11)
-                    .fontColor('#737685')
-                }
-                .width('100%')
-                .margin({ bottom: 6 })
-
-                Text(`${this.selectedPatient.oxygen} %`)
-                  .fontSize(22)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-                  .alignSelf(ItemAlign.Start)
-                  .margin({ bottom: 4 })
-
-                Text('Oxygen Level: Optimal')
-                  .fontSize(11)
-                  .fontColor('#003D9B')
-                  .fontWeight(FontWeight.Bold)
-                  .alignSelf(ItemAlign.Start)
-              }
-              .layoutWeight(1)
-              .padding(14)
-              .backgroundColor(Color.White)
-              .borderRadius(16)
-              .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
-              .margin({ left: 8 })
-            }
-            .width('100%')
-            .margin({ bottom: 16 })
-
-            // Medication Card
-            Row() {
-              Row() {
-                Image($r('app.media.drugs'))
-                  .width(28)
-                  .height(28)
-                  .objectFit(ImageFit.Contain)
-              }
-              .width(40)
-              .height(40)
-              .borderRadius(8)
-              .backgroundColor('rgba(0, 61, 155, 0.08)')
-              .justifyContent(FlexAlign.Center)
-              .alignItems(VerticalAlign.Center)
-              .margin({ right: 12 })
-
-              Column() {
-                Text('Assigned Medication')
-                  .fontSize(11)
-                  .fontColor('#737685')
-                  .margin({ bottom: 2 })
-                Text(this.selectedPatient.meds)
-                  .fontSize(15)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-              }
-              .alignItems(HorizontalAlign.Start)
-              .layoutWeight(1)
-            }
-            .width('100%')
-            .padding(14)
-            .backgroundColor(Color.White)
-            .borderRadius(16)
-            .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
-            .margin({ bottom: 16 })
-
-            // Map Location
-            Column() {
-              Row() {
-                Image($r('app.media.place'))
-                  .width(22)
-                  .height(22)
-                  .objectFit(ImageFit.Contain)
-                  .margin({ right: 8 })
-
-                Text('Patient Live Location')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-
-                Blank()
-
-                Text(this.selectedPatient.location)
-                  .fontSize(11)
-                  .fontColor('#737685')
-              }
-              .width('100%')
-              .margin({ bottom: 12 })
-
-              // Display static map placeholder
-              Image('https://static-maps.yandex.ru/1.x/?ll=-122.1697,37.4275&z=14&l=map&size=600,240')
-                .width('100%')
-                .height(130)
-                .objectFit(ImageFit.Cover)
-                .borderRadius(12)
-            }
-            .width('100%')
-            .padding(14)
-            .backgroundColor(Color.White)
-            .borderRadius(16)
-            .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
-            .margin({ bottom: 20 })
-          }
-          .width('100%')
-          .padding({ bottom: 110 })
-        }
       }
-    }.width('100%')
+      .width('100%')
 
     // Emergency Watch Scanner patient info popup (doctor role)
     if (this.isDoctorWatchPopupOpen) {
@@ -3443,3 +3014,344 @@ struct DoctorDashboardView {
   }
 }
 
+@Component
+struct VitalsGraphModal {
+  @StorageLink('isGraphModalOpen') isGraphModalOpen: boolean = false;
+  @StorageLink('selectedMetric') selectedMetric: string = 'Heart Rate';
+  @StorageLink('selectedValue') selectedValue: number = 72;
+  @StorageLink('heartRateHistory') heartRateHistory: number[] = [70, 72, 71, 73, 72, 70, 72];
+  @StorageLink('oxygenHistory') oxygenHistory: number[] = [97, 98, 98, 97, 99, 98, 98];
+
+  private chartCanvasController: CanvasRenderingContext2D = new CanvasRenderingContext2D(new RenderingContextSettings(true));
+
+  getVitalsStatusText(): string {
+    let val = Number(this.selectedValue);
+    if (this.selectedMetric === 'Heart Rate') {
+      if (val >= 60 && val <= 100) return 'Normal Range';
+      if (val > 100) return 'High';
+      return 'Low';
+    } else {
+      if (val >= 95) return 'Normal Range';
+      return 'Low';
+    }
+  }
+
+  getVitalsStatusColor(): string {
+    let val = Number(this.selectedValue);
+    if (this.selectedMetric === 'Heart Rate') {
+      if (val >= 60 && val <= 100) return '#006E2F';
+      if (val > 100) return '#BA1A1A';
+      return '#854E00';
+    } else {
+      if (val >= 95) return '#006E2F';
+      return '#BA1A1A';
+    }
+  }
+
+  getVitalsStatusBg(): string {
+    let val = Number(this.selectedValue);
+    if (this.selectedMetric === 'Heart Rate') {
+      if (val >= 60 && val <= 100) return '#E6F9ED';
+      if (val > 100) return '#FFEBEA';
+      return '#FFF4E5';
+    } else {
+      if (val >= 95) return '#E6F9ED';
+      return '#FFEBEA';
+    }
+  }
+
+  drawMinimalistLineChart() {
+    const ctx = this.chartCanvasController;
+    const width = 300;
+    const height = 160;
+
+    ctx.clearRect(0, 0, width, height);
+
+    let isHeart = this.selectedMetric === 'Heart Rate';
+    let dataPoints = isHeart ? this.heartRateHistory : this.oxygenHistory;
+    if (dataPoints.length === 0) return;
+
+    let minVal = isHeart ? 50 : 90;
+    let maxVal = isHeart ? 110 : 100;
+    let normalMin = isHeart ? 60 : 95;
+    let normalMax = isHeart ? 100 : 100;
+
+    let paddingLeft = 4;
+    let paddingRight = 4;
+    let paddingTop = 8;
+    let paddingBottom = 8;
+
+    let usableWidth = width - paddingLeft - paddingRight;
+    let usableHeight = height - paddingTop - paddingBottom;
+
+    let getY = (val: number): number => {
+      let clamped = Math.max(minVal, Math.min(maxVal, val));
+      let norm = (clamped - minVal) / (maxVal - minVal);
+      return (height - paddingBottom) - (norm * usableHeight);
+    };
+
+    let normYTop = getY(normalMax);
+    let normYBottom = getY(normalMin);
+    ctx.fillStyle = 'rgba(0, 110, 47, 0.12)';
+    ctx.fillRect(paddingLeft, normYTop, usableWidth, normYBottom - normYTop);
+
+    ctx.strokeStyle = 'rgba(0, 110, 47, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(paddingLeft, normYTop);
+    ctx.lineTo(paddingLeft + usableWidth, normYTop);
+    ctx.moveTo(paddingLeft, normYBottom);
+    ctx.lineTo(paddingLeft + usableWidth, normYBottom);
+    ctx.stroke();
+
+    let ySteps = isHeart ? [100, 80, 60] : [100, 95, 90];
+    ctx.strokeStyle = '#E2E8F0';
+    ctx.lineWidth = 1;
+    for (let val of ySteps) {
+      let yPos = getY(val);
+      ctx.beginPath();
+      ctx.moveTo(paddingLeft, yPos);
+      ctx.lineTo(width - paddingRight, yPos);
+      ctx.stroke();
+    }
+
+    let stepX = dataPoints.length > 1 ? usableWidth / (dataPoints.length - 1) : usableWidth;
+    ctx.strokeStyle = '#003D9B';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+
+    let coords: ChartPoint[] = [];
+    for (let i = 0; i < dataPoints.length; i++) {
+      let x = paddingLeft + (i * stepX);
+      let y = getY(dataPoints[i]);
+      coords.push({ x: x, y: y });
+
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+
+    for (let i = 0; i < coords.length; i++) {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.strokeStyle = '#003D9B';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(coords[i].x, coords[i].y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  build() {
+    Stack({ alignContent: Alignment.Center }) {
+      // 1. Full-screen dark overlay covering status bar, navbar, and window
+      Row()
+        .width('100%')
+        .height('100%')
+        .position({ x: 0, y: 0 })
+        .backgroundColor('rgba(0, 0, 0, 0.65)')
+        .onClick(() => {
+          AppStorage.setOrCreate('isGraphModalOpen', false);
+        })
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+
+      // 2. White Dialog Card
+      Column() {
+        // Header: Title & Sleek 32x32 Close Button
+        Row() {
+          Column() {
+            Text(this.selectedMetric === 'Heart Rate' ? 'Heart Rate Trend' : 'Oxygen Saturation Trend')
+              .fontSize(18)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#191C1D')
+            Text('Last 10 minutes live reading')
+              .fontSize(12)
+              .fontColor('#737685')
+              .margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+
+          Button() {
+            Text('✕')
+              .fontSize(14)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#475569')
+          }
+          .type(ButtonType.Circle)
+          .width(32)
+          .height(32)
+          .backgroundColor('#F1F5F9')
+          .onClick(() => {
+            AppStorage.setOrCreate('isGraphModalOpen', false);
+          })
+        }
+        .width('100%')
+        .margin({ bottom: 16 })
+
+        // 1. Single Main Reading & Status Card
+        Row() {
+          Column() {
+            Text('Latest Reading')
+              .fontSize(12)
+              .fontColor('#737685')
+              .margin({ bottom: 2 })
+
+            Text(`${this.selectedValue} ${this.selectedMetric === 'Heart Rate' ? 'bpm' : '%'}`)
+              .fontSize(24)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#191C1D')
+          }
+          .alignItems(HorizontalAlign.Start)
+
+          Blank()
+
+          Row() {
+            Image($r('app.media.like'))
+              .width(16)
+              .height(16)
+              .objectFit(ImageFit.Contain)
+              .margin({ right: 6 })
+            Text(this.getVitalsStatusText())
+              .fontSize(12)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(this.getVitalsStatusColor())
+          }
+          .padding({ left: 10, right: 12, top: 6, bottom: 6 })
+          .backgroundColor(this.getVitalsStatusBg())
+          .borderRadius(16)
+          .border({ width: 1, color: this.getVitalsStatusColor() })
+        }
+        .width('100%')
+        .padding(14)
+        .backgroundColor('#F8F9FF')
+        .borderRadius(16)
+        .border({ width: 1, color: 'rgba(0, 61, 155, 0.12)' })
+        .margin({ bottom: 16 })
+
+        // 2. Chart with Native ArkUI Labels
+        Column() {
+          Row() {
+            Column() {
+              Text(this.selectedMetric === 'Heart Rate' ? '100' : '%100')
+                .fontSize(13)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#BA1A1A')
+                .textAlign(TextAlign.End)
+                .width('100%')
+                .maxLines(1)
+
+              Blank()
+
+              Text(this.selectedMetric === 'Heart Rate' ? '80' : '%95')
+                .fontSize(13)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#006E2F')
+                .textAlign(TextAlign.End)
+                .width('100%')
+                .maxLines(1)
+
+              Blank()
+
+              Text(this.selectedMetric === 'Heart Rate' ? '60' : '%90')
+                .fontSize(13)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#1E293B')
+                .textAlign(TextAlign.End)
+                .width('100%')
+                .maxLines(1)
+            }
+            .width(36)
+            .height(160)
+            .justifyContent(FlexAlign.SpaceBetween)
+            .margin({ right: 3 })
+
+            Canvas(this.chartCanvasController)
+              .layoutWeight(1)
+              .height(160)
+              .backgroundColor('#FFFFFF')
+              .onReady(() => {
+                this.drawMinimalistLineChart();
+              })
+          }
+          .width('100%')
+          .alignItems(VerticalAlign.Top)
+
+          Row() {
+            Text('-10 min')
+              .fontSize(12)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#475569')
+            Blank()
+            Text('-5 min')
+              .fontSize(12)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#475569')
+            Blank()
+            Text('Now')
+              .fontSize(12)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#475569')
+          }
+          .width('100%')
+          .padding({ left: 31, right: 4 })
+          .margin({ top: 6 })
+        }
+        .width('100%')
+        .padding({ left: 8, right: 12, top: 12, bottom: 8 })
+        .backgroundColor('#FFFFFF')
+        .borderRadius(16)
+        .border({ width: 1.5, color: '#E2E8F0' })
+        .margin({ bottom: 12 })
+
+        // 3. Explanation Banner
+        Row() {
+          Circle({ width: 8, height: 8 }).fill('#006E2F').margin({ right: 8 })
+          Text('Green area indicates normal healthy range.')
+            .fontSize(12)
+            .fontWeight(FontWeight.Medium)
+            .fontColor('#434654')
+        }
+        .width('100%')
+        .margin({ bottom: 20 })
+
+        // 4. Confirmation Button
+        Button() {
+          Row() {
+            Image($r('app.media.like'))
+              .width(22)
+              .height(22)
+              .objectFit(ImageFit.Contain)
+              .margin({ right: 8 })
+            Text('Done')
+              .fontSize(17)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+          }
+        }
+        .width('100%')
+        .height(50)
+        .backgroundColor('#003D9B')
+        .borderRadius(12)
+        .shadow({ radius: 6, color: 'rgba(0,61,155,0.2)', offsetY: 3 })
+        .onClick(() => {
+          AppStorage.setOrCreate('isGraphModalOpen', false);
+        })
+      }
+      .width('90%')
+      .padding(20)
+      .backgroundColor(Color.White)
+      .borderRadius(24)
+      .shadow({ radius: 20, color: 'rgba(0,0,0,0.2)', offsetY: 8 })
+      .zIndex(20)
+    }
+    .width('100%')
+    .height('100%')
+    .position({ x: 0, y: 0 })
+    .zIndex(200)
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+  }
+}

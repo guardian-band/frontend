@@ -65,6 +65,36 @@ export struct BottomNavBar {
         })
       }
 
+      // Patients Tab (Doctor role only)
+      if (this.userRole === 'doctor') {
+        Column() {
+          Image($r('app.media.patient'))
+            .width(28)
+            .height(28)
+            .objectFit(ImageFit.Contain)
+            .margin({ bottom: 4 })
+          Text('Patients')
+            .fontSize(13)
+            .fontWeight(this.activeTab === 'patients' ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(this.activeTab === 'patients' ? '#003D9B' : '#737685')
+        }
+        .layoutWeight(1)
+        .justifyContent(FlexAlign.Center)
+        .backgroundColor(this.activeTab === 'patients' ? '#E8EEFF' : Color.Transparent)
+        .borderRadius(16)
+        .height('100%')
+        .onClick(() => {
+          if (this.activeTab !== 'patients') {
+            router.pushUrl({ url: 'pages/PatientsPage' }, (err) => {
+              if (err) {
+                promptAction.showToast({ message: `Routing Error: ${err.message}` })
+                console.error(`Routing to PatientsPage failed: ${err.code} - ${err.message}`)
+              }
+            });
+          }
+        })
+      }
+
       // SOS Tab
       Column() {
         Image($r('app.media.sos'))
