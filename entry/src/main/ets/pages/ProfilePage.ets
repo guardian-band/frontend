@@ -1649,8 +1649,8 @@ struct ProfilePage {
               // Close Button
               Row() {
                 Image($r('app.media.cancel'))
-                  .width(18)
-                  .height(18)
+                  .width(20)
+                  .height(20)
                   .objectFit(ImageFit.Contain)}.onClick(() => {
                 this.isMyQrModalOpen = false;
               })}.width('100%')

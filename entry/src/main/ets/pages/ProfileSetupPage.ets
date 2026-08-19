@@ -803,6 +803,14 @@ struct ProfileSetupPage {
                 console.log(`- Hearing Aid: ${this.hearingAid ? 'Yes' : 'No'}`);
                 console.log("==================================================\n");
                 
+                // Map chronicDiseases to replace 'Other' with custom typed disease name
+                let finalDiseases: string[] = this.chronicDiseases.map((d: string) => {
+                  if (d === 'Other') {
+                    return this.otherChronicDisease ? this.otherChronicDisease.trim() : '';
+                  }
+                  return d;
+                }).filter((d: string) => d.length > 0);
+
                 // Store in AppStorage for local frontend use
                 AppStorage.setOrCreate('medicalProfile', {
                   birthDate: this.birthDate,
@@ -810,7 +818,7 @@ struct ProfileSetupPage {
                   height: this.heightCm,
                   weight: this.weightKg,
                   bloodType: this.bloodType,
-                  diseases: this.chronicDiseases,
+                  diseases: finalDiseases,
                   otherChronicDisease: this.otherChronicDisease,
                   allergies: this.allergies,
                   pacemaker: this.pacemaker,
@@ -824,7 +832,7 @@ struct ProfileSetupPage {
                     bloodType: this.bloodType,
                     criticalFacts: {
                       "allergies": this.allergies ? [this.allergies] : [],
-                      "chronicConditions": this.chronicDiseases || []
+                      "chronicConditions": finalDiseases
                     } as Record<string, string[]>,
                     timezone: "Europe/Istanbul"
                   };

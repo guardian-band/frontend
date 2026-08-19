@@ -21,6 +21,8 @@ interface ScannedPatient {
   bloodType: string;
   allergies: string;
   diseases: Array<string>;
+  otherChronicDisease?: string;
+  medications?: Array<string>;
   vitals?: ScannedPatientVitals;
 }
 
@@ -54,6 +56,122 @@ interface ChartPoint {
   y: number;
 }
 
+// Helper function to format diseases list as an array and replace 'Other' with custom typed disease name
+function getFormattedDiseasesArray(diseases?: Array<string>, otherDisease?: string): string[] {
+  let listToUse: string[] = diseases || [];
+
+  if (listToUse.length === 0) {
+    let profile = AppStorage.get<Record<string, Object>>('medicalProfile');
+    if (profile) {
+      let pDiseases = profile['diseases'] as string[] | undefined;
+      let pOther = profile['otherChronicDisease'] as string | undefined;
+      if (pDiseases && pDiseases.length > 0) {
+        listToUse = pDiseases;
+      }
+      if (!otherDisease && pOther) {
+        otherDisease = pOther;
+      }
+    }
+  }
+
+  if (listToUse.length === 0) {
+    return [];
+  }
+
+  let result: string[] = [];
+  for (let i = 0; i < listToUse.length; i++) {
+    let item = listToUse[i];
+    if (item === 'Other') {
+      if (otherDisease && otherDisease.trim().length > 0) {
+        result.push(otherDisease.trim());
+      }
+    } else if (item && item.trim().length > 0) {
+      result.push(item.trim());
+    }
+  }
+
+  return result;
+}
+
+// Helper function to format diseases list and replace 'Other' with custom typed disease name
+function formatDiseasesList(diseases?: Array<string>, otherDisease?: string): string {
+  let listToUse: string[] = diseases || [];
+
+  if (listToUse.length === 0) {
+    let profile = AppStorage.get<Record<string, Object>>('medicalProfile');
+    if (profile) {
+      let pDiseases = profile['diseases'] as string[] | undefined;
+      let pOther = profile['otherChronicDisease'] as string | undefined;
+      if (pDiseases && pDiseases.length > 0) {
+        listToUse = pDiseases;
+      }
+      if (!otherDisease && pOther) {
+        otherDisease = pOther;
+      }
+    }
+  }
+
+  if (listToUse.length === 0) {
+    return 'None';
+  }
+
+  let result: string[] = [];
+  for (let i = 0; i < listToUse.length; i++) {
+    let item = listToUse[i];
+    if (item === 'Other') {
+      if (otherDisease && otherDisease.trim().length > 0) {
+        result.push(otherDisease.trim());
+      }
+    } else if (item && item.trim().length > 0) {
+      result.push(item.trim());
+    }
+  }
+
+  return result.length > 0 ? result.join(', ') : 'None';
+}
+
+// Helper function for Emergency Vitals active medications list
+function getActiveMedicationsList(medsList?: Array<string>): string[] {
+  if (medsList && medsList.length > 0) {
+    return medsList;
+  }
+  let stored: MedicationItem[] = AppStorage.get<MedicationItem[]>('dashboardMeds') || [];
+  if (stored && stored.length > 0) {
+    let uniqueNames: string[] = [];
+    for (let i = 0; i < stored.length; i++) {
+      let medName: string = stored[i].name;
+      if (medName && !uniqueNames.includes(medName)) {
+        uniqueNames.push(medName);
+      }
+    }
+    if (uniqueNames.length > 0) {
+      return uniqueNames;
+    }
+  }
+  return [];
+}
+
+// Helper function for Emergency Vitals active medications
+function getActiveMedicationsText(medsList?: Array<string>): string {
+  if (medsList && medsList.length > 0) {
+    return medsList.join(', ');
+  }
+  let stored: MedicationItem[] = AppStorage.get<MedicationItem[]>('dashboardMeds') || [];
+  if (stored && stored.length > 0) {
+    let uniqueNames: string[] = [];
+    for (let i = 0; i < stored.length; i++) {
+      let medName: string = stored[i].name;
+      if (medName && !uniqueNames.includes(medName)) {
+        uniqueNames.push(medName);
+      }
+    }
+    if (uniqueNames.length > 0) {
+      return uniqueNames.join(', ');
+    }
+  }
+  return 'None';
+}
+
 @Entry
 @Component
 struct HomePage {
@@ -67,6 +185,8 @@ struct HomePage {
   @State isDoctorVerificationModalOpen: boolean = false;
   @State enteredVerificationCode: string = '';
   @State isScannedPatientModalOpen: boolean = false;
+  @State isEmergencyMedsExpanded: boolean = true;
+  @State isChronicDiseasesExpanded: boolean = true;
   @State scannedPatientInfo: ScannedPatient = {
     id: '',
     name: '',
@@ -164,11 +284,12 @@ struct HomePage {
           };
           this.scannedPatientInfo = {
             id: parsed.id || 'GP-8321-2026',
-            name: parsed.name || 'John Doe',
+            name: parsed.name || 'Sena Dulger',
             email: parsed.email || '',
             bloodType: parsed.bloodType || 'A-',
-            allergies: parsed.allergies || 'None',
-            diseases: parsed.diseases || [],
+            allergies: parsed.allergies || 'Penicillin',
+            diseases: parsed.diseases || ['Diabetes', 'Heart Failure'],
+            medications: parsed.medications || undefined,
             vitals: parsed.vitals || defaultVitals
           };
         } catch (e) {
@@ -179,11 +300,12 @@ struct HomePage {
           };
           this.scannedPatientInfo = {
             id: 'GP-8321-2026',
-            name: 'John Doe',
-            email: 'john.doe@example.com',
+            name: 'Sena Dulger',
+            email: 'sena.dulger@example.com',
             bloodType: 'A-',
-            allergies: 'None',
-            diseases: ['Diabetes', 'Hypertension'],
+            allergies: 'Penicillin',
+            diseases: ['Diabetes', 'Heart Failure'],
+            medications: undefined,
             vitals: fallbackVitals
           };
         }
@@ -402,10 +524,10 @@ struct HomePage {
                     .fontWeight(FontWeight.Bold)
                     .fontColor('#191C1D')
                   Blank()
-                  Text('✕')
-                    .fontSize(20)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#737685')
+                  Image($r('app.media.cancel'))
+                    .width(20)
+                    .height(20)
+                    .objectFit(ImageFit.Contain)
                     .onClick(() => {
                       this.closeQrScanner();
                     })
@@ -463,10 +585,10 @@ struct HomePage {
                     .fontWeight(FontWeight.Bold)
                     .fontColor('#BA1A1A')
                   Blank()
-                  Text('✕')
-                    .fontSize(20)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#737685')
+                  Image($r('app.media.cancel'))
+                    .width(20)
+                    .height(20)
+                    .objectFit(ImageFit.Contain)
                     .onClick(() => {
                       this.closeQrScanner();
                     })
@@ -548,6 +670,21 @@ struct HomePage {
                       .fontSize(14)
                       .fontWeight(FontWeight.Bold)
                       .fontColor('#854E00')
+                  }
+                  .width('100%')
+                  .padding({ top: 10, bottom: 10 })
+                  .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
+
+                  // Active Medications
+                  Row() {
+                    Text('Active Medications')
+                      .fontSize(14)
+                      .fontColor('#737685')
+                    Blank()
+                    Text(getActiveMedicationsText())
+                      .fontSize(14)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor('#003D9B')
                   }
                   .width('100%')
                   .padding({ top: 10, bottom: 10 })
@@ -648,10 +785,10 @@ struct HomePage {
               
               Blank()
               
-              Text('✕')
-                .fontSize(20)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#737685')
+              Image($r('app.media.cancel'))
+                .width(20)
+                .height(20)
+                .objectFit(ImageFit.Contain)
                 .onClick(() => {
                   this.isScannedPatientModalOpen = false;
                 })
@@ -726,22 +863,106 @@ struct HomePage {
               .padding({ top: 12, bottom: 12 })
               .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
 
-              // Chronic Conditions Row
-              Row() {
-                Text('Chronic Conditions')
-                  .fontSize(14)
-                  .fontColor('#737685')
-                  .layoutWeight(1)
-                Text(this.scannedPatientInfo.diseases && this.scannedPatientInfo.diseases.length > 0 ? this.scannedPatientInfo.diseases.join(', ') : 'None')
-                  .fontSize(14)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#BA1A1A')
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  .textAlign(TextAlign.End)
+              // Chronic Conditions Collapsible Section
+              Column() {
+                Row() {
+                  Text(`Chronic Conditions (${getFormattedDiseasesArray(this.scannedPatientInfo.diseases, this.scannedPatientInfo.otherChronicDisease).length})`)
+                    .fontSize(14)
+                    .fontColor('#737685')
+                    .layoutWeight(1)
+
+                  Text(this.isChronicDiseasesExpanded ? '▲' : '▼')
+                    .fontSize(12)
+                    .fontColor('#737685')
+                }
+                .width('100%')
+                .padding({ top: 12, bottom: 12 })
+                .onClick(() => {
+                  this.isChronicDiseasesExpanded = !this.isChronicDiseasesExpanded;
+                })
+
+                if (this.isChronicDiseasesExpanded) {
+                  Column({ space: 4 }) {
+                    if (getFormattedDiseasesArray(this.scannedPatientInfo.diseases, this.scannedPatientInfo.otherChronicDisease).length === 0) {
+                      Row() {
+                        Blank()
+                        Text('None')
+                          .fontSize(14)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor('#191C1D')
+                      }
+                      .width('100%')
+                      .padding({ bottom: 8 })
+                    } else {
+                      ForEach(getFormattedDiseasesArray(this.scannedPatientInfo.diseases, this.scannedPatientInfo.otherChronicDisease), (diseaseName: string) => {
+                        Row() {
+                          Blank()
+                          Text(diseaseName)
+                            .fontSize(14)
+                            .fontWeight(FontWeight.Bold)
+                            .fontColor('#BA1A1A')
+                        }
+                        .width('100%')
+                        .padding({ top: 2, bottom: 4 })
+                      })
+                    }
+                  }
+                  .width('100%')
+                  .margin({ bottom: 8 })
+                }
               }
               .width('100%')
-              .padding({ top: 12, bottom: 12 })
+              .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+              // Active Medications Collapsible Section
+              Column() {
+                Row() {
+                  Text(`Active Prescriptions (${getActiveMedicationsList(this.scannedPatientInfo.medications).length})`)
+                    .fontSize(14)
+                    .fontColor('#737685')
+                    .layoutWeight(1)
+
+                  Text(this.isEmergencyMedsExpanded ? '▲' : '▼')
+                    .fontSize(12)
+                    .fontColor('#737685')
+                }
+                .width('100%')
+                .padding({ top: 12, bottom: 12 })
+                .onClick(() => {
+                  this.isEmergencyMedsExpanded = !this.isEmergencyMedsExpanded;
+                })
+
+                if (this.isEmergencyMedsExpanded) {
+                  Column({ space: 4 }) {
+                    if (getActiveMedicationsList(this.scannedPatientInfo.medications).length === 0) {
+                      Row() {
+                        Blank()
+                        Text('None')
+                          .fontSize(14)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor('#191C1D')
+                      }
+                      .width('100%')
+                      .padding({ bottom: 8 })
+                    } else {
+                      ForEach(getActiveMedicationsList(this.scannedPatientInfo.medications), (medName: string) => {
+                        Row() {
+                          Blank()
+                          Text(medName)
+                            .fontSize(14)
+                            .fontWeight(FontWeight.Bold)
+                            .fontColor('#191C1D')
+                        }
+                        .width('100%')
+                        .padding({ top: 2, bottom: 4 })
+                      })
+                    }
+                  }
+                  .width('100%')
+                  .margin({ bottom: 8 })
+                }
+              }
+              .width('100%')
               .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
 
               // Heart Rate Row
@@ -985,17 +1206,6 @@ struct PatientDashboardView {
             .fontWeight(FontWeight.Bold)
             .fontColor('#434654')
             .layoutWeight(1)
-
-          Row() {
-            Circle({ width: 8, height: 8 }).fill('#006E2F').margin({ right: 6 })
-            Text('Sensors Active')
-              .fontSize(12)
-              .fontColor('#006E2F')
-              .fontWeight(FontWeight.Medium)
-          }
-          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-          .backgroundColor('#E6F9ED')
-          .borderRadius(12)
         }
         .width('100%')
         .alignItems(VerticalAlign.Center)
@@ -1093,12 +1303,27 @@ struct PatientDashboardView {
 
 
 
-        Text('Live Vitals & Activity')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#191C1D')
-          .alignSelf(ItemAlign.Start)
-          .margin({ left: 4, bottom: 12 })
+        Row() {
+          Text('Live Vitals & Activity')
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#191C1D')
+            .layoutWeight(1)
+
+          Row() {
+            Circle({ width: 7, height: 7 }).fill('#006E2F').margin({ right: 6 })
+            Text('Sensors Active')
+              .fontSize(11)
+              .fontColor('#006E2F')
+              .fontWeight(FontWeight.Bold)
+          }
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          .backgroundColor('#E6F9ED')
+          .borderRadius(12)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
+        .margin({ left: 4, right: 4, bottom: 12 })
 
         // 2x2 Grid for Vital Cards
         Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.SpaceBetween }) {
@@ -2472,6 +2697,8 @@ struct DoctorDashboardView {
   @State linkPatientPhone: string = '';
   @State linkPatientName: string = '';
   @State isDoctorWatchPopupOpen: boolean = false;
+  @State isEmergencyMedsExpanded: boolean = true;
+  @State isChronicDiseasesExpanded: boolean = true;
   @State doctorWatchPatientInfo: ScannedPatient = {
     id: '', name: '', email: '', bloodType: '', allergies: '', diseases: []
   };
@@ -2826,8 +3053,10 @@ struct DoctorDashboardView {
             Text('Emergency Patient Vitals')
               .fontSize(18).fontWeight(FontWeight.Bold).fontColor('#BA1A1A')
             Blank()
-            Text('✕')
-              .fontSize(20).fontWeight(FontWeight.Bold).fontColor('#737685')
+            Image($r('app.media.cancel'))
+              .width(20)
+              .height(20)
+              .objectFit(ImageFit.Contain)
               .onClick(() => { this.isDoctorWatchPopupOpen = false; })
           }
           .width('100%').margin({ bottom: 20 })
@@ -2867,14 +3096,106 @@ struct DoctorDashboardView {
             .width('100%').padding({ top: 12, bottom: 12 })
             .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
 
-            Row() {
-              Text('Chronic Conditions').fontSize(14).fontColor('#737685').layoutWeight(1)
-              Text(this.doctorWatchPatientInfo.diseases && this.doctorWatchPatientInfo.diseases.length > 0
-                ? this.doctorWatchPatientInfo.diseases.join(', ') : 'None')
-                .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#BA1A1A')
-                .maxLines(1).textOverflow({ overflow: TextOverflow.Ellipsis }).textAlign(TextAlign.End)
+            // Chronic Conditions Collapsible Section
+            Column() {
+              Row() {
+                Text(`Chronic Conditions (${getFormattedDiseasesArray(this.doctorWatchPatientInfo.diseases, this.doctorWatchPatientInfo.otherChronicDisease).length})`)
+                  .fontSize(14)
+                  .fontColor('#737685')
+                  .layoutWeight(1)
+
+                Text(this.isChronicDiseasesExpanded ? '▲' : '▼')
+                  .fontSize(12)
+                  .fontColor('#737685')
+              }
+              .width('100%')
+              .padding({ top: 12, bottom: 12 })
+              .onClick(() => {
+                this.isChronicDiseasesExpanded = !this.isChronicDiseasesExpanded;
+              })
+
+              if (this.isChronicDiseasesExpanded) {
+                Column({ space: 4 }) {
+                  if (getFormattedDiseasesArray(this.doctorWatchPatientInfo.diseases, this.doctorWatchPatientInfo.otherChronicDisease).length === 0) {
+                    Row() {
+                      Blank()
+                      Text('None')
+                        .fontSize(14)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                    }
+                    .width('100%')
+                    .padding({ bottom: 8 })
+                  } else {
+                    ForEach(getFormattedDiseasesArray(this.doctorWatchPatientInfo.diseases, this.doctorWatchPatientInfo.otherChronicDisease), (diseaseName: string) => {
+                      Row() {
+                        Blank()
+                        Text(diseaseName)
+                          .fontSize(14)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor('#BA1A1A')
+                      }
+                      .width('100%')
+                      .padding({ top: 2, bottom: 4 })
+                    })
+                  }
+                }
+                .width('100%')
+                .margin({ bottom: 8 })
+              }
             }
-            .width('100%').padding({ top: 12, bottom: 12 })
+            .width('100%')
+            .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+
+            // Active Medications Collapsible Section
+            Column() {
+              Row() {
+                Text(`Active Prescriptions (${getActiveMedicationsList(this.doctorWatchPatientInfo.medications).length})`)
+                  .fontSize(14)
+                  .fontColor('#737685')
+                  .layoutWeight(1)
+
+                Text(this.isEmergencyMedsExpanded ? '▲' : '▼')
+                  .fontSize(12)
+                  .fontColor('#737685')
+              }
+              .width('100%')
+              .padding({ top: 12, bottom: 12 })
+              .onClick(() => {
+                this.isEmergencyMedsExpanded = !this.isEmergencyMedsExpanded;
+              })
+
+              if (this.isEmergencyMedsExpanded) {
+                Column({ space: 4 }) {
+                  if (getActiveMedicationsList(this.doctorWatchPatientInfo.medications).length === 0) {
+                    Row() {
+                      Blank()
+                      Text('None')
+                        .fontSize(14)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                    }
+                    .width('100%')
+                    .padding({ bottom: 8 })
+                  } else {
+                    ForEach(getActiveMedicationsList(this.doctorWatchPatientInfo.medications), (medName: string) => {
+                      Row() {
+                        Blank()
+                        Text(medName)
+                          .fontSize(14)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor('#191C1D')
+                      }
+                      .width('100%')
+                      .padding({ top: 2, bottom: 4 })
+                    })
+                  }
+                }
+                .width('100%')
+                .margin({ bottom: 8 })
+              }
+            }
+            .width('100%')
             .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
 
             Row() {
@@ -3178,10 +3499,10 @@ struct VitalsGraphModal {
           .layoutWeight(1)
 
           Button() {
-            Text('✕')
-              .fontSize(14)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#475569')
+            Image($r('app.media.cancel'))
+              .width(16)
+              .height(16)
+              .objectFit(ImageFit.Contain)
           }
           .type(ButtonType.Circle)
           .width(32)
