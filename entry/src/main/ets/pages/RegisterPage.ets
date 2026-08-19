@@ -21,7 +21,7 @@ struct RegisterPage {
 
   build() {
     Stack() {
-      // Background Hologram/Ambient Blurs (matching 0.5 opacity)
+      // Background Hologram/Ambient Blurs (Brand Navy & Red)
       Row()
         .width(500)
         .height(500)
@@ -30,8 +30,8 @@ struct RegisterPage {
           center: ['50%', '50%'],
           radius: 250,
           colors: [
-            ['rgba(218, 226, 255, 0.5)', 0.0],
-            ['rgba(218, 226, 255, 0.0)', 1.0]
+            ['rgba(0, 61, 155, 0.30)', 0.0],
+            ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
 
@@ -43,8 +43,8 @@ struct RegisterPage {
           center: ['50%', '50%'],
           radius: 300,
           colors: [
-            ['rgba(107, 255, 143, 0.5)', 0.0],
-            ['rgba(107, 255, 143, 0.0)', 1.0]
+            ['rgba(227, 27, 35, 0.25)', 0.0],
+            ['rgba(227, 27, 35, 0.0)', 1.0]
           ]
         })
 
@@ -56,8 +56,8 @@ struct RegisterPage {
           center: ['50%', '50%'],
           radius: 200,
           colors: [
-            ['rgba(255, 218, 215, 0.5)', 0.0],
-            ['rgba(255, 218, 215, 0.0)', 1.0]
+            ['rgba(0, 61, 155, 0.15)', 0.0],
+            ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
 
@@ -66,11 +66,17 @@ struct RegisterPage {
         Column() {
           // 1. Branding Header
           Column() {
+            Image($r('app.media.logo_blank'))
+              .width(70)
+              .height(70)
+              .objectFit(ImageFit.Contain)
+              .margin({ top: 20, bottom: 16 })
+
             Text('GuardianBand')
               .fontSize(30)
               .fontWeight(FontWeight.Bold)
               .fontColor('#003D9B')
-              .margin({ bottom: 8, top: 20 })
+              .margin({ bottom: 8 })
 
             Text('Compassionate reliability for your loved ones.')
               .fontSize(15)

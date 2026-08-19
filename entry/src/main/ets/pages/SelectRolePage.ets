@@ -5,7 +5,7 @@ import { router, promptAction } from '@kit.ArkUI';
 struct SelectRolePage {
   build() {
     Stack() {
-      // Background Hologram/Ambient Blurs (matching WelcomePage stops at 0.5 opacity)
+      // Background Hologram/Ambient Blurs (Brand Navy & Red)
       Row()
         .width(500)
         .height(500)
@@ -14,8 +14,8 @@ struct SelectRolePage {
           center: ['50%', '50%'],
           radius: 250,
           colors: [
-            ['rgba(218, 226, 255, 0.5)', 0.0],
-            ['rgba(218, 226, 255, 0.0)', 1.0]
+            ['rgba(0, 61, 155, 0.30)', 0.0],
+            ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
 
@@ -27,8 +27,8 @@ struct SelectRolePage {
           center: ['50%', '50%'],
           radius: 300,
           colors: [
-            ['rgba(107, 255, 143, 0.5)', 0.0],
-            ['rgba(107, 255, 143, 0.0)', 1.0]
+            ['rgba(227, 27, 35, 0.25)', 0.0],
+            ['rgba(227, 27, 35, 0.0)', 1.0]
           ]
         })
 
@@ -40,66 +40,37 @@ struct SelectRolePage {
           center: ['50%', '50%'],
           radius: 200,
           colors: [
-            ['rgba(255, 218, 215, 0.5)', 0.0],
-            ['rgba(255, 218, 215, 0.0)', 1.0]
+            ['rgba(0, 61, 155, 0.15)', 0.0],
+            ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
 
       // Main Scrollable Content Layer
       Column() {
-        // 1. Header Section
-        Row() {
-          // Left: Brand Logo Icon (Navigates back to WelcomePage on click)
-          Row() {
-            Text('🛡️')
-              .fontSize(20)
-              .fontColor(Color.White)
-          }
-          .width(42)
-          .height(42)
-          .backgroundColor('#003D9B')
-          .borderRadius(21)
-          .justifyContent(FlexAlign.Center)
-          .alignItems(VerticalAlign.Center)
-          .shadow({ radius: 6, color: 'rgba(0, 61, 155, 0.15)', offsetX: 0, offsetY: 3 })
-          .onClick(() => {
-            router.back()
-          })
+        // 1. Branding Header Section
+        Column() {
+          Image($r('app.media.logo_blank'))
+            .width(70)
+            .height(70)
+            .objectFit(ImageFit.Contain)
+            .margin({ top: 20, bottom: 12 })
 
-          // Center: Brand Title
           Text('GuardianBand')
-            .fontSize(24)
+            .fontSize(30)
             .fontWeight(FontWeight.Bold)
             .fontColor('#003D9B')
-
-          // Right: Placeholder to keep the title perfectly centered
-          Row()
-            .width(42)
-            .height(42)
-        }
-        .width('100%')
-        .justifyContent(FlexAlign.SpaceBetween)
-        .alignItems(VerticalAlign.Center)
-        .margin({ top: 30, bottom: 20 })
-
-        // 2. Page Title Section
-        Column() {
-          Text('Welcome')
-            .fontSize(34)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#191C1D')
             .margin({ bottom: 8 })
 
           Text('Please select your primary role to customize your safety experience.')
-            .fontSize(16)
+            .fontSize(15)
             .fontColor('#434654')
             .textAlign(TextAlign.Center)
-            .lineHeight(24)
-            .width('95%')
+            .lineHeight(22)
+            .width('90%')
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
-        .margin({ bottom: 30 })
+        .margin({ bottom: 24 })
 
         // 3. Selection Cards List
         Column() {

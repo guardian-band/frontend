@@ -336,8 +336,8 @@ struct HomePage {
           center: ['50%', '50%'],
           radius: 250,
           colors: [
-            ['rgba(218, 226, 255, 0.5)', 0.0],
-            ['rgba(218, 226, 255, 0.0)', 1.0]
+            ['rgba(0, 61, 155, 0.30)', 0.0],
+            ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
 
@@ -349,8 +349,8 @@ struct HomePage {
           center: ['50%', '50%'],
           radius: 300,
           colors: [
-            ['rgba(107, 255, 143, 0.5)', 0.0],
-            ['rgba(107, 255, 143, 0.0)', 1.0]
+            ['rgba(227, 27, 35, 0.25)', 0.0],
+            ['rgba(227, 27, 35, 0.0)', 1.0]
           ]
         })
 
@@ -2519,8 +2519,10 @@ struct FamilyDashboardView {
             .margin({ bottom: 8 })
 
             Row() {
-              Text('🚶')
-                .fontSize(16)
+              Image($r('app.media.patient'))
+                .width(20)
+                .height(20)
+                .objectFit(ImageFit.Contain)
             }
             .width(36)
             .height(36)

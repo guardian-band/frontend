@@ -175,6 +175,12 @@ struct CameraPage {
       Column() {
         // TOP HEADER BAR (Clean light design)
         Row() {
+          Image($r('app.media.logo_blank'))
+            .width(36)
+            .height(36)
+            .objectFit(ImageFit.Contain)
+            .margin({ right: 10 })
+
           Column() {
             Text('GuardianBand QR Scanner')
                .fontSize(22)

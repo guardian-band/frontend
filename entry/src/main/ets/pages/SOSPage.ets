@@ -142,7 +142,7 @@ struct SOSPage {
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      // Background Radial Gradients for visual effect
+      // Background Radial Gradients for visual effect (Brand Navy & Red)
       Row()
         .width(500)
         .height(500)
@@ -151,8 +151,8 @@ struct SOSPage {
           center: ['50%', '50%'],
           radius: 250,
           colors: [
-            ['rgba(255, 218, 218, 0.5)', 0.0],
-            ['rgba(255, 218, 218, 0.0)', 1.0]
+            ['rgba(0, 61, 155, 0.30)', 0.0],
+            ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
 
@@ -164,8 +164,8 @@ struct SOSPage {
           center: ['50%', '50%'],
           radius: 300,
           colors: [
-            ['rgba(255, 218, 218, 0.4)', 0.0],
-            ['rgba(255, 218, 218, 0.0)', 1.0]
+            ['rgba(227, 27, 35, 0.25)', 0.0],
+            ['rgba(227, 27, 35, 0.0)', 1.0]
           ]
         })
 
@@ -616,11 +616,20 @@ struct FamilySOSView {
         .margin({ bottom: 24 })
 
       Column() {
-        Text('🚨 EMERGENCY SOS ALERT')
-          .fontSize(14)
-          .fontWeight(FontWeight.Bold)
-          .fontColor('#BA1A1A')
-          .margin({ bottom: 8 })
+        Row() {
+          Image($r('app.media.alert'))
+            .width(18)
+            .height(18)
+            .margin({ right: 6 })
+            .objectFit(ImageFit.Contain)
+          Text('EMERGENCY SOS ALERT')
+            .fontSize(14)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#BA1A1A')
+        }
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
+        .margin({ bottom: 8 })
 
         Text('Father (John Doe) has triggered an emergency SOS call!')
           .fontSize(16)
@@ -631,7 +640,9 @@ struct FamilySOSView {
 
         Text('Stay calm. Action is required.')
           .fontSize(13)
-          .fontColor('#434654')}.width('100%')
+          .fontColor('#434654')
+      }
+      .width('100%')
       .padding(20)
       .backgroundColor('#FFEBEA')
       .borderRadius(24)
@@ -648,39 +659,157 @@ struct FamilySOSView {
 
         Row() {
           Column() {
-            Text('❤️ Heart Rate')
-              .fontSize(13)
-              .fontColor('#737685')
-              .margin({ bottom: 4 })
+            Row() {
+              Image($r('app.media.heart'))
+                .width(16)
+                .height(16)
+                .margin({ right: 6 })
+                .objectFit(ImageFit.Contain)
+              Text('Heart Rate')
+                .fontSize(13)
+                .fontColor('#737685')
+            }
+            .margin({ bottom: 4 })
+
             Text('135 bpm')
               .fontSize(18)
               .fontWeight(FontWeight.Bold)
-              .fontColor('#BA1A1A')}.layoutWeight(1)
+              .fontColor('#BA1A1A')
+          }
+          .layoutWeight(1)
           .alignItems(HorizontalAlign.Start)
 
           Column() {
-            Text('💨 Oxygen SpO2')
-              .fontSize(13)
-              .fontColor('#737685')
-              .margin({ bottom: 4 })
+            Row() {
+              Image($r('app.media.oxygensaturation'))
+                .width(16)
+                .height(16)
+                .margin({ right: 6 })
+                .objectFit(ImageFit.Contain)
+              Text('Oxygen SpO2')
+                .fontSize(13)
+                .fontColor('#737685')
+            }
+            .margin({ bottom: 4 })
+
             Text('91 %')
               .fontSize(18)
               .fontWeight(FontWeight.Bold)
-              .fontColor('#BA1A1A')}.layoutWeight(1)
-          .alignItems(HorizontalAlign.Start)}.width('100%')
+              .fontColor('#BA1A1A')
+          }
+          .layoutWeight(1)
+          .alignItems(HorizontalAlign.Start)
+        }
+        .width('100%')
         .padding(16)
         .backgroundColor(Color.White)
         .borderRadius(20)
-        .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })}.width('100%')
+        .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
+      }
+      .width('100%')
+      .margin({ bottom: 20 })
+
+      // Patient Live Location Map Card
+      Column() {
+        Row() {
+          Row() {
+            Image($r('app.media.place'))
+              .width(20)
+              .height(20)
+              .margin({ right: 8 })
+              .objectFit(ImageFit.Contain)
+            Text('Patient Current Location')
+              .fontSize(15)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#191C1D')
+          }
+          Blank()
+          Text('Live • GPS')
+            .fontSize(12)
+            .fontColor('#003D9B')
+            .fontWeight(FontWeight.Medium)
+        }
+        .width('100%')
+        .margin({ bottom: 12 })
+
+        Stack() {
+          Image('https://static-maps.yandex.ru/1.x/?ll=-122.1697,37.4275&z=16&l=map&pt=-122.1697,37.4275,pm2rdm&size=600,240')
+            .width('100%')
+            .height(160)
+            .borderRadius(16)
+            .objectFit(ImageFit.Cover)
+
+          Column() {
+            Row() {
+              Text('Father • Palo Alto')
+                .fontSize(12)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#003D9B')
+            }
+            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+            .backgroundColor(Color.White)
+            .borderRadius(8)
+            .border({ width: 1, color: '#0052cc', style: BorderStyle.Solid })
+            .shadow({ radius: 6, color: 'rgba(0,0,0,0.1)', offsetY: 2 })
+            .margin({ bottom: 6 })
+
+            Row() {
+              Image($r('app.media.patient'))
+                .width(18)
+                .height(18)
+                .objectFit(ImageFit.Contain)
+            }
+            .width(34)
+            .height(34)
+            .borderRadius(17)
+            .backgroundColor('#003D9B')
+            .border({ width: 2.5, color: Color.White, style: BorderStyle.Solid })
+            .justifyContent(FlexAlign.Center)
+            .alignItems(VerticalAlign.Center)
+            .shadow({ radius: 8, color: 'rgba(0,61,155,0.3)', offsetY: 4 })
+          }
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+        }
+        .width('100%')
+        .height(160)
+        .borderRadius(16)
+        .margin({ bottom: 12 })
+
+        Text('123 Silver Oak Lane, Palo Alto, CA')
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor('#191C1D')
+          .alignSelf(ItemAlign.Start)
+      }
+      .width('100%')
+      .padding(16)
+      .backgroundColor(Color.White)
+      .borderRadius(20)
+      .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
 
       Column() {
-        Button('📞 Call Father')
-          .width('100%')
-          .height(50)
-          .backgroundColor('#006E2F')
-          .borderRadius(12)
-          .margin({ bottom: 12 })
+        Button() {
+          Row() {
+            Image($r('app.media.phone'))
+              .width(20)
+              .height(20)
+              .margin({ right: 8 })
+              .objectFit(ImageFit.Contain)
+            Text('Call Father')
+              .fontSize(16)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Color.White)
+          }
+          .justifyContent(FlexAlign.Center)
+          .alignItems(VerticalAlign.Center)
+        }
+        .width('100%')
+        .height(50)
+        .backgroundColor('#006E2F')
+        .borderRadius(12)
+        .margin({ bottom: 12 })
 
         Button() {
           Row() {
@@ -692,11 +821,19 @@ struct FamilySOSView {
             Text('Dispatch EMS')
               .fontSize(16)
               .fontWeight(FontWeight.Bold)
-              .fontColor(Color.White)}.justifyContent(FlexAlign.Center)
-          .alignItems(VerticalAlign.Center)}.width('100%')
+              .fontColor(Color.White)
+          }
+          .justifyContent(FlexAlign.Center)
+          .alignItems(VerticalAlign.Center)
+        }
+        .width('100%')
         .height(50)
         .backgroundColor('#BA1A1A')
-        .borderRadius(12)}.width('100%')}.width('100%')
+        .borderRadius(12)
+      }
+      .width('100%')
+    }
+    .width('100%')
   }
 }
 

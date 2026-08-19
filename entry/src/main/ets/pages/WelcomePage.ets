@@ -5,7 +5,7 @@ import { router } from '@kit.ArkUI';
 struct WelcomePage {
   build() {
     Stack() {
-      // Background Hologram/Ambient Blurs (Using radial gradients to prevent jagged/clipped edges)
+      // Background Hologram/Ambient Blurs (Brand Navy & Red)
       Row()
         .width(500)
         .height(500)
@@ -14,8 +14,8 @@ struct WelcomePage {
           center: ['50%', '50%'],
           radius: 250,
           colors: [
-            ['rgba(218, 226, 255, 0.5)', 0.0],
-            ['rgba(218, 226, 255, 0.0)', 1.0]
+            ['rgba(0, 61, 155, 0.30)', 0.0],
+            ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
 
@@ -27,8 +27,8 @@ struct WelcomePage {
           center: ['50%', '50%'],
           radius: 300,
           colors: [
-            ['rgba(107, 255, 143, 0.5)', 0.0],
-            ['rgba(107, 255, 143, 0.0)', 1.0]
+            ['rgba(227, 27, 35, 0.25)', 0.0],
+            ['rgba(227, 27, 35, 0.0)', 1.0]
           ]
         })
 
@@ -40,78 +40,49 @@ struct WelcomePage {
           center: ['50%', '50%'],
           radius: 200,
           colors: [
-            ['rgba(255, 218, 215, 0.5)', 0.0],
-            ['rgba(255, 218, 215, 0.0)', 1.0]
+            ['rgba(0, 61, 155, 0.15)', 0.0],
+            ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
 
       // Main Content Layer
       Column() {
-        // 1. Header/Brand Section
-        Row() {
-          Row() {
-            Text('<')
-              .fontSize(22)
-              .fontColor(Color.White)
-              .fontWeight(FontWeight.Bold)
-              .margin({ bottom: 2 }) // subtle optical alignment
-          }
-          .width(42)
-          .height(42)
-          .backgroundColor('#003D9B')
-          .borderRadius(12)
-          .justifyContent(FlexAlign.Center)
-          .alignItems(VerticalAlign.Center)
-          .shadow({ radius: 8, color: 'rgba(0, 61, 155, 0.2)', offsetX: 0, offsetY: 4 })
+        Blank() // Pushes logo and welcome content down towards the buttons
 
-          Text('GuardianBand')
-            .fontSize(28)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#003D9B')
-            .margin({ left: 10 })
+        // 1. Centered Logo Section
+        Row() {
+          Image($r('app.media.logo'))
+            .width(230)
+            .height(230)
+            .objectFit(ImageFit.Contain)
         }
         .width('100%')
         .justifyContent(FlexAlign.Center)
-        .margin({ top: 30 })
-
-        Blank() // Pushes welcome content to the vertical center area
 
         // 2. Welcome Message Section
         Column() {
-          // Trusted badge
-          Row() {
-            Text('Trusted Healthcare Monitoring')
-              .fontSize(14)
-              .fontColor('#0040A2')
-              .fontWeight(FontWeight.Medium)
-          }
-          .padding({ left: 16, right: 16, top: 8, bottom: 8 })
-          .backgroundColor('#E8EEFF') // Soft primary tinted background
-          .borderRadius(20)
-          .border({ width: 1, color: '#B2C5FF', style: BorderStyle.Solid })
-          .margin({ bottom: 24 })
-
           // Headline
           Text('Welcome to\nGuardianBand')
-            .fontSize(34)
+            .fontSize(32)
             .fontWeight(FontWeight.Bold)
             .fontColor('#191C1D')
             .textAlign(TextAlign.Center)
-            .lineHeight(42)
-            .margin({ bottom: 16 })
+            .lineHeight(40)
+            .margin({ bottom: 18 })
 
           // Subtitle
           Text('Monitor your health, stay connected, and receive AI-powered healthcare assistance.')
-            .fontSize(16)
+            .fontSize(15)
             .fontColor('#434654')
             .textAlign(TextAlign.Center)
-            .lineHeight(24)
-            .width('90%')
+            .lineHeight(22)
+            .width('88%')
         }
         .width('100%')
         .alignItems(HorizontalAlign.Center)
+        .margin({ top: 12 })
 
-        Blank() // Pushes button section to the bottom
+        Blank() // Flexible space between welcome content and action buttons
 
         // 3. Action Buttons Section
         Column() {

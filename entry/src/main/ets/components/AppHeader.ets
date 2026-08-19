@@ -7,21 +7,15 @@ export struct AppHeader {
 
   build() {
     Row() {
-      // Profile Avatar Button (Clickable to Profile Page)
-      Row() {
-        Text('👤')
-          .fontSize(20)
-      }
-      .width(44)
-      .height(44)
-      .backgroundColor('rgba(0, 61, 155, 0.08)')
-      .borderRadius(22)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
-      .margin({ right: 12 })
-      .onClick(() => {
-        router.pushUrl({ url: 'pages/ProfilePage' });
-      })
+      // Logo Button (Clickable to Profile Page)
+      Image($r('app.media.logo_blank'))
+        .width(42)
+        .height(42)
+        .objectFit(ImageFit.Contain)
+        .margin({ right: 12 })
+        .onClick(() => {
+          router.pushUrl({ url: 'pages/ProfilePage' });
+        })
 
       // Brand and Page Titles
       Column() {

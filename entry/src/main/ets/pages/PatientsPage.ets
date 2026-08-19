@@ -56,6 +56,16 @@ struct PatientsPage {
     this.loadDoctorPatients();
   }
 
+  onPageShow() {
+    this.loadDoctorPatients();
+    let scannedResult = AppStorage.get<string>('scannedQrResult');
+    if (scannedResult) {
+      console.info('[PatientsPage] Scanned QR Result retrieved: ' + scannedResult);
+      AppStorage.setOrCreate('scannedQrResult', '');
+      this.onScannedQrReceived(scannedResult);
+    }
+  }
+
   async loadDoctorPatients() {
     let token = AppStorage.get<string>('token') || '';
     if (token) {
@@ -123,12 +133,8 @@ struct PatientsPage {
     }
   }
 
-  async onLinkRequestChanged() {
-    if (!this.scannedPatientLinkRequest) return;
-    
-    let scanned = this.scannedPatientLinkRequest;
-    AppStorage.setOrCreate('scannedPatientLinkRequest', '');
-
+  async onScannedQrReceived(scanned: string) {
+    if (!scanned) return;
     try {
       let parsed = JSON.parse(scanned) as ScannedPatient;
       let patientName = parsed.name || 'Unknown Patient';
@@ -139,11 +145,11 @@ struct PatientsPage {
       let token = AppStorage.get<string>('token') || '';
       if (token) {
         await ApiService.linkPatient(token, patientPhone, patientName, 'Physician');
-        
+
         if (ApiService.isMockMode()) {
           let mockList = AppStorage.get<string>('mockLinkedPatients') || '[]';
           let list: ClinicianPatient[] = JSON.parse(mockList) as ClinicianPatient[];
-          
+
           if (!list.some(p => p.patientId === parsed.id)) {
             list.push({
               id: (list.length + 3).toString(),
@@ -156,7 +162,7 @@ struct PatientsPage {
             AppStorage.setOrCreate('mockLinkedPatients', JSON.stringify(list));
           }
         }
-        
+
         await this.loadDoctorPatients();
         promptAction.showToast({ message: `Successfully linked with ${patientName}!` });
       }
@@ -164,6 +170,13 @@ struct PatientsPage {
       console.error("Link request failed", e);
       promptAction.showToast({ message: `Linking failed: ${(e as Error).message}` });
     }
+  }
+
+  async onLinkRequestChanged() {
+    if (!this.scannedPatientLinkRequest) return;
+    let scanned = this.scannedPatientLinkRequest;
+    AppStorage.setOrCreate('scannedPatientLinkRequest', '');
+    await this.onScannedQrReceived(scanned);
   }
 
   async scanPatientQr() {

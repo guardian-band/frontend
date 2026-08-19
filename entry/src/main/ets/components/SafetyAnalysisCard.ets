@@ -316,7 +316,7 @@ export struct SafetyAnalysisCard {
             } else {
               // Safe State
               Row() {
-                Text('✅ All clear! No major organ risks detected.')
+                Text('All clear! No major organ risks detected.')
                   .fontSize(14)
                   .fontColor('#006E2F')
                   .fontWeight(FontWeight.Medium)
