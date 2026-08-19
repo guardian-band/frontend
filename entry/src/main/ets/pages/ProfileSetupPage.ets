@@ -104,24 +104,7 @@ struct ProfileSetupPage {
       Scroll(this.scroller) {
         Column() {
           // 1. Header
-          Row() {
-            if (this.canGoBack) {
-              Row() {
-                Text('⬅')
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#003D9B')}.width(40)
-              .height(40)
-              .borderRadius(20)
-              .backgroundColor('#E8EEFF')
-              .justifyContent(FlexAlign.Center)
-              .alignItems(VerticalAlign.Center)
-              .position({ x: 0, y: 15 })
-              .onClick(() => {
-                router.back();
-              })
-            }
-
+          Stack({ alignContent: Alignment.TopStart }) {
             Column() {
               Text('GuardianBand')
                 .fontSize(30)
@@ -132,9 +115,36 @@ struct ProfileSetupPage {
               Text('Complete your profile to continue.')
                 .fontSize(15)
                 .fontColor('#434654')
-                .textAlign(TextAlign.Center)}.alignItems(HorizontalAlign.Center)
-            .width('100%')}.width('100%')
-          .justifyContent(FlexAlign.Center)
+                .textAlign(TextAlign.Center)
+            }
+            .alignItems(HorizontalAlign.Center)
+            .width('100%')
+
+            if (this.canGoBack) {
+              Row() {
+                Image($r('app.media.backward'))
+                  .width(18)
+                  .height(18)
+                  .objectFit(ImageFit.Contain)
+              }
+              .width(40)
+              .height(40)
+              .borderRadius(20)
+              .backgroundColor('#E8EEFF')
+              .justifyContent(FlexAlign.Center)
+              .alignItems(VerticalAlign.Center)
+              .position({ x: 0, y: 15 })
+              .zIndex(20)
+              .onClick(() => {
+                try {
+                  router.back();
+                } catch (e) {
+                  router.pushUrl({ url: 'pages/ProfilePage' });
+                }
+              })
+            }
+          }
+          .width('100%')
           .margin({ bottom: 24 })
 
           // 2. Profile Setup Card

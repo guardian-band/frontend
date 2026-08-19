@@ -41,7 +41,7 @@ export interface CreateMedicationRequest {
 
 export class ApiService {
   private static readonly BASE_URL: string = 'http://localhost:3000';
-  private static readonly MOCK_MODE: boolean = false;
+  private static readonly MOCK_MODE: boolean = true;
 
   public static isMockMode(): boolean { return ApiService.MOCK_MODE; }
 

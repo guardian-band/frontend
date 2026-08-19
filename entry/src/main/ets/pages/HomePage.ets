@@ -862,20 +862,20 @@ struct PatientDashboardView {
   private timerId: number = -1;
 
   // --- REAL-TIME TELEMETRY HISTORY LISTS FOR LIVE CHARTS ---
-  @State heartRateHistory: number[] = [70, 72, 71, 73, 72, 70, 72];
-  @State oxygenHistory: number[] = [97, 98, 98, 97, 99, 98, 98];
+  @StorageLink('heartRateHistory') heartRateHistory: number[] = [70, 72, 71, 73, 72, 70, 72];
+  @StorageLink('oxygenHistory') oxygenHistory: number[] = [97, 98, 98, 97, 99, 98, 98];
 
   // --- MODAL GRAPH STATES ---
   @StorageLink('isGraphModalOpen') isGraphModalOpen: boolean = false;
-  @State selectedMetric: string = 'Heart Rate';
-  @State selectedValue: number = 72;
+  @StorageLink('selectedMetric') selectedMetric: string = 'Heart Rate';
+  @StorageLink('selectedValue') selectedValue: number = 72;
 
   private chartCanvasController: CanvasRenderingContext2D = new CanvasRenderingContext2D(new RenderingContextSettings(true));
 
   openLiveChartModal(metricName: string, currentVal: number) {
-    this.selectedMetric = metricName;
-    this.selectedValue = currentVal;
-    this.isGraphModalOpen = true;
+    AppStorage.setOrCreate('selectedMetric', metricName);
+    AppStorage.setOrCreate('selectedValue', currentVal);
+    AppStorage.setOrCreate('isGraphModalOpen', true);
   }
 
   aboutToAppear() {
@@ -899,15 +899,17 @@ struct PatientDashboardView {
       this.currentSteps += Math.floor(Math.random() * 3);
       this.currentCalories += Math.floor(Math.random() * 2);
 
-      this.heartRateHistory.push(this.currentHeartRate);
-      if (this.heartRateHistory.length > 15) {
-        this.heartRateHistory.shift();
+      let newHrHist = [...this.heartRateHistory, this.currentHeartRate];
+      if (newHrHist.length > 15) {
+        newHrHist.shift();
       }
+      this.heartRateHistory = newHrHist;
 
-      this.oxygenHistory.push(this.currentOxygen);
-      if (this.oxygenHistory.length > 15) {
-        this.oxygenHistory.shift();
+      let newO2Hist = [...this.oxygenHistory, this.currentOxygen];
+      if (newO2Hist.length > 15) {
+        newO2Hist.shift();
       }
+      this.oxygenHistory = newO2Hist;
 
       // NEW: Silently send these generated vitals to the backend API
       let token = AppStorage.get<string>('token') || '';
@@ -918,9 +920,9 @@ struct PatientDashboardView {
 
       if (this.isGraphModalOpen) {
         if (this.selectedMetric === 'Heart Rate') {
-          this.selectedValue = this.currentHeartRate;
+          AppStorage.setOrCreate('selectedValue', this.currentHeartRate);
         } else if (this.selectedMetric === 'Oxygen') {
-          this.selectedValue = this.currentOxygen;
+          AppStorage.setOrCreate('selectedValue', this.currentOxygen);
         }
       }
     }, 2000);

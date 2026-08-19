@@ -3,17 +3,30 @@ import { ApiService, ClinicianPatient } from '../services/ApiService';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
 
+interface PatientMedication {
+  id: string;
+  name: string;
+  dosage: string;
+  schedule: string;
+  mealTiming: string;
+  stockPills: number;
+}
+
 interface MonitoredPatient {
   id: string;
   name: string;
   gender: string;
   bloodType: string;
+  birthDate: string;
+  age: number;
   heartRate: number;
   oxygen: number;
+  temperature: string;
   calories: number;
+  steps: number;
   sleep: string;
-  meds: string;
-  location: string;
+  medicationsList: PatientMedication[];
+  aiClinicalSummary: string;
 }
 
 interface ScannedPatient {
@@ -37,6 +50,7 @@ struct PatientsPage {
   @State isLinkModalOpen: boolean = false;
   @State linkPatientPhone: string = '';
   @State linkPatientName: string = '';
+  @State isMedsExpanded: boolean = true;
 
   aboutToAppear() {
     this.loadDoctorPatients();
@@ -59,7 +73,8 @@ struct PatientsPage {
         }
 
         let list: MonitoredPatient[] = [];
-        for (let bp of backendPatients) {
+        for (let idx = 0; idx < backendPatients.length; idx++) {
+          let bp = backendPatients[idx];
           let heart = 75;
           let oxy = 98;
           try {
@@ -70,17 +85,35 @@ struct PatientsPage {
             console.error("Vitals fetch error for " + bp.patientId, e);
           }
 
+          let isJohn = bp.name.toLowerCase().includes('john');
+
+          let meds: PatientMedication[] = isJohn ? [
+            { id: '1', name: 'Amlodipine 5mg', dosage: '1 pill', schedule: 'Once Daily (08:00)', mealTiming: 'After Meal', stockPills: 20 },
+            { id: '2', name: 'Atorvastatin 20mg', dosage: '1 pill', schedule: 'Once Daily (21:00)', mealTiming: 'During Meal', stockPills: 12 }
+          ] : [
+            { id: '1', name: 'Metformin 500mg', dosage: '1 pill', schedule: 'Twice Daily (08:00, 20:00)', mealTiming: 'After Meal', stockPills: 28 },
+            { id: '2', name: 'Lisinopril 10mg', dosage: '1 pill', schedule: 'Once Daily (09:00)', mealTiming: 'Before Meal', stockPills: 14 }
+          ];
+
+          let summaryStr = isJohn ?
+            "Patient vitals are stable with 82 BPM resting heart rate and optimal SpO2 (97%). Daily activity shows 6,400 steps with 1,680 kcal burned. Current adherence to Amlodipine & Atorvastatin is consistent. No arrhythmia flags in the last 24 hours." :
+            "Patient vitals are currently stable with normal sinus rhythm (75 BPM) and optimal SpO2 (98%). Daily steps reached 5,200 with 1,450 kcal burned. Active regimen includes Metformin (500mg) and Lisinopril (10mg). No medication interaction alerts recorded.";
+
           list.push({
             id: bp.id,
             name: bp.name,
-            gender: 'Male',
-            bloodType: bp.bloodType || 'N/A',
+            gender: isJohn ? 'Male' : 'Female',
+            bloodType: bp.bloodType || 'A+',
+            birthDate: isJohn ? '1962-09-24' : (bp.birthDate || '1958-06-15'),
+            age: isJohn ? 63 : 68,
             heartRate: heart,
             oxygen: oxy,
-            calories: 1450,
-            sleep: '7h 15m',
-            meds: 'None',
-            location: 'Palo Alto • Live'
+            temperature: '36.6 °C',
+            calories: isJohn ? 1680 : 1450,
+            steps: isJohn ? 6400 : 5200,
+            sleep: isJohn ? '6h 45m' : '7h 20m',
+            medicationsList: meds,
+            aiClinicalSummary: summaryStr
           });
         }
         this.doctorPatients = list;
@@ -144,312 +177,561 @@ struct PatientsPage {
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      Scroll() {
-        Column() {
-          if (!this.isInspectorOpen) {
-            // --- PATIENTS ROSTER MAIN VIEW ---
-            AppHeader({ title: 'My Linked Patients' })
-              .margin({ bottom: 16 })
+      Column() {
+        AppHeader({ title: 'My Linked Patients' })
+          .margin({ bottom: 12 })
 
-            // Linked Patients Title
-            Text('My Linked Patients')
-              .fontSize(18)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#191C1D')
-              .alignSelf(ItemAlign.Start)
-              .margin({ left: 4, bottom: 14 })
-
-            if (this.doctorPatients.length === 0) {
-              Column() {
-                Text('No linked patients found.')
-                  .fontSize(14)
-                  .fontColor('#737685')
-                  .margin({ top: 20, bottom: 20 })
-              }
-              .width('100%')
-              .justifyContent(FlexAlign.Center)
-            } else {
-              ForEach(this.doctorPatients, (patient: MonitoredPatient) => {
-                Row() {
-                  // Initial/Avatar
-                  Row() {
-                    Text(patient.name.charAt(0) + patient.name.split(' ').pop()!.charAt(0))
-                      .fontSize(14)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor(Color.White)
-                  }
-                  .width(44)
-                  .height(44)
-                  .borderRadius(22)
-                  .backgroundColor(patient.gender === 'Male' ? '#003D9B' : '#5C0099')
-                  .justifyContent(FlexAlign.Center)
-                  .alignItems(VerticalAlign.Center)
-                  .margin({ right: 14 })
-
-                  Column() {
-                    Text(patient.name)
-                      .fontSize(16)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor('#191C1D')
-                      .margin({ bottom: 4 })
-
-                    Row() {
-                      Text(`${patient.gender} • Blood Type: `)
-                        .fontSize(12)
-                        .fontColor('#737685')
-                      Text(patient.bloodType)
-                        .fontSize(12)
-                        .fontWeight(FontWeight.Bold)
-                        .fontColor('#BA1A1A')
-                    }
-                    .alignItems(VerticalAlign.Center)
-                  }
-                  .alignItems(HorizontalAlign.Start)
+        // Scrollable content area
+        Scroll() {
+          Column() {
+            if (!this.isInspectorOpen) {
+              // --- PATIENT ROSTER VIEW (LIST OF PATIENTS) ---
+              Row() {
+                Text(`Patient Roster (${this.doctorPatients.length})`)
+                  .fontSize(18)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#191C1D')
                   .layoutWeight(1)
-
-                  Row() {
-                    Text('Inspect')
-                      .fontSize(12)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor('#003D9B')
-                      .margin({ right: 4 })
-                    Text('➔')
-                      .fontSize(12)
-                      .fontColor('#003D9B')
-                  }
-                  .alignItems(VerticalAlign.Center)
-                }
-                .width('100%')
-                .padding(16)
-                .backgroundColor(Color.White)
-                .borderRadius(20)
-                .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
-                .margin({ bottom: 12 })
-                .onClick(() => {
-                  this.selectedPatient = patient;
-                  this.isInspectorOpen = true;
-                })
-              }, (item: MonitoredPatient) => item.id)
-            }
-          } else {
-            // --- PATIENT VITALS INSPECTOR (DETAIL VIEW) ---
-            if (this.selectedPatient !== null) {
-              Column() {
-                // Header bar
-                Row() {
-                  Row() {
-                    Text('⬅ Back to Roster')
-                      .fontSize(14)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor('#003D9B')
-                  }
-                  .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-                  .backgroundColor('#E8EEFF')
-                  .borderRadius(12)
-                  .onClick(() => {
-                    this.isInspectorOpen = false;
-                    this.selectedPatient = null;
-                  })
-
-                  Blank()
-
-                  Row() {
-                    Circle({ width: 6, height: 6 }).fill('#006E2F').margin({ right: 4 })
-                    Text('Real-time Connection')
-                      .fontSize(11)
-                      .fontColor('#006E2F')
-                      .fontWeight(FontWeight.Medium)
-                  }
-                }
-                .width('100%')
-                .margin({ bottom: 16 })
-
-                // Monitored Patient Header Card
-                Row() {
-                  Row() {
-                    Text(this.selectedPatient.name.charAt(0) + this.selectedPatient.name.split(' ').pop()!.charAt(0))
-                      .fontSize(16)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor(Color.White)
-                  }
-                  .width(48)
-                  .height(48)
-                  .borderRadius(24)
-                  .backgroundColor(this.selectedPatient.gender === 'Male' ? '#003D9B' : '#5C0099')
-                  .justifyContent(FlexAlign.Center)
-                  .alignItems(VerticalAlign.Center)
-                  .margin({ right: 14 })
-
-                  Column() {
-                    Text(this.selectedPatient.name)
-                      .fontSize(20)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor('#191C1D')
-                      .margin({ bottom: 4 })
-
-                    Text(`Monitored Patient Account • ${this.selectedPatient.gender}`)
-                      .fontSize(13)
-                      .fontColor('#737685')
-                  }
-                  .alignItems(HorizontalAlign.Start)
-                  .layoutWeight(1)
-                }
-                .width('100%')
-                .margin({ bottom: 20 })
-
-                // Vitals Stats Grid (Heart Rate & Oxygen)
-                Row() {
-                  // Heart Rate
-                  Column() {
-                    Row() {
-                      Image($r('app.media.heart'))
-                        .width(28)
-                        .height(28)
-                        .objectFit(ImageFit.Contain)
-                      Blank()
-                      Text('Live')
-                        .fontSize(11)
-                        .fontColor('#737685')
-                    }
-                    .width('100%')
-                    .margin({ bottom: 14 })
-
-                    Text(`${this.selectedPatient.heartRate} BPM`)
-                      .fontSize(22)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor('#191C1D')
-                      .alignSelf(ItemAlign.Start)
-                      .margin({ bottom: 4 })
-
-                    Text('Heart Status: Stable')
-                      .fontSize(11)
-                      .fontColor('#006E2F')
-                      .fontWeight(FontWeight.Bold)
-                      .alignSelf(ItemAlign.Start)
-                  }
-                  .layoutWeight(1)
-                  .padding(14)
-                  .backgroundColor(Color.White)
-                  .borderRadius(16)
-                  .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
-                  .margin({ right: 8 })
-
-                  // Blood Oxygen
-                  Column() {
-                    Row() {
-                      Image($r('app.media.oxygensaturation'))
-                        .width(36)
-                        .height(36)
-                        .objectFit(ImageFit.Contain)
-                      Blank()
-                      Text('Live')
-                        .fontSize(11)
-                        .fontColor('#737685')
-                    }
-                    .width('100%')
-                    .margin({ bottom: 6 })
-
-                    Text(`${this.selectedPatient.oxygen} %`)
-                      .fontSize(22)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor('#191C1D')
-                      .alignSelf(ItemAlign.Start)
-                      .margin({ bottom: 4 })
-
-                    Text('Oxygen Level: Optimal')
-                      .fontSize(11)
-                      .fontColor('#003D9B')
-                      .fontWeight(FontWeight.Bold)
-                      .alignSelf(ItemAlign.Start)
-                  }
-                  .layoutWeight(1)
-                  .padding(14)
-                  .backgroundColor(Color.White)
-                  .borderRadius(16)
-                  .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
-                  .margin({ left: 8 })
-                }
-                .width('100%')
-                .margin({ bottom: 16 })
-
-                // Medication Card
-                Row() {
-                  Row() {
-                    Image($r('app.media.drugs'))
-                      .width(28)
-                      .height(28)
-                      .objectFit(ImageFit.Contain)
-                  }
-                  .width(40)
-                  .height(40)
-                  .borderRadius(8)
-                  .backgroundColor('rgba(0, 61, 155, 0.08)')
-                  .justifyContent(FlexAlign.Center)
-                  .alignItems(VerticalAlign.Center)
                   .margin({ right: 12 })
 
-                  Column() {
-                    Text('Assigned Medication')
-                      .fontSize(11)
-                      .fontColor('#737685')
-                      .margin({ bottom: 2 })
-                    Text(this.selectedPatient.meds)
-                      .fontSize(15)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor('#191C1D')
-                  }
-                  .alignItems(HorizontalAlign.Start)
-                  .layoutWeight(1)
+                Button('+ Link Patient')
+                  .backgroundColor('rgba(0, 61, 155, 0.08)')
+                  .fontColor('#003D9B')
+                  .fontWeight(FontWeight.Bold)
+                  .fontSize(13)
+                  .height(34)
+                  .borderRadius(10)
+                  .padding({ left: 12, right: 12 })
+                  .onClick(() => {
+                    this.scanPatientQr();
+                  })
+              }
+              .width('100%')
+              .alignItems(VerticalAlign.Center)
+              .margin({ bottom: 16 })
+
+              if (this.doctorPatients.length === 0) {
+                Column() {
+                  Text('No patients linked yet.')
+                    .fontSize(15)
+                    .fontColor('#737685')
+                    .margin({ bottom: 12 })
+                  Button('Scan Patient QR')
+                    .backgroundColor('#003D9B')
+                    .fontColor(Color.White)
+                    .fontWeight(FontWeight.Bold)
+                    .borderRadius(12)
+                    .onClick(() => {
+                      this.scanPatientQr();
+                    })
                 }
                 .width('100%')
-                .padding(14)
-                .backgroundColor(Color.White)
-                .borderRadius(16)
-                .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
-                .margin({ bottom: 16 })
-
-                // Map Location
-                Column() {
+                .height(200)
+                .justifyContent(FlexAlign.Center)
+              } else {
+                ForEach(this.doctorPatients, (patient: MonitoredPatient) => {
                   Row() {
-                    Image($r('app.media.place'))
-                      .width(22)
-                      .height(22)
-                      .objectFit(ImageFit.Contain)
-                      .margin({ right: 8 })
+                    // Initial/Avatar
+                    Row() {
+                      Text(patient.name.charAt(0) + patient.name.split(' ').pop()!.charAt(0))
+                        .fontSize(14)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor(Color.White)
+                    }
+                    .width(44)
+                    .height(44)
+                    .borderRadius(22)
+                    .backgroundColor(patient.gender === 'Male' ? '#003D9B' : '#5C0099')
+                    .justifyContent(FlexAlign.Center)
+                    .alignItems(VerticalAlign.Center)
+                    .margin({ right: 14 })
 
-                    Text('Patient Live Location')
-                      .fontSize(14)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor('#191C1D')
+                    Column() {
+                      Text(patient.name)
+                        .fontSize(16)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                        .margin({ bottom: 4 })
+
+                      Row() {
+                        Text(`${patient.gender} • Blood Type: `)
+                          .fontSize(12)
+                          .fontColor('#737685')
+                        Text(patient.bloodType)
+                          .fontSize(12)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor('#BA1A1A')
+                      }
+                      .alignItems(VerticalAlign.Center)
+                    }
+                    .alignItems(HorizontalAlign.Start)
+                    .layoutWeight(1)
+                    .margin({ right: 16 })
+
+                    Row() {
+                      Text('Inspect')
+                        .fontSize(13)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#003D9B')
+                        .margin({ right: 6 })
+                      Image($r('app.media.forward'))
+                        .width(14)
+                        .height(14)
+                        .objectFit(ImageFit.Contain)
+                    }
+                    .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                    .backgroundColor('#E8EEFF')
+                    .borderRadius(10)
+                    .alignItems(VerticalAlign.Center)
+                  }
+                  .width('100%')
+                  .padding(16)
+                  .backgroundColor(Color.White)
+                  .borderRadius(20)
+                  .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
+                  .margin({ bottom: 12 })
+                  .onClick(() => {
+                    this.selectedPatient = patient;
+                    this.isInspectorOpen = true;
+                  })
+                }, (item: MonitoredPatient) => item.id)
+              }
+            } else {
+              // --- PATIENT VITALS INSPECTOR (DETAIL VIEW FOR DOCTOR) ---
+              if (this.selectedPatient !== null) {
+                Column() {
+                  // 1. Header bar (Back to list + Connection indicator)
+                  Row() {
+                    Row() {
+                      Image($r('app.media.backward'))
+                        .width(16)
+                        .height(16)
+                        .objectFit(ImageFit.Contain)
+                        .margin({ right: 6 })
+                      Text('Back to Patient List')
+                        .fontSize(14)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#003D9B')
+                    }
+                    .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+                    .backgroundColor('#E8EEFF')
+                    .borderRadius(12)
+                    .onClick(() => {
+                      this.isInspectorOpen = false;
+                      this.selectedPatient = null;
+                    })
 
                     Blank()
 
-                    Text(this.selectedPatient.location)
-                      .fontSize(11)
-                      .fontColor('#737685')
+                    Row() {
+                      Circle({ width: 6, height: 6 }).fill('#006E2F').margin({ right: 4 })
+                      Text('Real-time Connection')
+                        .fontSize(11)
+                        .fontColor('#006E2F')
+                        .fontWeight(FontWeight.Medium)
+                    }
+                  }
+                  .width('100%')
+                  .margin({ bottom: 16 })
+
+                  // 2. Monitored Patient Profile Header Card
+                  Row() {
+                    Row() {
+                      Text(this.selectedPatient.name.charAt(0) + this.selectedPatient.name.split(' ').pop()!.charAt(0))
+                        .fontSize(18)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor(Color.White)
+                    }
+                    .width(52)
+                    .height(52)
+                    .borderRadius(26)
+                    .backgroundColor(this.selectedPatient.gender === 'Male' ? '#003D9B' : '#5C0099')
+                    .justifyContent(FlexAlign.Center)
+                    .alignItems(VerticalAlign.Center)
+                    .margin({ right: 14 })
+
+                    Column() {
+                      Text(this.selectedPatient.name)
+                        .fontSize(20)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                        .margin({ bottom: 4 })
+
+                      Text(`${this.selectedPatient.gender} • ${this.selectedPatient.age} yrs (${this.selectedPatient.birthDate}) • Blood Type: ${this.selectedPatient.bloodType}`)
+                        .fontSize(13)
+                        .fontColor('#737685')
+                    }
+                    .alignItems(HorizontalAlign.Start)
+                    .layoutWeight(1)
+                  }
+                  .width('100%')
+                  .padding(16)
+                  .backgroundColor(Color.White)
+                  .borderRadius(20)
+                  .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
+                  .margin({ bottom: 16 })
+
+                  // 3. AI Clinical Summary & Risk Assessment Card
+                  Column() {
+                    Row() {
+                      Image($r('app.media.summary'))
+                        .width(22)
+                        .height(22)
+                        .objectFit(ImageFit.Contain)
+                        .margin({ right: 8 })
+
+                      Text('AI Clinical Summary & Risk Assessment')
+                        .fontSize(15)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#003D9B')
+
+                      Blank()
+                    }
+                    .width('100%')
+                    .margin({ bottom: 8 })
+
+                    Text(this.selectedPatient.aiClinicalSummary)
+                      .fontSize(13)
+                      .fontColor('#191C1D')
+                      .lineHeight(20)
+                  }
+                  .width('100%')
+                  .padding(16)
+                  .backgroundColor('#F0F4FF')
+                  .borderRadius(20)
+                  .border({ width: 1, color: 'rgba(0, 61, 155, 0.15)' })
+                  .margin({ bottom: 16 })
+
+                  // 4. Complete Vitals & Health Metrics Grid
+                  Text('PATIENT VITALS & METRICS')
+                    .fontSize(12)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#737685')
+                    .margin({ bottom: 10 })
+                    .alignSelf(ItemAlign.Start)
+
+                  // Grid Row 1: Heart Rate & Blood Oxygen
+                  Row() {
+                    // Heart Rate Card
+                    Column() {
+                      Row() {
+                        Image($r('app.media.heart'))
+                          .width(26)
+                          .height(26)
+                          .objectFit(ImageFit.Contain)
+                        Blank()
+                        Text('Live')
+                          .fontSize(11)
+                          .fontColor('#006E2F')
+                          .fontWeight(FontWeight.Bold)
+                      }
+                      .width('100%')
+                      .margin({ bottom: 8 })
+
+                      Text(`${this.selectedPatient.heartRate} BPM`)
+                        .fontSize(20)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                        .alignSelf(ItemAlign.Start)
+                        .margin({ bottom: 2 })
+
+                      Text('Heart Status: Stable')
+                        .fontSize(11)
+                        .fontColor('#006E2F')
+                        .fontWeight(FontWeight.Bold)
+                        .alignSelf(ItemAlign.Start)
+                    }
+                    .layoutWeight(1)
+                    .padding(14)
+                    .backgroundColor(Color.White)
+                    .borderRadius(16)
+                    .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
+                    .margin({ right: 6 })
+
+                    // Blood Oxygen Card
+                    Column() {
+                      Row() {
+                        Image($r('app.media.oxygensaturation'))
+                          .width(26)
+                          .height(26)
+                          .objectFit(ImageFit.Contain)
+                        Blank()
+                        Text('Live')
+                          .fontSize(11)
+                          .fontColor('#003D9B')
+                          .fontWeight(FontWeight.Bold)
+                      }
+                      .width('100%')
+                      .margin({ bottom: 8 })
+
+                      Text(`${this.selectedPatient.oxygen} %`)
+                        .fontSize(20)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                        .alignSelf(ItemAlign.Start)
+                        .margin({ bottom: 2 })
+
+                      Text('SpO2: Optimal')
+                        .fontSize(11)
+                        .fontColor('#003D9B')
+                        .fontWeight(FontWeight.Bold)
+                        .alignSelf(ItemAlign.Start)
+                    }
+                    .layoutWeight(1)
+                    .padding(14)
+                    .backgroundColor(Color.White)
+                    .borderRadius(16)
+                    .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
+                    .margin({ left: 6 })
                   }
                   .width('100%')
                   .margin({ bottom: 12 })
 
-                  Image('https://static-maps.yandex.ru/1.x/?ll=-122.1697,37.4275&z=14&l=map&size=600,240')
+                  // Grid Row 2: Daily Steps & Calories Burned
+                  Row() {
+                    // Daily Steps Card
+                    Column() {
+                      Row() {
+                        Image($r('app.media.walking'))
+                          .width(24)
+                          .height(24)
+                          .objectFit(ImageFit.Contain)
+                        Blank()
+                        Text('Today')
+                          .fontSize(11)
+                          .fontColor('#737685')
+                      }
+                      .width('100%')
+                      .margin({ bottom: 8 })
+
+                      Text(`${this.selectedPatient.steps} Steps`)
+                        .fontSize(17)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                        .alignSelf(ItemAlign.Start)
+                        .margin({ bottom: 2 })
+
+                      Text('Goal Completed')
+                        .fontSize(11)
+                        .fontColor('#006E2F')
+                        .fontWeight(FontWeight.Bold)
+                        .alignSelf(ItemAlign.Start)
+                    }
+                    .layoutWeight(1)
+                    .padding(14)
+                    .backgroundColor(Color.White)
+                    .borderRadius(16)
+                    .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
+                    .margin({ right: 6 })
+
+                    // Calories Burned Card
+                    Column() {
+                      Row() {
+                        Image($r('app.media.calories'))
+                          .width(24)
+                          .height(24)
+                          .objectFit(ImageFit.Contain)
+                        Blank()
+                        Text('Today')
+                          .fontSize(11)
+                          .fontColor('#737685')
+                      }
+                      .width('100%')
+                      .margin({ bottom: 8 })
+
+                      Text(`${this.selectedPatient.calories} kcal`)
+                        .fontSize(17)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                        .alignSelf(ItemAlign.Start)
+                        .margin({ bottom: 2 })
+
+                      Text('Active Today')
+                        .fontSize(11)
+                        .fontColor('#854E00')
+                        .fontWeight(FontWeight.Bold)
+                        .alignSelf(ItemAlign.Start)
+                    }
+                    .layoutWeight(1)
+                    .padding(14)
+                    .backgroundColor(Color.White)
+                    .borderRadius(16)
+                    .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
+                    .margin({ left: 6 })
+                  }
+                  .width('100%')
+                  .margin({ bottom: 12 })
+
+                  // Grid Row 3: Body Temperature & Sleep Quality
+                  Row() {
+                    // Temperature Card
+                    Column() {
+                      Row() {
+                        Image($r('app.media.scale'))
+                          .width(24)
+                          .height(24)
+                          .objectFit(ImageFit.Contain)
+                        Blank()
+                        Text('Recorded')
+                          .fontSize(11)
+                          .fontColor('#737685')
+                      }
+                      .width('100%')
+                      .margin({ bottom: 8 })
+
+                      Text(this.selectedPatient.temperature)
+                        .fontSize(17)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                        .alignSelf(ItemAlign.Start)
+                        .margin({ bottom: 2 })
+
+                      Text('Temp: Normal')
+                        .fontSize(11)
+                        .fontColor('#006E2F')
+                        .fontWeight(FontWeight.Bold)
+                        .alignSelf(ItemAlign.Start)
+                    }
+                    .layoutWeight(1)
+                    .padding(14)
+                    .backgroundColor(Color.White)
+                    .borderRadius(16)
+                    .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
+                    .margin({ right: 6 })
+
+                    // Sleep Quality Card
+                    Column() {
+                      Row() {
+                        Image($r('app.media.sleep'))
+                          .width(24)
+                          .height(24)
+                          .objectFit(ImageFit.Contain)
+                        Blank()
+                        Text('Last Night')
+                          .fontSize(11)
+                          .fontColor('#737685')
+                      }
+                      .width('100%')
+                      .margin({ bottom: 8 })
+
+                      Text(this.selectedPatient.sleep)
+                        .fontSize(17)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+                        .alignSelf(ItemAlign.Start)
+                        .margin({ bottom: 2 })
+
+                      Text('Quality: Restful')
+                        .fontSize(11)
+                        .fontColor('#5C0099')
+                        .fontWeight(FontWeight.Bold)
+                        .alignSelf(ItemAlign.Start)
+                    }
+                    .layoutWeight(1)
+                    .padding(14)
+                    .backgroundColor(Color.White)
+                    .borderRadius(16)
+                    .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
+                    .margin({ left: 6 })
+                  }
+                  .width('100%')
+                  .margin({ bottom: 20 })
+
+                  // 5. Collapsible Active Prescriptions Section
+                  Column() {
+                    // Header Bar (Clickable to expand/collapse)
+                    Row() {
+                      Image($r('app.media.drugs'))
+                        .width(24)
+                        .height(24)
+                        .objectFit(ImageFit.Contain)
+                        .margin({ right: 10 })
+
+                      Text(`Active Prescriptions (${this.selectedPatient.medicationsList.length})`)
+                        .fontSize(15)
+                        .fontWeight(FontWeight.Bold)
+                        .fontColor('#191C1D')
+
+                      Blank()
+
+                      Text(this.isMedsExpanded ? '▲' : '▼')
+                        .fontSize(14)
+                        .fontColor('#003D9B')
+                    }
                     .width('100%')
-                    .height(130)
-                    .objectFit(ImageFit.Cover)
-                    .borderRadius(12)
+                    .padding(16)
+                    .backgroundColor(Color.White)
+                    .borderRadius(16)
+                    .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
+                    .onClick(() => {
+                      this.isMedsExpanded = !this.isMedsExpanded;
+                    })
+
+                    // Expanded Medication Items
+                    if (this.isMedsExpanded) {
+                      Column({ space: 10 }) {
+                        if (this.selectedPatient.medicationsList.length === 0) {
+                          Text('No active prescriptions recorded.')
+                            .fontSize(13)
+                            .fontColor('#737685')
+                            .padding(14)
+                        } else {
+                          ForEach(this.selectedPatient.medicationsList, (med: PatientMedication) => {
+                            Column() {
+                              Row() {
+                                Text(med.name)
+                                  .fontSize(15)
+                                  .fontWeight(FontWeight.Bold)
+                                  .fontColor('#003D9B')
+                                Blank()
+                                Text(`Stock: ${med.stockPills} pills`)
+                                  .fontSize(12)
+                                  .fontWeight(FontWeight.Bold)
+                                  .fontColor(med.stockPills <= 5 ? '#BA1A1A' : '#006E2F')
+                              }
+                              .width('100%')
+                              .margin({ bottom: 6 })
+
+                              Row() {
+                                Text(`Dosage: ${med.dosage} • Schedule: ${med.schedule}`)
+                                  .fontSize(13)
+                                  .fontColor('#434654')
+                              }
+                              .width('100%')
+                              .margin({ bottom: 4 })
+
+                              Row() {
+                                Text(`Instruction: ${med.mealTiming}`)
+                                  .fontSize(12)
+                                  .fontColor('#737685')
+                              }
+                              .width('100%')
+                            }
+                            .width('100%')
+                            .padding(14)
+                            .backgroundColor('#F8F9FF')
+                            .borderRadius(12)
+                            .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)' })
+                          })
+                        }
+                      }
+                      .width('100%')
+                      .margin({ top: 8 })
+                    }
+                  }
+                  .width('100%')
+                  .margin({ bottom: 20 })
+
+                  Blank().height(140)
                 }
-                .width('100%')
-                .padding(14)
-                .backgroundColor(Color.White)
-                .borderRadius(16)
-                .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)' })
-                .margin({ bottom: 20 })
               }
             }
           }
         }
         .width('100%')
-        .padding({ left: 16, right: 16, top: 16, bottom: 110 })
+        .padding({ top: 12, bottom: 140 })
       }
+      .padding({ left: 24, right: 24, top: 20 })
       .width('100%')
       .height('100%')
 
@@ -553,9 +835,11 @@ struct PatientsPage {
       }
 
       BottomNavBar({ activeTab: 'patients' })
+        .zIndex(1)
     }
     .width('100%')
     .height('100%')
     .backgroundColor('#F8F9FF')
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }
