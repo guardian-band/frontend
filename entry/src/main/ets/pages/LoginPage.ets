@@ -10,7 +10,7 @@ struct LoginPage {
 
   build() {
     Stack() {
-      // Background Hologram/Ambient Blurs (matching 0.5 opacity)
+      // Background Hologram/Ambient Blurs (Balanced Brand Navy & Red)
       Row()
         .width(500)
         .height(500)
@@ -19,8 +19,8 @@ struct LoginPage {
           center: ['50%', '50%'],
           radius: 250,
           colors: [
-            ['rgba(218, 226, 255, 0.5)', 0.0],
-            ['rgba(218, 226, 255, 0.0)', 1.0]
+            ['rgba(0, 61, 155, 0.20)', 0.0],
+            ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
 
@@ -32,8 +32,8 @@ struct LoginPage {
           center: ['50%', '50%'],
           radius: 300,
           colors: [
-            ['rgba(107, 255, 143, 0.5)', 0.0],
-            ['rgba(107, 255, 143, 0.0)', 1.0]
+            ['rgba(227, 27, 35, 0.18)', 0.0],
+            ['rgba(227, 27, 35, 0.0)', 1.0]
           ]
         })
 
@@ -45,8 +45,8 @@ struct LoginPage {
           center: ['50%', '50%'],
           radius: 200,
           colors: [
-            ['rgba(255, 218, 215, 0.5)', 0.0],
-            ['rgba(255, 218, 215, 0.0)', 1.0]
+            ['rgba(0, 61, 155, 0.10)', 0.0],
+            ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
 

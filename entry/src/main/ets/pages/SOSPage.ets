@@ -142,7 +142,7 @@ struct SOSPage {
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      // Background Radial Gradients for visual effect (Brand Navy & Red)
+      // Background Radial Gradients for visual effect (Balanced Brand Navy & Red)
       Row()
         .width(500)
         .height(500)
@@ -151,7 +151,7 @@ struct SOSPage {
           center: ['50%', '50%'],
           radius: 250,
           colors: [
-            ['rgba(0, 61, 155, 0.30)', 0.0],
+            ['rgba(0, 61, 155, 0.20)', 0.0],
             ['rgba(0, 61, 155, 0.0)', 1.0]
           ]
         })
@@ -164,7 +164,7 @@ struct SOSPage {
           center: ['50%', '50%'],
           radius: 300,
           colors: [
-            ['rgba(227, 27, 35, 0.25)', 0.0],
+            ['rgba(227, 27, 35, 0.18)', 0.0],
             ['rgba(227, 27, 35, 0.0)', 1.0]
           ]
         })
