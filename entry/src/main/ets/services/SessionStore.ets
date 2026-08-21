@@ -280,6 +280,7 @@ export class SessionStore {
     SessionStore.role = '';
     AppStorage.setOrCreate(KEY_TOKEN, '');
     AppStorage.setOrCreate(KEY_USER_ID, '');
+    SessionStore.clearDeviceViewCaches();
     if (SessionStore.store !== null) {
       try {
         await SessionStore.store.delete(KEY_TOKEN);
@@ -290,6 +291,39 @@ export class SessionStore {
         console.error(`[SessionStore] Clear failed: ${(err as Error).message}`);
       }
     }
+  }
+
+  /**
+   * Wipes the per-account view-model caches that pages mirror into
+   * AppStorage (medications, vitals history, medical profile, contacts, ...).
+   *
+   * These used to survive sign-out entirely. AppStorage lives in memory for
+   * the life of the process, and none of these keys were ever reset on
+   * logout - only a handful (fullName/profilePicture/userRole/userEmail/
+   * medicalProfile) were manually cleared, and only on the ProfilePage
+   * sign-out button specifically, not on a 401. The result: the medications
+   * one account added kept showing up for the NEXT account signed in on the
+   * same device (and the same happened for contacts, vitals history, etc.) -
+   * every one of these is either meaningless without a session or gets
+   * re-fetched from the server on the next page load, so clearing them here
+   * is safe and closes the leak for both sign-out and session-expiry (401).
+   */
+  private static clearDeviceViewCaches(): void {
+    AppStorage.setOrCreate('medications', [] as object[]);
+    AppStorage.setOrCreate('dashboardMeds', [] as object[]);
+    AppStorage.setOrCreate('heartRateHistory', [] as number[]);
+    AppStorage.setOrCreate('oxygenHistory', [] as number[]);
+    AppStorage.setOrCreate('sosContacts', [] as object[]);
+    AppStorage.setOrCreate('fullName', '');
+    AppStorage.setOrCreate('profilePicture', '');
+    AppStorage.setOrCreate('userEmail', '');
+    AppStorage.setOrCreate('userRole', 'patient');
+    AppStorage.setOrCreate('doctorProfile', { hospital: '', specialty: '', email: '', isVerified: false });
+    AppStorage.setOrCreate('medicalProfile', {
+      birthDate: '', gender: '', height: '', weight: '', bloodType: '',
+      diseases: [] as string[], otherChronicDisease: '', allergies: '',
+      pacemaker: false, hearingAid: false
+    });
   }
 
   static isReady(): boolean {

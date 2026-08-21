@@ -2,14 +2,22 @@ import { router, promptAction } from '@kit.ArkUI';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { contact } from '@kit.ContactsKit';
-import { ApiService, PatientProfile, MonitoringInvitation, EmergencyAccessToken } from '../services/ApiService';
-import { QrPayload } from '../services/QrPayload';
+import { ApiService, PatientProfile, MonitoringInvitation, EmergencyAccessToken, ClinicianPatient } from '../services/ApiService';
+import { QrPayload, DisplayFormat } from '../services/QrPayload';
 import { SessionStore } from '../services/SessionStore';
 import { ContactsRepository, UiEmergencyContact } from '../services/ContactsRepository';
 import { ProfileRepository } from '../services/ProfileRepository';
 
 interface ContactWithDisplayName {
   displayName: string;
+}
+
+/** A patient a family member is allowed to monitor, for the "Monitored Member" card. */
+interface MonitoredFamilyPatient {
+  id: string;
+  name: string;
+  heartRate: number;
+  oxygen: number;
 }
 
 interface MedTime {
@@ -206,9 +214,22 @@ struct ProfilePage {
   @State linkInvitationToken: string = '';
   @State linkInvitationExpiresAt: string = '';
   @State isGeneratingQr: boolean = false;
-  /** 'link' = hekime baglanma daveti, 'emergency' = acil erisim kodu. */
+  /** 'link' = baglanma daveti, 'emergency' = acil erisim kodu. */
   @State qrMode: string = 'link';
-  @StorageLink('selectedFamilyMember') selectedMember: string = 'Father';
+  /**
+   * Who the "Link" QR is for: 'clinician' (Doctor) or 'family' (Family
+   * Member). Same QR flow/UI for both - only kind/relationship differ, so the
+   * backend records the relationship correctly (see BACKEND_REQUESTS.md
+   * discussion: reusing one QR for both would mislabel family links as
+   * clinician links).
+   */
+  @State linkTargetKind: string = 'clinician';
+
+  // Real linked patients for the "Monitored Member" card (GET /api/monitoring/patients),
+  // replacing the old hard-coded "Father"/"Mother" mock - same data source as
+  // HomePage.ets's FamilyDashboardView.
+  @State linkedPatients: MonitoredFamilyPatient[] = [];
+  @State selectedPatientId: string = '';
   @State showMemberDropdown: boolean = false;
 
   dialogController: CustomDialogController = new CustomDialogController({
@@ -310,12 +331,24 @@ struct ProfilePage {
       return;
     }
 
-    // POST /api/patient-link-invitations - the invitation the doctor scans.
+    // POST /api/patient-link-invitations - the invitation a doctor or family
+    // member scans. kind/relationship follow linkTargetKind so the backend
+    // records which kind of relationship this actually is.
+    //
+    // isEmergencyContact was hard-coded false for both kinds. The backend
+    // sends SOS/all-clear alerts to a linked member ONLY when this flag is
+    // true (see gb-go-main/api/sos.go createOutboxEntries: it queries
+    // patient_relationships WHERE is_emergency_contact = TRUE). So a linked
+    // family member - the person you would actually expect to be alerted in
+    // an emergency - was silently never notified through this relationship;
+    // only the separate, 2-contact-max "Emergency Contacts" list worked. A
+    // doctor keeps false: a clinician monitoring relationship is not the same
+    // as consenting to receive personal SOS alerts.
     ApiService.createLinkInvitation({
-      relationship: 'Physician',
-      kind: 'clinician',
+      relationship: this.linkTargetKind === 'family' ? 'Family Member' : 'Physician',
+      kind: this.linkTargetKind === 'family' ? 'family' : 'clinician',
       canMonitor: true,
-      isEmergencyContact: false,
+      isEmergencyContact: this.linkTargetKind === 'family',
       expiresInSeconds: 900
     })
       .then((invitation: MonitoringInvitation) => {
@@ -341,17 +374,89 @@ struct ProfilePage {
     this.generateQrToken();
   }
 
+  /** Switches who the "Link" QR is for (Doctor/Family) and requests a new token. */
+  switchLinkTarget(target: string): void {
+    if (this.linkTargetKind === target) {
+      return;
+    }
+    this.linkTargetKind = target;
+    if (this.qrMode === 'link') {
+      this.generateQrToken();
+    }
+  }
+
   /** Refreshes the profile and emergency contacts from the backend on open. */
   aboutToAppear(): void {
     if (!SessionStore.isAuthenticated()) {
       return;
     }
+
+    // HomePage's "My Emergency Access QR" shortcut routes here with this flag
+    // so the modal opens straight into Emergency Access mode instead of
+    // requiring an extra tap on the "Emergency Access" pill.
+    const params = router.getParams() as Record<string, boolean>;
+    if (params && params.openEmergencyQr) {
+      this.qrMode = 'emergency';
+      this.isMyQrModalOpen = true;
+      this.generateQrToken();
+    }
+
     ContactsRepository.refreshQuietly();
     // Restore the FULL profile from the server: name, gender, height, weight,
     // blood type, chronic conditions, allergies, pacemaker, hearing aid.
     // The backend keeps these inside criticalFacts; the mapping lives in one
     // place, ProfileRepository.
     ProfileRepository.refreshQuietly();
+
+    if (this.userRole === 'family') {
+      this.loadLinkedPatients();
+    }
+  }
+
+  /**
+   * GET /api/monitoring/patients - same endpoint and shape as
+   * HomePage.ets's FamilyDashboardView.loadFamilyPatients(). Feeds the
+   * "Monitored Member" card below.
+   */
+  async loadLinkedPatients(): Promise<void> {
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+    try {
+      const backendPatients: ClinicianPatient[] = await ApiService.getMonitoredPatients();
+      const list: MonitoredFamilyPatient[] = [];
+      for (const bp of backendPatients) {
+        let heart: number = 0;
+        let oxy: number = 0;
+        try {
+          const vitals = await ApiService.getVitalsLatest(bp.patientId);
+          if (vitals.heartRate) {
+            heart = vitals.heartRate;
+          }
+          if (vitals.bloodOxygen) {
+            oxy = vitals.bloodOxygen;
+          }
+        } catch (e) {
+          // 404 = no readings for this patient yet. Expected.
+        }
+        list.push({
+          id: bp.id,
+          name: bp.name && bp.name.length > 0 ? bp.name : 'Unnamed Patient',
+          heartRate: heart,
+          oxygen: oxy
+        });
+      }
+      this.linkedPatients = list;
+      if (list.length > 0 && !list.some((p: MonitoredFamilyPatient) => p.id === this.selectedPatientId)) {
+        this.selectedPatientId = list[0].id;
+      }
+    } catch (err) {
+      console.error(`[API] GET /api/monitoring/patients - FAILED: ${(err as Error).message}`);
+    }
+  }
+
+  getSelectedLinkedPatient(): MonitoredFamilyPatient | undefined {
+    return this.linkedPatients.find((p: MonitoredFamilyPatient) => p.id === this.selectedPatientId);
   }
 
   // Photo picker function to change profile picture from gallery
@@ -775,7 +880,7 @@ struct ProfilePage {
                   .fontWeight(FontWeight.Bold)
                   .fontColor('#006E2F')
                   .margin({ bottom: 2 })
-                Text('Let your doctor scan this code to link with your account.')
+                Text('Let your doctor or a family member scan this code to link with your account.')
                   .fontSize(12)
                   .fontColor('#737685')}.alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
@@ -1042,7 +1147,8 @@ struct ProfilePage {
 
           // Conditionally Render Family Member Cards
           if (this.userRole === 'family') {
-            // Monitored Family Member Card
+            // Monitored Family Member Card - real data from
+            // GET /api/monitoring/patients, see loadLinkedPatients().
             Column() {
               Row() {
                 Text('Monitored Member')
@@ -1052,92 +1158,63 @@ struct ProfilePage {
 
                 Blank()
 
-                // Switch Member Button
-                Row() {
-                  Text(this.selectedMember === 'Father' ? 'Father' : 'Mother')
-                    .fontSize(13)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#003D9B')
-                    .margin({ right: 6 })
-                  Text('▼')
-                    .fontSize(10)
-                    .fontColor('#003D9B')}.padding({ left: 10, right: 10, top: 6, bottom: 6 })
-                .backgroundColor('#E8EEFF')
-                .borderRadius(10)
-                .onClick(() => {
-                  this.showMemberDropdown = !this.showMemberDropdown;
-                })}.width('100%')
+                if (this.linkedPatients.length > 1) {
+                  // Switch Member Button
+                  Row() {
+                    Text(this.getSelectedLinkedPatient() !== undefined ? this.getSelectedLinkedPatient()!.name : '')
+                      .fontSize(13)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor('#003D9B')
+                      .margin({ right: 6 })
+                    Text('▼')
+                      .fontSize(10)
+                      .fontColor('#003D9B')}.padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                  .backgroundColor('#E8EEFF')
+                  .borderRadius(10)
+                  .onClick(() => {
+                    this.showMemberDropdown = !this.showMemberDropdown;
+                  })
+                }}.width('100%')
               .margin({ left: 4, bottom: 12 })
 
-              // Dropdown Menu for choosing Monitored Member
+              // Dropdown Menu for choosing Monitored Member - one row per real linked patient.
               if (this.showMemberDropdown) {
                 Column() {
-                  // Option 1: Father
-                  Row() {
+                  ForEach(this.linkedPatients, (patient: MonitoredFamilyPatient) => {
                     Row() {
-                      Text('JD')
-                        .fontSize(11)
-                        .fontWeight(FontWeight.Bold)
-                        .fontColor(Color.White)}.width(26)
-                    .height(26)
-                    .borderRadius(13)
-                    .backgroundColor('#006E2F')
-                    .justifyContent(FlexAlign.Center)
-                    .alignItems(VerticalAlign.Center)
-                    .margin({ right: 10 })
+                      Row() {
+                        Text(this.getInitials(patient.name))
+                          .fontSize(11)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor(Color.White)}.width(26)
+                      .height(26)
+                      .borderRadius(13)
+                      .backgroundColor(patient.id === this.selectedPatientId ? '#006E2F' : '#854E00')
+                      .justifyContent(FlexAlign.Center)
+                      .alignItems(VerticalAlign.Center)
+                      .margin({ right: 10 })
 
-                    Text("Father (John Doe)")
-                      .fontSize(14)
-                      .fontWeight(this.selectedMember === 'Father' ? FontWeight.Bold : FontWeight.Normal)
-                      .fontColor(this.selectedMember === 'Father' ? '#003D9B' : '#191C1D')
-
-                    Blank()
-
-                    if (this.selectedMember === 'Father') {
-                      Text('✓')
+                      Text(patient.name)
                         .fontSize(14)
-                        .fontWeight(FontWeight.Bold)
-                        .fontColor('#003D9B')
-                    }}.width('100%')
-                  .padding(12)
-                  .onClick(() => {
-                    this.selectedMember = 'Father';
-                    this.showMemberDropdown = false;
-                  })
-                  .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.15)' })
+                        .fontWeight(patient.id === this.selectedPatientId ? FontWeight.Bold : FontWeight.Normal)
+                        .fontColor(patient.id === this.selectedPatientId ? '#003D9B' : '#191C1D')
 
-                  // Option 2: Mother
-                  Row() {
-                    Row() {
-                      Text('MD')
-                        .fontSize(11)
-                        .fontWeight(FontWeight.Bold)
-                        .fontColor(Color.White)}.width(26)
-                    .height(26)
-                    .borderRadius(13)
-                    .backgroundColor('#854E00')
-                    .justifyContent(FlexAlign.Center)
-                    .alignItems(VerticalAlign.Center)
-                    .margin({ right: 10 })
+                      Blank()
 
-                    Text("Mother (Mary Doe)")
-                      .fontSize(14)
-                      .fontWeight(this.selectedMember === 'Mother' ? FontWeight.Bold : FontWeight.Normal)
-                      .fontColor(this.selectedMember === 'Mother' ? '#003D9B' : '#191C1D')
-
-                    Blank()
-
-                    if (this.selectedMember === 'Mother') {
-                      Text('✓')
-                        .fontSize(14)
-                        .fontWeight(FontWeight.Bold)
-                        .fontColor('#003D9B')
-                    }}.width('100%')
-                  .padding(12)
-                  .onClick(() => {
-                    this.selectedMember = 'Mother';
-                    this.showMemberDropdown = false;
-                  })}.width('100%')
+                      if (patient.id === this.selectedPatientId) {
+                        Text('✓')
+                          .fontSize(14)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor('#003D9B')
+                      }}.width('100%')
+                    .padding(12)
+                    .onClick(() => {
+                      this.selectedPatientId = patient.id;
+                      this.showMemberDropdown = false;
+                    })
+                    .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.15)' })
+                  }, (patient: MonitoredFamilyPatient) => patient.id)
+                }.width('100%')
                 .backgroundColor(Color.White)
                 .borderRadius(16)
                 .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
@@ -1146,39 +1223,54 @@ struct ProfilePage {
               }
 
               Column() {
+              if (this.linkedPatients.length === 0) {
+                Column() {
+                  Text('No patients linked yet.')
+                    .fontSize(13)
+                    .fontColor('#737685')
+                    .margin({ bottom: 4 })
+                  Text('Use "Link" QR scanning to add one.')
+                    .fontSize(12)
+                    .fontColor('#8F92A1')
+                }
+                .width('100%')
+                .padding({ top: 12, bottom: 12 })
+                .alignItems(HorizontalAlign.Center)
+              } else {
+              Column() {
                 // Header of the monitored person
                 Row() {
                   // Avatar with initials
                   Row() {
-                    Text(this.selectedMember === 'Father' ? 'JD' : 'MD')
+                    Text(this.getInitials(this.getSelectedLinkedPatient() !== undefined ? this.getSelectedLinkedPatient()!.name : ''))
                       .fontSize(16)
                       .fontWeight(FontWeight.Bold)
                       .fontColor(Color.White)}.width(48)
                   .height(48)
                   .borderRadius(24)
-                  .backgroundColor(this.selectedMember === 'Father' ? '#006E2F' : '#854E00')
+                  .backgroundColor('#006E2F')
                   .justifyContent(FlexAlign.Center)
                   .alignItems(VerticalAlign.Center)
                   .margin({ right: 12 })
 
                   Column() {
                     Row() {
-                      Text(this.selectedMember === 'Father' ? 'John Doe (Father)' : 'Mary Doe (Mother)')
+                      Text(this.getSelectedLinkedPatient() !== undefined ? this.getSelectedLinkedPatient()!.name : 'Unknown Patient')
                         .fontSize(16)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#191C1D')
-                      // Active green status dot
+                      // Status dot - green once a reading is on file, grey otherwise.
                       Row()
                         .width(8)
                         .height(8)
-                        .backgroundColor(this.selectedMember === 'Father' ? '#006E2F' : '#854E00')
+                        .backgroundColor(this.getSelectedLinkedPatient() !== undefined && this.getSelectedLinkedPatient()!.heartRate > 0 ? '#006E2F' : '#C3C6D6')
                         .borderRadius(4)
                         .margin({ left: 8 })}.alignItems(VerticalAlign.Center)
                     .margin({ bottom: 4 })
 
-                    Text('Band Connected • Signal Strong')
+                    Text(this.getSelectedLinkedPatient() !== undefined && this.getSelectedLinkedPatient()!.heartRate > 0 ? 'Readings available' : 'No readings yet')
                       .fontSize(12)
-                      .fontColor(this.selectedMember === 'Father' ? '#006E2F' : '#854E00')}.alignItems(HorizontalAlign.Start)}.width('100%')
+                      .fontColor(this.getSelectedLinkedPatient() !== undefined && this.getSelectedLinkedPatient()!.heartRate > 0 ? '#006E2F' : '#8F92A1')}.alignItems(HorizontalAlign.Start)}.width('100%')
                 .padding({ bottom: 16 })
                 .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
 
@@ -1195,7 +1287,7 @@ struct ProfilePage {
                         .height(14)
                         .objectFit(ImageFit.Contain)
                         .margin({ right: 4 })
-                      Text(this.selectedMember === 'Father' ? '72 bpm' : '80 bpm')
+                      Text(this.getSelectedLinkedPatient() !== undefined && this.getSelectedLinkedPatient()!.heartRate > 0 ? `${this.getSelectedLinkedPatient()!.heartRate} bpm` : '--')
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#BA1A1A')
@@ -1218,7 +1310,7 @@ struct ProfilePage {
                         .height(14)
                         .objectFit(ImageFit.Contain)
                         .margin({ right: 4 })
-                      Text(this.selectedMember === 'Father' ? '98%' : '99%')
+                      Text(this.getSelectedLinkedPatient() !== undefined && this.getSelectedLinkedPatient()!.oxygen > 0 ? `${this.getSelectedLinkedPatient()!.oxygen}%` : '--')
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#003D9B')
@@ -1241,7 +1333,7 @@ struct ProfilePage {
                         .height(14)
                         .objectFit(ImageFit.Contain)
                         .margin({ right: 4 })
-                      Text(this.selectedMember === 'Father' ? '4,820' : '6,150')
+                      Text('--')
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#006E2F')
@@ -1269,7 +1361,6 @@ struct ProfilePage {
                   .borderRadius(8)
                   .margin({ right: 12 })
                   .onClick(() => {
-                    promptAction.showToast({ message: `Opening live dashboard for ${this.selectedMember === 'Father' ? 'John Doe' : 'Mary Doe'}...` });
                     router.pushUrl({ url: 'pages/HomePage' }, (err) => {
                       if (err) {
                         promptAction.showToast({ message: `Routing Error: ${err.message}` });
@@ -1294,9 +1385,15 @@ struct ProfilePage {
                   .backgroundColor('rgba(0, 110, 47, 0.06)')
                   .borderRadius(8)
                   .onClick(() => {
-                    promptAction.showToast({ message: `Calling ${this.selectedMember === 'Father' ? 'John Doe' : 'Mary Doe'}...` });
+                    // The monitoring relationship API does not expose the
+                    // patient's phone number (see BACKEND_REQUESTS.md), so
+                    // there is nothing real to dial yet.
+                    promptAction.showToast({ message: 'Calling is not available yet: the patient\'s phone number is not shared with monitors.' });
                   })}.width('100%')
-                .padding({ top: 16 })}.width('100%')
+                .padding({ top: 16 })
+              }.width('100%')
+              }
+              }
               .padding(16)
               .backgroundColor(Color.White)
               .borderRadius(20)
@@ -1764,16 +1861,16 @@ struct ProfilePage {
             // QR kind selector. The two flows use different token types; a single
             // QR cannot serve both (a token sent to the wrong endpoint gets a 400).
             Row() {
-              Text('Link to Doctor')
+              Text('Link')
                 .fontSize(13)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(this.qrMode === 'link' ? Color.White : '#434654')
                 .textAlign(TextAlign.Center)
+                .align(Alignment.Center)
                 .layoutWeight(1)
                 .height(38)
                 .borderRadius(10)
                 .backgroundColor(this.qrMode === 'link' ? '#003D9B' : '#F0F4F8')
-                .padding({ top: 10 })
                 .onClick(() => { this.switchQrMode('link'); })
 
               Text('Emergency Access')
@@ -1781,16 +1878,50 @@ struct ProfilePage {
                 .fontWeight(FontWeight.Bold)
                 .fontColor(this.qrMode === 'emergency' ? Color.White : '#434654')
                 .textAlign(TextAlign.Center)
+                .align(Alignment.Center)
                 .layoutWeight(1)
                 .height(38)
                 .borderRadius(10)
                 .backgroundColor(this.qrMode === 'emergency' ? '#BA1A1A' : '#F0F4F8')
-                .padding({ top: 10 })
                 .margin({ left: 8 })
                 .onClick(() => { this.switchQrMode('emergency'); })
             }
             .width('100%')
             .margin({ bottom: 16 })
+
+            // Who the "Link" QR is for. One QR flow, two possible relationship
+            // kinds - reusing the doctor QR for a family member would record
+            // the relationship as "clinician" on the backend, which is wrong.
+            if (this.qrMode === 'link') {
+              Row() {
+                Text('Doctor')
+                  .fontSize(12)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(this.linkTargetKind === 'clinician' ? Color.White : '#434654')
+                  .textAlign(TextAlign.Center)
+                  .align(Alignment.Center)
+                  .layoutWeight(1)
+                  .height(32)
+                  .borderRadius(8)
+                  .backgroundColor(this.linkTargetKind === 'clinician' ? '#854E00' : '#F0F4F8')
+                  .onClick(() => { this.switchLinkTarget('clinician'); })
+
+                Text('Family Member')
+                  .fontSize(12)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(this.linkTargetKind === 'family' ? Color.White : '#434654')
+                  .textAlign(TextAlign.Center)
+                  .align(Alignment.Center)
+                  .layoutWeight(1)
+                  .height(32)
+                  .borderRadius(8)
+                  .backgroundColor(this.linkTargetKind === 'family' ? '#006E2F' : '#F0F4F8')
+                  .margin({ left: 8 })
+                  .onClick(() => { this.switchLinkTarget('family'); })
+              }
+              .width('100%')
+              .margin({ bottom: 16 })
+            }
 
             // Display Dynamic QR Code Container
             Row() {
@@ -1823,7 +1954,7 @@ struct ProfilePage {
                 .fontColor('#737685')
                 .margin({ bottom: 8 })
             } else if (this.linkInvitationExpiresAt.length > 0) {
-              Text(`Single use. Expires: ${this.linkInvitationExpiresAt}`)
+              Text(`Single use. Expires: ${DisplayFormat.dateTime(this.linkInvitationExpiresAt)}`)
                 .fontSize(12)
                 .fontColor('#BA1A1A')
                 .textAlign(TextAlign.Center)
@@ -1832,13 +1963,9 @@ struct ProfilePage {
 
             Text(this.qrMode === 'emergency'
               ? 'Emergency responders can scan this code to see your blood type, allergies and medications. Every access is logged.'
-              : 'Your doctor can scan this code to add you to their patient list and monitor your readings.')
-              .fontSize(12)
-              .fontColor('#737685')
-              .textAlign(TextAlign.Center)
-              .margin({ bottom: 8 })
-
-            Text('Let your doctor scan this code to link you as their patient for real-time vitals checks.')
+              : (this.linkTargetKind === 'family'
+                  ? 'Let a family member scan this code to link to your account, monitor your readings, and be alerted if you trigger an SOS.'
+                  : 'Your doctor can scan this code to add you to their patient list and monitor your readings.'))
               .fontSize(13)
               .fontColor('#434654')
               .textAlign(TextAlign.Center)

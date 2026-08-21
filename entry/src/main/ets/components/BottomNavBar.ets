@@ -65,7 +65,8 @@ export struct BottomNavBar {
         })
       }
 
-      // Patients Tab (Doctor role only)
+      // Patients Tab (Doctor role only - Family Member sees their linked
+      // patient directly on the HomePage dashboard instead)
       if (this.userRole === 'doctor') {
         Column() {
           Image($r('app.media.patient'))

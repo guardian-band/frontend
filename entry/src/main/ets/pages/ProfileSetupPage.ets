@@ -1051,8 +1051,17 @@ struct ProfileSetupPage {
               // These have no backend counterpart; they used to live only in
               // AppStorage (in memory), so they were lost after sign-out or a
               // restart and setup was requested all over again.
+              //
+              // The persisted `role` is only updated when this is the FIRST,
+              // primary-role setup reached from SelectRolePage (canGoBack is
+              // unset there). When this page is reached from ProfilePage's role
+              // switcher (canGoBack: true) to configure an ADDITIONAL role, the
+              // account's primary role must not silently change - otherwise
+              // trying out "Doctor" once permanently redirected every future
+              // login to the doctor dashboard instead of the role picked at
+              // registration.
               SessionStore.patchLocalProfile({
-                role: this.role,
+                role: this.canGoBack ? undefined : this.role,
                 email: this.role === 'family' ? this.email : undefined,
                 doctorHospital: this.role === 'doctor' ? this.doctorHospital : undefined,
                 doctorSpecialty: this.role === 'doctor'

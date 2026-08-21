@@ -240,8 +240,29 @@ struct MedsPage {
     });
   }
 
-  // Medication Deletion Function
+  /**
+   * Medication deletion.
+   *
+   * PLATFORM LIMITATION - there is no `DELETE /api/medications/{id}` on the
+   * backend yet (see BACKEND_REQUESTS.md #2). For a plan that is synced to the
+   * server (`serverId` set), removing it only from this local list used to look
+   * like it worked - until `loadServerMedications()` re-fetched `GET
+   * /api/medications` on the next visit and added it right back, because the
+   * server still has it as `active`. Worse: the plan would also keep showing up
+   * as an active medication on the Emergency Medical Card, even though the
+   * patient believed it was removed - a real safety mismatch, not just a UI
+   * glitch. So a synced plan is left alone until the backend adds real
+   * deletion; only device-only plans (BLG-007: 3-doses-a-day plans that never
+   * reached the server) can be removed today.
+   */
   deleteMedication(id: string) {
+    const target = this.medications.find(med => med.id === id);
+    if (target !== undefined && target.serverId.length > 0) {
+      promptAction.showToast({
+        message: 'Deleting a saved medication is not supported by the server yet. This has been reported to the backend team.'
+      });
+      return;
+    }
     this.medications = this.medications.filter(med => med.id !== id);
     this.dashboardMeds = this.dashboardMeds.filter(med => !med.id.startsWith(id));
     promptAction.showToast({ message: 'Medication removed successfully' });

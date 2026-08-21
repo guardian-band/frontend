@@ -88,7 +88,7 @@ export class QrPayload {
   /** Message shown when a QR of the wrong kind is scanned. */
   static wrongKindMessage(expected: QrKind): string {
     if (expected === QrKind.LINK) {
-      return 'This QR is not a patient link invitation. Ask the patient to show the "Link to Doctor" QR code from their profile.';
+      return 'This QR is not a patient link invitation. Ask the patient to show the "Link" QR code from their profile.';
     }
     return 'This QR is not an emergency access code. Ask the patient to show the "Emergency Access" QR code from their profile.';
   }
@@ -115,6 +115,28 @@ export class DisplayFormat {
     }
     const pad = (n: number): string => `${n}`.padStart(2, '0');
     return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  /**
+   * Turns an ISO birth date into an age in years (as of today, local time).
+   * Accounts for whether the birthday has occurred yet this year, unlike a
+   * plain year subtraction.
+   */
+  static age(birthDate?: string): string {
+    if (birthDate === undefined || birthDate.length === 0) {
+      return '';
+    }
+    const birth = new Date(birthDate);
+    if (isNaN(birth.getTime())) {
+      return '';
+    }
+    const today = new Date();
+    let years: number = today.getFullYear() - birth.getFullYear();
+    const monthDay: number = (today.getMonth() - birth.getMonth()) || (today.getDate() - birth.getDate());
+    if (monthDay < 0) {
+      years -= 1;
+    }
+    return years >= 0 ? `${years}` : '';
   }
 
   /**

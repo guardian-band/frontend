@@ -5,7 +5,6 @@ import { SessionStore } from '../services/SessionStore';
 import { QrPayload, QrKind, QrContent, DisplayFormat } from '../services/QrPayload';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
-import { geoLocationManager } from '@kit.LocationKit';
 import { camera, cameraPicker } from '@kit.CameraKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -32,6 +31,10 @@ interface ScannedPatient {
   otherChronicDisease?: string;
   medications?: Array<string>;
   vitals?: ScannedPatientVitals;
+  /** From criticalFacts.gender - the backend already sends this today. */
+  gender?: string;
+  /** Computed from EmergencyMedicalCard.birthDate once the backend sends it. */
+  age?: string;
 }
 
 interface MedicationItem {
@@ -56,6 +59,20 @@ interface FullMedicationItem {
   mealTiming: string;
   times: Array<MedTime>;
   days: Array<string>;
+}
+
+/** A patient the current user (doctor or family member) is allowed to monitor. */
+interface MonitoredPatient {
+  id: string;
+  name: string;
+  gender: string;
+  bloodType: string;
+  heartRate: number;
+  oxygen: number;
+  calories: number;
+  sleep: string;
+  meds: string;
+  location: string;
 }
 
 // Interface for chart coordinates to satisfy ArkTS strict typing
@@ -178,6 +195,19 @@ function getActiveMedicationsText(medsList?: Array<string>): string {
     }
   }
   return 'None';
+}
+
+// Helper function for the Emergency Vitals header subtitle: "Age 74 · Female",
+// only age, only gender, or a fallback when the backend has sent neither yet.
+function formatDemographics(age?: string, gender?: string): string {
+  const parts: string[] = [];
+  if (age !== undefined && age.length > 0) {
+    parts.push(`Age ${age}`);
+  }
+  if (gender !== undefined && gender.length > 0) {
+    parts.push(gender);
+  }
+  return parts.length > 0 ? parts.join(' · ') : 'Age and gender not shared';
 }
 
 @Entry
@@ -332,16 +362,20 @@ struct HomePage {
         };
       }
 
+      // displayName/birthDate are not sent by the backend yet (BACKEND_REQUESTS.md #1);
+      // they resolve to '' once the backend adds them, with no frontend change needed.
       this.scannedPatientInfo = {
         id: session.sessionId,
-        name: 'Emergency Medical Card',
+        name: card.displayName !== undefined ? card.displayName : '',
         email: '',
         bloodType: card.bloodType || 'Unknown',
         allergies: allergyList.length > 0 ? allergyList.join(', ') : 'No known allergies',
         diseases: conditionList,
         medications: card.medications.map((m: EmergencyMedication) =>
           `${m.name} ${m.strength} — ${m.instructions}`),
-        vitals: vitalsView
+        vitals: vitalsView,
+        gender: card.criticalFacts.gender !== undefined ? card.criticalFacts.gender : '',
+        age: DisplayFormat.age(card.birthDate)
       };
       this.isScannedPatientModalOpen = true;
     } catch (err) {
@@ -863,9 +897,7 @@ struct HomePage {
                   .fontColor('#191C1D')
                   .margin({ bottom: 2 })
 
-                // The session id is a UUID and used to overflow its container.
-                // Shortened and pinned to one line, ending with an ellipsis.
-                Text(`Oturum: ${DisplayFormat.shortId(this.scannedPatientInfo.id)}`)
+                Text(formatDemographics(this.scannedPatientInfo.age, this.scannedPatientInfo.gender))
                   .fontSize(12)
                   .fontColor('#737685')
                   .maxLines(1)
@@ -1274,6 +1306,25 @@ struct PatientDashboardView {
         .width('100%')
         .alignItems(VerticalAlign.Center)
         .margin({ bottom: 20 })
+
+        // My Emergency Access QR - shortcut to the code shown to responders in
+        // an emergency. Opens ProfilePage's QR modal directly in Emergency
+        // Access mode so it does not need a second tap once there.
+        Button() {
+          Text('My Emergency Access QR')
+            .fontSize(15)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Color.White)
+        }
+        .width('100%')
+        .height(52)
+        .backgroundColor('#BA1A1A')
+        .borderRadius(16)
+        .shadow({ radius: 10, color: 'rgba(186, 26, 26, 0.25)', offsetX: 0, offsetY: 4 })
+        .margin({ bottom: 20 })
+        .onClick(() => {
+          router.pushUrl({ url: 'pages/ProfilePage', params: { openEmergencyQr: true } });
+        })
 
         // AI Health Insight Box
         Row() {
@@ -1807,17 +1858,162 @@ struct PatientDashboardView {
 struct FamilyDashboardView {
   @Prop fullName: string;
   onQrScanClick: () => void = () => {};
-  @StorageLink('dashboardMeds') dashboardMeds: MedicationItem[] = [];
-  @State heartRate: number = 72;
-  @State oxygen: number = 98;
-  @State calories: number = 1450;
-  @State mapUrl: string = 'https://static-maps.yandex.ru/1.x/?ll=-122.1697,37.4275&z=16&l=map&size=600,300';
-  @State locationLabel: string = 'Home • 5 mins ago';
 
-  @StorageLink('selectedFamilyMember') selectedMember: string = 'Father';
+  // Real linked patients (GET /api/monitoring/patients), replacing the old
+  // hard-coded "Father"/"Mother" mock. Same data source and shape as
+  // DoctorDashboardView.doctorPatients - the backend does not distinguish
+  // family from clinician relationships when listing who a member can monitor.
+  @State linkedPatients: MonitoredPatient[] = [];
+  @State selectedPatientId: string = '';
+
   @State showDropdown: boolean = false;
-  private hrIntervalId: number = -1;
   @StorageLink('profilePicture') profilePicture: string = '';
+
+  // Scan & link a patient's QR invitation - same mechanism as DoctorDashboardView.
+  // A family member redeeming a LINK QR creates a MonitoringRelationship the
+  // same way a doctor does; the backend does not distinguish by role.
+  @StorageLink('scannedPatientLinkRequest') @Watch('onLinkRequestChanged') scannedPatientLinkRequest: string = '';
+  @State isLinkModalOpen: boolean = false;
+  @State linkPatientInvitationToken: string = '';
+
+  async scanPatientQr() {
+    try {
+      router.pushUrl({ url: 'pages/CameraPage' });
+    } catch (e) {
+      promptAction.showToast({ message: 'Simulator Mode: Opening manual entry form...' });
+      this.isLinkModalOpen = true;
+    }
+  }
+
+  /** POST /api/patient-link-invitations/redeem - the same flow doctors use. */
+  async onLinkRequestChanged() {
+    if (!this.scannedPatientLinkRequest) return;
+    let scanned = this.scannedPatientLinkRequest;
+    AppStorage.setOrCreate('scannedPatientLinkRequest', '');
+
+    if (!SessionStore.isAuthenticated()) {
+      promptAction.showToast({ message: 'No active session. Please sign in.' });
+      return;
+    }
+
+    const parsed: QrContent = QrPayload.decode(scanned);
+    if (parsed.kind === QrKind.EMERGENCY) {
+      promptAction.showToast({ message: QrPayload.wrongKindMessage(QrKind.LINK) });
+      return;
+    }
+    if (parsed.kind === QrKind.LEGACY_JSON) {
+      promptAction.showToast({ message: QrPayload.legacyMessage() });
+      return;
+    }
+
+    promptAction.showToast({ message: 'Verifying invitation code...' });
+
+    try {
+      const relationship: MonitoringRelationship = await ApiService.redeemLinkInvitation(parsed.token);
+      console.info(`[API] POST /api/patient-link-invitations/redeem - OK, patientId=${relationship.patientId}`);
+      promptAction.showToast({ message: 'Patient added to your list.' });
+      await this.loadFamilyPatients();
+    } catch (e) {
+      const status: number = e instanceof ApiError ? (e as ApiError).status : -1;
+      console.error(`[API] Could not redeem invitation (status=${status}): ${(e as Error).message}`);
+      if (status >= 500) {
+        promptAction.showToast({
+          message: 'Server error: patient linking is currently unavailable. The code is valid; the problem is on the server.'
+        });
+      } else {
+        promptAction.showToast({ message: `Could not link: ${(e as Error).message}` });
+      }
+    }
+  }
+
+  /**
+   * GET /api/monitoring/patients - the exact same endpoint and shape
+   * DoctorDashboardView uses. The backend has no notion of "family" vs
+   * "clinician" here; it just returns everyone this account has an active
+   * can-monitor relationship with.
+   */
+  async loadFamilyPatients() {
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+    try {
+      const backendPatients: ClinicianPatient[] = await ApiService.getMonitoredPatients();
+      console.info(`[API] GET /api/monitoring/patients - OK, ${backendPatients.length} patient(s)`);
+
+      const list: MonitoredPatient[] = [];
+      for (const bp of backendPatients) {
+        let heart: number = 0;
+        let oxy: number = 0;
+        try {
+          const vitals = await ApiService.getVitalsLatest(bp.patientId);
+          if (vitals.heartRate) {
+            heart = vitals.heartRate;
+          }
+          if (vitals.bloodOxygen) {
+            oxy = vitals.bloodOxygen;
+          }
+        } catch (e) {
+          // 404 = no readings for this patient yet. Expected.
+          console.info(`[API] No vitals yet for ${bp.patientId}`);
+        }
+
+        list.push({
+          id: bp.id,
+          name: bp.name && bp.name.length > 0 ? bp.name : 'Unnamed Patient',
+          // gender / calories / sleep / meds / location have no backend
+          // counterpart for a monitored patient; left empty rather than
+          // filled with fake values.
+          gender: '',
+          bloodType: bp.bloodType || '',
+          heartRate: heart,
+          oxygen: oxy,
+          calories: 0,
+          sleep: '',
+          meds: '',
+          location: ''
+        });
+      }
+      this.linkedPatients = list;
+      if (list.length > 0 && !list.some((p: MonitoredPatient) => p.id === this.selectedPatientId)) {
+        // Nothing selected yet, or the previous selection is no longer in the
+        // list (e.g. the relationship was revoked) - fall back to the first.
+        this.selectedPatientId = list[0].id;
+      }
+    } catch (err) {
+      console.error(`[API] GET /api/monitoring/patients - FAILED: ${(err as Error).message}`);
+    }
+  }
+
+  /** Currently selected patient, or undefined if none is linked yet. */
+  getSelectedPatient(): MonitoredPatient | undefined {
+    return this.linkedPatients.find((p: MonitoredPatient) => p.id === this.selectedPatientId);
+  }
+
+  /** GET /api/vitals/{userId}/latest result, formatted for display; '--' when there is none yet. */
+  displayHeartRate(): string {
+    const p = this.getSelectedPatient();
+    return p !== undefined && p.heartRate > 0 ? `${p.heartRate}` : '--';
+  }
+
+  displayOxygen(): string {
+    const p = this.getSelectedPatient();
+    return p !== undefined && p.oxygen > 0 ? `${p.oxygen}` : '--';
+  }
+
+  /**
+   * A short factual line based on the latest reading actually on file - no
+   * fabricated "everything is fine" narrative like the old mock text.
+   */
+  getHealthSummaryText(): string {
+    const p = this.getSelectedPatient();
+    if (p === undefined) {
+      return 'No data available yet.';
+    }
+    if (p.heartRate > 0 && p.oxygen > 0) {
+      return `Latest reading: ${p.heartRate} bpm heart rate, ${p.oxygen}% blood oxygen.`;
+    }
+    return `${p.name} has not synced any readings yet.`;
+  }
 
   getInitials(name: string): string {
     if (!name) return 'GB';
@@ -1830,59 +2026,12 @@ struct FamilyDashboardView {
     return name.substring(0, Math.min(2, name.length)).toUpperCase();
   }
 
-  getPatientLocation() {
-    if (this.selectedMember === 'Mother') {
-      this.mapUrl = 'https://static-maps.yandex.ru/1.x/?ll=-122.4194,37.7749&z=15&l=map&size=600,300';
-      this.locationLabel = 'San Francisco • Live';
-      return;
-    }
-
-    try {
-      let requestInfo: geoLocationManager.CurrentLocationRequest = {
-        priority: geoLocationManager.LocationRequestPriority.FIRST_FIX
-      };
-      geoLocationManager.getCurrentLocation(requestInfo).then((location) => {
-        if (location && this.selectedMember === 'Father') {
-          const lat = location.latitude;
-          const lng = location.longitude;
-          this.mapUrl = `https://static-maps.yandex.ru/1.x/?ll=${lng.toFixed(5)},${lat.toFixed(5)}&z=16&l=map&size=600,300`;
-          this.locationLabel = `Palo Alto • Live`;
-        }
-      }).catch(() => {
-        // Fallback is handled by default values
-      });
-    } catch (err) {
-      // Ignore
-    }
-  }
-
   aboutToAppear() {
-    this.hrIntervalId = setInterval(() => {
-      const baseHR = this.selectedMember === 'Father' ? 72 : 80;
-      const baseO2 = this.selectedMember === 'Father' ? 98 : 99;
-
-      // Heart Rate simulation
-      const hrVariance = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
-      this.heartRate = baseHR + hrVariance;
-
-      // Oxygen simulation
-      const o2Variance = Math.floor(Math.random() * 3) - 1; // -1, 0, 1
-      this.oxygen = Math.max(95, Math.min(100, baseO2 + o2Variance));
-
-      // Calories simulation
-      this.calories += Math.floor(Math.random() * 2);
-    }, 3000);
-
-    this.getPatientLocation();
-  }
-
-  aboutToDisappear() {
-    if (this.hrIntervalId !== -1) {
-      clearInterval(this.hrIntervalId);
-    }
+    this.loadFamilyPatients();
   }
 
   build() {
+    Stack() {
     Column() {
       AppHeader({ title: 'GuardianBand Home', onCameraClick: () => { this.onQrScanClick(); } })
         .margin({ bottom: 16 })
@@ -1977,6 +2126,91 @@ struct FamilyDashboardView {
       .border({ width: 1, color: 'rgba(0, 61, 155, 0.2)', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
 
+      // Match Patient via QR - same "Link" invitation mechanism as the doctor
+      // dashboard (POST /api/patient-link-invitations/redeem).
+      Column() {
+        Row() {
+          Row() {
+            Image($r('app.media.qr'))
+              .width(26)
+              .height(26)
+              .objectFit(ImageFit.Contain)
+          }
+          .width(44)
+          .height(44)
+          .borderRadius(10)
+          .backgroundColor('rgba(0, 61, 155, 0.08)')
+          .justifyContent(FlexAlign.Center)
+          .alignItems(VerticalAlign.Center)
+          .margin({ right: 12 })
+
+          Column() {
+            Text('Match Patient QR Code')
+              .fontSize(15)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#003D9B')
+              .margin({ bottom: 4 })
+
+            Text("Scan your patient's Link QR code from their profile to add them to your list.")
+              .fontSize(12)
+              .fontColor('#737685')
+              .lineHeight(16)
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+        }
+        .width('100%')
+        .margin({ bottom: 12 })
+
+        Button('Scan & Link Patient', { type: ButtonType.Normal })
+          .width('100%')
+          .height(38)
+          .fontSize(13)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(Color.White)
+          .backgroundColor('#003D9B')
+          .borderRadius(8)
+          .onClick(() => {
+            this.scanPatientQr();
+          })
+      }
+      .width('100%')
+      .padding(16)
+      .backgroundColor(Color.White)
+      .borderRadius(20)
+      .border({ width: 1, color: 'rgba(0, 61, 155, 0.2)', style: BorderStyle.Solid })
+      .margin({ bottom: 20 })
+
+      if (this.linkedPatients.length === 0) {
+        // Empty state - nobody linked yet. The "Match Patient QR Code" card
+        // above is the call to action; no point showing a wall of dashes for
+        // vitals that do not exist yet.
+        Column() {
+          Image($r('app.media.patient'))
+            .width(56)
+            .height(56)
+            .objectFit(ImageFit.Contain)
+            .margin({ bottom: 16 })
+          Text('No Patients Linked Yet')
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#191C1D')
+            .margin({ bottom: 8 })
+          Text('Scan the Link QR code from your patient\'s profile to see their health information here.')
+            .fontSize(13)
+            .fontColor('#737685')
+            .textAlign(TextAlign.Center)
+            .lineHeight(18)
+            .width('80%')
+        }
+        .width('100%')
+        .padding({ top: 40, bottom: 40 })
+        .backgroundColor(Color.White)
+        .borderRadius(20)
+        .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
+        .alignItems(HorizontalAlign.Center)
+      } else {
+
       // 2. Monitoring Profile Title Section
       Row() {
         Column() {
@@ -1987,19 +2221,23 @@ struct FamilyDashboardView {
             .margin({ bottom: 4 })
 
           Row() {
-            Text(this.selectedMember === 'Father' ? "Father's Health" : "Mother's Health")
+            Text(this.getSelectedPatient() !== undefined ? `${this.getSelectedPatient()!.name}'s Health` : 'Health')
               .fontSize(28)
               .fontWeight(FontWeight.Bold)
               .fontColor('#191C1D')
               .margin({ right: 8 })
 
-            Text('▼')
-              .fontSize(16)
-              .fontColor('#003D9B')
+            if (this.linkedPatients.length > 1) {
+              Text('▼')
+                .fontSize(16)
+                .fontColor('#003D9B')
+            }
           }
           .alignItems(VerticalAlign.Center)
           .onClick(() => {
-            this.showDropdown = !this.showDropdown;
+            if (this.linkedPatients.length > 1) {
+              this.showDropdown = !this.showDropdown;
+            }
           })
         }
         .alignItems(HorizontalAlign.Start)
@@ -2025,91 +2263,47 @@ struct FamilyDashboardView {
       .width('100%')
       .margin({ bottom: 20 })
 
-      // Dropdown Overlay Menu
+      // Dropdown Overlay Menu - one row per real linked patient.
       if (this.showDropdown) {
         Column() {
-          // Option 1: Father
-          Row() {
+          ForEach(this.linkedPatients, (patient: MonitoredPatient) => {
             Row() {
-              Text('JD')
-                .fontSize(12)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(Color.White)
+              Row() {
+                Text(this.getInitials(patient.name))
+                  .fontSize(12)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(Color.White)
+              }
+              .width(28)
+              .height(28)
+              .borderRadius(14)
+              .backgroundColor(patient.id === this.selectedPatientId ? '#006E2F' : '#854E00')
+              .justifyContent(FlexAlign.Center)
+              .alignItems(VerticalAlign.Center)
+              .margin({ right: 10 })
+
+              Text(patient.name)
+                .fontSize(15)
+                .fontWeight(patient.id === this.selectedPatientId ? FontWeight.Bold : FontWeight.Normal)
+                .fontColor(patient.id === this.selectedPatientId ? '#003D9B' : '#191C1D')
+
+              Blank()
+
+              if (patient.id === this.selectedPatientId) {
+                Image($r('app.media.like'))
+                  .width(18)
+                  .height(18)
+                  .objectFit(ImageFit.Contain)
+              }
             }
-            .width(28)
-            .height(28)
-            .borderRadius(14)
-            .backgroundColor('#006E2F')
-            .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
-            .margin({ right: 10 })
-
-            Text("Father (John Doe)")
-              .fontSize(15)
-              .fontWeight(this.selectedMember === 'Father' ? FontWeight.Bold : FontWeight.Normal)
-              .fontColor(this.selectedMember === 'Father' ? '#003D9B' : '#191C1D')
-
-            Blank()
-
-            if (this.selectedMember === 'Father') {
-              Image($r('app.media.like'))
-                .width(18)
-                .height(18)
-                .objectFit(ImageFit.Contain)
-            }
-          }
-          .width('100%')
-          .padding({ top: 12, bottom: 12, left: 16, right: 16 })
-          .onClick(() => {
-            this.selectedMember = 'Father';
-            this.showDropdown = false;
-            this.heartRate = 72;
-            this.oxygen = 98;
-            this.calories = 1450;
-            this.getPatientLocation();
-          })
-          .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
-
-          // Option 2: Mother
-          Row() {
-            Row() {
-              Text('MD')
-                .fontSize(12)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(Color.White)
-            }
-            .width(28)
-            .height(28)
-            .borderRadius(14)
-            .backgroundColor('#854E00')
-            .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
-            .margin({ right: 10 })
-
-            Text("Mother (Mary Doe)")
-              .fontSize(15)
-              .fontWeight(this.selectedMember === 'Mother' ? FontWeight.Bold : FontWeight.Normal)
-              .fontColor(this.selectedMember === 'Mother' ? '#003D9B' : '#191C1D')
-
-            Blank()
-
-            if (this.selectedMember === 'Mother') {
-              Image($r('app.media.like'))
-                .width(18)
-                .height(18)
-                .objectFit(ImageFit.Contain)
-            }
-          }
-          .width('100%')
-          .padding({ top: 12, bottom: 12, left: 16, right: 16 })
-          .onClick(() => {
-            this.selectedMember = 'Mother';
-            this.showDropdown = false;
-            this.heartRate = 80;
-            this.oxygen = 99;
-            this.calories = 1200;
-            this.getPatientLocation();
-          })
+            .width('100%')
+            .padding({ top: 12, bottom: 12, left: 16, right: 16 })
+            .onClick(() => {
+              this.selectedPatientId = patient.id;
+              this.showDropdown = false;
+            })
+            .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
+          }, (patient: MonitoredPatient) => patient.id)
         }
         .width('100%')
         .backgroundColor(Color.White)
@@ -2142,9 +2336,7 @@ struct FamilyDashboardView {
             .fontColor(Color.White)
             .margin({ bottom: 6 })
 
-          Text(this.selectedMember === 'Father' ? 
-            "Father is stable today. Activity is normal, and all meds were taken on time. Irregular heart pattern check passed." : 
-            "Mother is active today. Daily steps goal is completed. Her sleep quality last night was excellent, and blood oxygen levels are optimal at 99%.")
+          Text(this.getHealthSummaryText())
             .fontSize(14)
             .fontColor('rgba(255, 255, 255, 0.9)')
             .lineHeight(20)
@@ -2190,7 +2382,7 @@ struct FamilyDashboardView {
 
           Column() {
             Row() {
-              Text(this.heartRate.toString())
+              Text(this.displayHeartRate())
                 .fontSize(28)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#191C1D')
@@ -2203,7 +2395,7 @@ struct FamilyDashboardView {
             .alignItems(VerticalAlign.Bottom)
             .margin({ bottom: 4 })
 
-            Text('Normal Range')
+            Text(this.displayHeartRate() === '--' ? 'No Data' : 'Normal Range')
               .fontSize(13)
               .fontWeight(FontWeight.Bold)
               .fontColor('#006E2F')
@@ -2249,7 +2441,7 @@ struct FamilyDashboardView {
 
           Column() {
             Row() {
-              Text(this.oxygen.toString())
+              Text(this.displayOxygen())
                 .fontSize(28)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#191C1D')
@@ -2262,7 +2454,7 @@ struct FamilyDashboardView {
             .alignItems(VerticalAlign.Bottom)
             .margin({ bottom: 4 })
 
-            Text('Healthy')
+            Text(this.displayOxygen() === '--' ? 'No Data' : 'Healthy')
               .fontSize(13)
               .fontWeight(FontWeight.Bold)
               .fontColor('#003D9B')
@@ -2312,15 +2504,15 @@ struct FamilyDashboardView {
 
           Column() {
             Row() {
-              Text(this.selectedMember === 'Father' ? '6h 45m' : '8h 15m')
-                .fontSize(28)
+              Text('No Data')
+                .fontSize(20)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#191C1D')
             }
             .alignItems(VerticalAlign.Bottom)
             .margin({ bottom: 4 })
 
-            Text(this.selectedMember === 'Father' ? 'Restful' : 'Excellent')
+            Text('Not tracked yet')
               .fontSize(13)
               .fontWeight(FontWeight.Bold)
               .fontColor('#5C0099')
@@ -2366,20 +2558,15 @@ struct FamilyDashboardView {
 
           Column() {
             Row() {
-              Text(this.calories.toString())
-                .fontSize(28)
+              Text('No Data')
+                .fontSize(20)
                 .fontWeight(FontWeight.Bold)
                 .fontColor('#191C1D')
-              Text(' kcal')
-                .fontSize(12)
-                .fontWeight(FontWeight.Medium)
-                .fontColor('#737685')
-                .margin({ bottom: 2, left: 2 })
             }
             .alignItems(VerticalAlign.Bottom)
             .margin({ bottom: 4 })
 
-            Text('Active')
+            Text('Not tracked yet')
               .fontSize(13)
               .fontWeight(FontWeight.Bold)
               .fontColor('#854E00')
@@ -2420,7 +2607,7 @@ struct FamilyDashboardView {
             .fontSize(12)
             .fontColor('#737685')
             .margin({ bottom: 2 })
-          Text('4,281 Steps')
+          Text('Not tracked yet')
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
             .fontColor('#191C1D')
@@ -2434,12 +2621,6 @@ struct FamilyDashboardView {
             .height(6)
             .backgroundColor('#E8EEFF')
             .borderRadius(3)
-
-          Row()
-            .width(85)
-            .height(6)
-            .backgroundColor('#006E2F')
-            .borderRadius(3)
         }
       }
       .width('100%')
@@ -2449,93 +2630,31 @@ struct FamilyDashboardView {
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
 
-      // 5. Medication Status
+      // 5. Medication Status - no backend endpoint exposes another patient's
+      // medications to a monitoring family member/doctor (only the patient's
+      // own token can call GET /api/medications), so this stays an honest
+      // placeholder rather than fabricated drug names and times.
       Column() {
         Row() {
-          Row() {
-            Row() {
-              Image($r('app.media.drugs'))
-                .width(25)
-                .height(25)
-                .objectFit(ImageFit.Contain)
-            }
-            .width(36)
-            .height(36)
-            .borderRadius(10)
-            .backgroundColor('rgba(0, 61, 155, 0.1)')
-            .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
+          Image($r('app.media.drugs'))
+            .width(25)
+            .height(25)
+            .objectFit(ImageFit.Contain)
             .margin({ right: 12 })
 
-            Text(this.dashboardMeds.length > 0 ? 'Medication Tracker' : 'Last Medication')
-              .fontSize(16)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#191C1D')
-          }
-          .alignItems(VerticalAlign.Center)
-
-          Blank()
-
-          Row() {
-            Image($r('app.media.like'))
-              .width(14)
-              .height(14)
-              .margin({ right: 4 })
-              .objectFit(ImageFit.Contain)
-            Text(this.dashboardMeds.length > 0 ? (this.dashboardMeds[0].taken ? 'Taken' : 'Pending') : 'Taken')
-              .fontSize(12)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(this.dashboardMeds.length > 0 ? (this.dashboardMeds[0].taken ? '#006E2F' : '#003D9B') : '#006E2F')
-          }
-          .alignItems(VerticalAlign.Center)
-          .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-          .backgroundColor(this.dashboardMeds.length > 0 ? (this.dashboardMeds[0].taken ? '#E6F9ED' : '#E8EEFF') : '#E6F9ED')
-          .borderRadius(8)
+          Text('Medication Status')
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#191C1D')
         }
         .width('100%')
-        .margin({ bottom: 16 })
+        .alignItems(VerticalAlign.Center)
+        .margin({ bottom: 12 })
 
-        Row() {
-          Column() {
-            Text(this.selectedMember === 'Father' ? 
-              (this.dashboardMeds.length > 0 ? this.dashboardMeds[0].name : 'Atorvastatin (20mg)') : 
-              'Metformin (500mg)')
-              .fontSize(16)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#191C1D')
-              .margin({ bottom: 4 })
-
-            Text(this.selectedMember === 'Father' ? 
-              (this.dashboardMeds.length > 0 ? this.dashboardMeds[0].dosage : 'Daily Dosage: Cardiovascular') : 
-              'Daily Dosage: Type 2 Diabetes')
-              .fontSize(13)
-              .fontColor('#737685')
-          }
-          .alignItems(HorizontalAlign.Start)
-
-          Blank()
-
-          Column() {
-            Text(this.selectedMember === 'Father' ? 
-              (this.dashboardMeds.length > 0 ? 'Scheduled Time' : 'Time Taken') : 
-              'Scheduled Time')
-              .fontSize(11)
-              .fontColor('#737685')
-              .margin({ bottom: 4 })
-
-            Text(this.selectedMember === 'Father' ? 
-              (this.dashboardMeds.length > 0 ? this.dashboardMeds[0].time : '08:15 AM') : 
-              '08:00 AM')
-              .fontSize(16)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#191C1D')
-          }
-          .alignItems(HorizontalAlign.End)
-        }
-        .width('100%')
-        .padding(16)
-        .backgroundColor('#F8F9FA')
-        .borderRadius(12)
+        Text('Medication tracking for linked patients is not available yet.')
+          .fontSize(13)
+          .fontColor('#737685')
+          .textAlign(TextAlign.Start)
       }
       .width('100%')
       .padding(18)
@@ -2544,7 +2663,10 @@ struct FamilyDashboardView {
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
 
-      // 6. Last Known Location Map
+      // 6. Last Known Location - no backend endpoint tracks a patient's
+      // ongoing location (SOS incidents carry a one-off lat/lng at trigger
+      // time, but there is no continuous location API), so this is an honest
+      // placeholder instead of a fabricated map and coordinates.
       Column() {
         Row() {
           Image($r('app.media.place'))
@@ -2561,54 +2683,19 @@ struct FamilyDashboardView {
         .width('100%')
         .margin({ bottom: 12 })
 
-        Stack() {
-          Image(this.mapUrl)
-            .width('100%')
-            .height(240)
-            .borderRadius(20)
-            .objectFit(ImageFit.Cover)
-
-          Column() {
-            Row() {
-              Text(this.locationLabel)
-                .fontSize(12)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#003D9B')
-            }
-            .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-            .backgroundColor(Color.White)
-            .borderRadius(8)
-            .border({ width: 1, color: '#0052cc', style: BorderStyle.Solid })
-            .shadow({ radius: 6, color: 'rgba(0,0,0,0.1)', offsetY: 2 })
-            .margin({ bottom: 8 })
-
-            Row() {
-              Image($r('app.media.patient'))
-                .width(20)
-                .height(20)
-                .objectFit(ImageFit.Contain)
-            }
-            .width(36)
-            .height(36)
-            .borderRadius(18)
-            .backgroundColor('#003D9B')
-            .border({ width: 3, color: Color.White, style: BorderStyle.Solid })
-            .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
-            .shadow({ radius: 8, color: 'rgba(0,61,155,0.3)', offsetY: 4 })
-          }
-          .justifyContent(FlexAlign.Center)
-          .alignItems(HorizontalAlign.Center)
-
-        }
-        .width('100%')
-        .height(240)
-        .borderRadius(20)
+        Text('Location sharing is not available yet.')
+          .fontSize(13)
+          .fontColor('#737685')
       }
       .width('100%')
+      .padding(18)
+      .backgroundColor(Color.White)
+      .borderRadius(20)
+      .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
 
-      // 7. Recent Activity
+      // 7. Recent Activity - no backend activity-feed endpoint exists yet,
+      // so this stays an honest empty state instead of a fabricated feed.
       Column() {
         Row() {
           Image($r('app.media.summary'))
@@ -2625,115 +2712,100 @@ struct FamilyDashboardView {
         .width('100%')
         .margin({ bottom: 12 })
 
-        Column() {
-          // Item 1
-          Row() {
-            Row() {
-              Image($r('app.media.like'))
-                .width(18)
-                .height(18)
-                .objectFit(ImageFit.Contain)
-            }
-            .width(36)
-            .height(36)
-            .borderRadius(18)
-            .backgroundColor('#E6F9ED')
-            .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
-            .margin({ right: 12 })
-
-            Column() {
-              Row() {
-                Text('Morning Meds Logged')
-                  .fontSize(15)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-                Blank()
-                Text('8:15 AM')
-                  .fontSize(12)
-                  .fontColor('#737685')
-              }
-              .width('100%')
-              .margin({ bottom: 4 })
-
-              Text('Father manually confirmed morning medication via device.')
-                .fontSize(13)
-                .fontColor('#737685')
-                .lineHeight(16)
-            }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
-          }
-          .width('100%')
-          .padding({ top: 12, bottom: 12 })
-          .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
-
-          // Item 2
-          Row() {
-            Row() {
-              Image($r('app.media.safezone'))
-                .width(24)
-                .height(24)
-                .objectFit(ImageFit.Contain)
-            }
-            .width(36)
-            .height(36)
-            .borderRadius(18)
-            .backgroundColor('#E8EEFF')
-            .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
-            .margin({ right: 12 })
-
-            Column() {
-              Row() {
-                Text('Safe Zone Entry')
-                  .fontSize(15)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor('#191C1D')
-                Blank()
-                Text('8:02 AM')
-                  .fontSize(12)
-                  .fontColor('#737685')
-              }
-              .width('100%')
-              .margin({ bottom: 4 })
-
-              Text("Entered 'Home' geofence after morning backyard walk.")
-                .fontSize(13)
-                .fontColor('#737685')
-                .lineHeight(16)
-            }
-            .alignItems(HorizontalAlign.Start)
-            .layoutWeight(1)
-          }
-          .width('100%')
-          .padding({ top: 12, bottom: 12 })
-        }
-        .width('100%')
+        Text('No recent activity to show yet.')
+          .fontSize(13)
+          .fontColor('#737685')
       }
       .width('100%')
+      .padding(18)
+      .backgroundColor(Color.White)
+      .borderRadius(20)
+      .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
+
+      } // end of else (linkedPatients.length > 0)
     }
     .width('100%')
+
+    // Manual Patient Link Modal (Simulator Mode fallback) - same fallback as
+    // the doctor dashboard, for when the camera cannot be opened.
+    if (this.isLinkModalOpen) {
+      Column() {
+        Column() {
+          Text('Link Patient with Invitation Code')
+            .fontSize(18)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#191C1D')
+            .margin({ bottom: 16 })
+
+          Text('The patient opens "My QR Code" in their profile and shows it to you. Scan it or enter it manually. The code is valid for 15 minutes and can be used once.')
+            .fontSize(12)
+            .fontColor('#737685')
+            .alignSelf(ItemAlign.Start)
+            .margin({ bottom: 12 })
+          TextInput({ placeholder: 'Davet kodu', text: this.linkPatientInvitationToken })
+            .width('100%')
+            .height(48)
+            .margin({ bottom: 20 })
+            .onChange((val: string) => this.linkPatientInvitationToken = val)
+
+          Row() {
+            Button('Cancel', { type: ButtonType.Normal })
+              .width(100)
+              .height(44)
+              .backgroundColor(Color.Transparent)
+              .fontColor('#737685')
+              .onClick(() => {
+                this.isLinkModalOpen = false;
+                this.linkPatientInvitationToken = '';
+              })
+
+            Blank()
+
+            Button('Link Patient', { type: ButtonType.Normal })
+              .width(130)
+              .height(44)
+              .backgroundColor('#003D9B')
+              .fontColor(Color.White)
+              .borderRadius(8)
+              .onClick(async () => {
+                if (!this.linkPatientInvitationToken) {
+                  promptAction.showToast({ message: 'Enter the invitation code from the patient.' });
+                  return;
+                }
+                if (!SessionStore.isAuthenticated()) {
+                  promptAction.showToast({ message: 'No active session. Please sign in.' });
+                  return;
+                }
+                try {
+                  await ApiService.redeemLinkInvitation(QrPayload.decode(this.linkPatientInvitationToken).token);
+                  promptAction.showToast({ message: 'Patient added to your list.' });
+                  this.isLinkModalOpen = false;
+                  this.linkPatientInvitationToken = '';
+                } catch (e) {
+                  promptAction.showToast({ message: `Could not link: ${(e as Error).message}` });
+                }
+              })
+          }.width('100%')
+        }.width('90%')
+        .padding(24)
+        .backgroundColor(Color.White)
+        .borderRadius(24)
+        .shadow({ radius: 24, color: 'rgba(0,0,0,0.15)' })
+      }.width('100%')
+      .height('100%')
+      .backgroundColor('rgba(0,0,0,0.4)')
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .position({ x: 0, y: 0 })
+    }
+    }
   }
 }
 
 // ----------------------------------------------------
 // DOCTOR DASHBOARD VIEW
 // ----------------------------------------------------
-interface MonitoredPatient {
-  id: string;
-  name: string;
-  gender: string;
-  bloodType: string;
-  heartRate: number;
-  oxygen: number;
-  calories: number;
-  sleep: string;
-  meds: string;
-  location: string;
-}
-
 interface DoctorProfile {
   hospital: string;
   specialty: string;

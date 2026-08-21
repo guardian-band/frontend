@@ -364,6 +364,14 @@ export interface EmergencyMedicalCard {
   criticalFacts: CriticalFacts;
   medications: EmergencyMedication[];
   latestVitals?: EmergencyLatestVitals;
+  /**
+   * NOT PROVIDED BY THE BACKEND YET - see BACKEND_REQUESTS.md #1.
+   * `EmergencyMedicalCard` in `openapi.yaml` has no name/birth date field, so
+   * the emergency card cannot show who the patient is. These stay undefined
+   * until the backend adds them (same field names as `PatientProfile`).
+   */
+  displayName?: string;
+  birthDate?: string;
 }
 
 export interface NotificationEndpoint {

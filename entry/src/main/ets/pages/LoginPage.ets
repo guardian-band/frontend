@@ -201,7 +201,17 @@ struct LoginPage {
 
                   // RESTORE the family/doctor profile. It has no backend home;
                   // it used to be wiped on every sign-in, so setup was asked again.
-                  if (roleForUser === 'doctor') {
+                  //
+                  // Restored whenever the data exists on this account, NOT only
+                  // when 'doctor' happens to be the current primary role: since
+                  // ProfilePage's role switcher lets a patient also configure a
+                  // Doctor profile as a secondary role, gating this on the
+                  // primary role wiped a fully-configured doctor profile back to
+                  // empty on every sign-in for anyone whose primary role wasn't
+                  // doctor - so it kept asking to set it up again. The family
+                  // email restore below never had this bug; it already checks
+                  // whether the data exists, not which role is active.
+                  if (local.doctorEmail.length > 0) {
                     AppStorage.setOrCreate('doctorProfile', {
                       hospital: local.doctorHospital,
                       specialty: local.doctorSpecialty,
