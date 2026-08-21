@@ -1,6 +1,8 @@
 // HomePage.ets
 import { router, promptAction } from '@kit.ArkUI';
-import { ApiService, ClinicianPatient } from '../services/ApiService';
+import { ApiService, ApiError, ClinicianPatient, MonitoringRelationship, EmergencyAccessSession, EmergencyMedicalCard, EmergencyMedication } from '../services/ApiService';
+import { SessionStore } from '../services/SessionStore';
+import { QrPayload, QrKind, QrContent, DisplayFormat } from '../services/QrPayload';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { geoLocationManager } from '@kit.LocationKit';
@@ -11,7 +13,13 @@ import { BusinessError } from '@kit.BasicServicesKit';
 interface ScannedPatientVitals {
   heartRate?: string;
   oxygen?: string;
-  location?: string;
+  /**
+   * Son olcumun ISO zaman damgasi.
+   * Bu alan eskiden `location` adiniydi ve UI'da "Last Location" olarak
+   * gosteriliyordu; ancak icine hep olcum ZAMANI yaziliyordu. Acil tibbi
+   * kartta (EmergencyMedicalCard) konum alani yok, bu yuzden ad duzeltildi.
+   */
+  recordedAt?: string;
 }
 
 interface ScannedPatient {
@@ -239,21 +247,9 @@ struct HomePage {
     clearInterval(this.scanIntervalId);
     this.isQrModalOpen = false;
     this.showTelemetryResult = false;
-    let mockVitals: ScannedPatientVitals = {
-      heartRate: '135 bpm (High!)',
-      oxygen: '94% (Low Alert)',
-      location: 'Palo Alto, Live'
-    };
-    this.scannedPatientInfo = {
-      id: 'GP-8321-2026',
-      name: 'John Doe (Father)',
-      email: 'john.doe@example.com',
-      bloodType: 'A-',
-      allergies: 'None',
-      diseases: ['Diabetes', 'Hypertension'],
-      vitals: mockVitals
-    };
-    this.isScannedPatientModalOpen = true;
+    // This animated screen is not a real scanner; it used to show a made-up
+    // patient here. Now it routes to the real camera.
+    router.pushUrl({ url: 'pages/CameraPage' });
   }
 
   closeQrScanner() {
@@ -269,49 +265,88 @@ struct HomePage {
 
       let isWatchScan = AppStorage.get<boolean>('doctorIsWatchScan') || false;
 
-      if (this.userRole === 'doctor' && !isWatchScan) {
-        // Doctor "Match Patient" scan → link to roster
-        AppStorage.setOrCreate('scannedPatientLinkRequest', scannedResult);
-      } else {
-        // Patient / Family / Doctor "Emergency Watch Scanner" → show patient info popup
-        AppStorage.setOrCreate('doctorIsWatchScan', false);
-        try {
-          let parsed = JSON.parse(scannedResult) as ScannedPatient;
-          let defaultVitals: ScannedPatientVitals = {
-            heartRate: '135 bpm (High!)',
-            oxygen: '94% (Low Alert)',
-            location: 'Palo Alto, Live'
-          };
-          this.scannedPatientInfo = {
-            id: parsed.id || 'GP-8321-2026',
-            name: parsed.name || 'Sena Dulger',
-            email: parsed.email || '',
-            bloodType: parsed.bloodType || 'A-',
-            allergies: parsed.allergies || 'Penicillin',
-            diseases: parsed.diseases || ['Diabetes', 'Heart Failure'],
-            medications: parsed.medications || undefined,
-            vitals: parsed.vitals || defaultVitals
-          };
-        } catch (e) {
-          let fallbackVitals: ScannedPatientVitals = {
-            heartRate: '135 bpm (High!)',
-            oxygen: '94% (Low Alert)',
-            location: 'Palo Alto, Live'
-          };
-          this.scannedPatientInfo = {
-            id: 'GP-8321-2026',
-            name: 'Sena Dulger',
-            email: 'sena.dulger@example.com',
-            bloodType: 'A-',
-            allergies: 'Penicillin',
-            diseases: ['Diabetes', 'Heart Failure'],
-            medications: undefined,
-            vitals: fallbackVitals
-          };
-        }
-        this.isScannedPatientModalOpen = true;
-      }
+      // The QR payload is now typed (GB1:LINK: / GB1:EMG:). Which endpoint to
+      // call is decided from the code itself, not the scanning context - a token
+      // sent to the wrong endpoint used to get a 400 from the backend.
+      const parsed: QrContent = QrPayload.decode(scannedResult);
       AppStorage.setOrCreate('scannedQrResult', '');
+
+      if (parsed.kind === QrKind.LEGACY_JSON) {
+        promptAction.showToast({ message: QrPayload.legacyMessage() });
+        return;
+      }
+
+      if (parsed.kind === QrKind.LINK) {
+        AppStorage.setOrCreate('doctorIsWatchScan', false);
+        AppStorage.setOrCreate('scannedPatientLinkRequest', parsed.token);
+        return;
+      }
+      if (parsed.kind === QrKind.EMERGENCY) {
+        AppStorage.setOrCreate('doctorIsWatchScan', false);
+        this.loadEmergencyMedicalCard(parsed.token);
+        return;
+      }
+
+      // Untagged code: an old QR or manual entry. Decide from the scan context.
+      if (this.userRole === 'doctor' && !isWatchScan) {
+        AppStorage.setOrCreate('scannedPatientLinkRequest', parsed.token);
+      } else {
+        AppStorage.setOrCreate('doctorIsWatchScan', false);
+        this.loadEmergencyMedicalCard(parsed.token);
+      }
+    }
+  }
+
+  /**
+   * POST /api/emergency-access/redeem sonra GET .../medical-card
+   *
+   * This used to read plain-text JSON out of the QR and, failing that, show a
+   * made-up patient. The data now comes from the server and every access is
+   * written to the backend's audit log.
+   */
+  async loadEmergencyMedicalCard(accessToken: string): Promise<void> {
+    if (!SessionStore.isAuthenticated()) {
+      promptAction.showToast({ message: 'You need to sign in to use emergency access.' });
+      return;
+    }
+    promptAction.showToast({ message: 'Verifying emergency access...' });
+    try {
+      const session: EmergencyAccessSession = await ApiService.redeemEmergencyToken(accessToken.trim());
+      const card: EmergencyMedicalCard = await ApiService.getEmergencyMedicalCard(session.sessionId);
+      console.info(`[API] Emergency medical card retrieved, sessionId=${session.sessionId}`);
+
+      const allergyList: string[] = card.criticalFacts.allergies !== undefined ? card.criticalFacts.allergies : [];
+      const conditionList: string[] = card.criticalFacts.chronicConditions !== undefined
+        ? card.criticalFacts.chronicConditions : [];
+
+      let vitalsView: ScannedPatientVitals = {
+        heartRate: 'No data',
+        oxygen: 'No data',
+        recordedAt: ''
+      };
+      if (card.latestVitals !== undefined) {
+        vitalsView = {
+          heartRate: `${card.latestVitals.heartRate} bpm`,
+          oxygen: `${card.latestVitals.bloodOxygen}%`,
+          recordedAt: card.latestVitals.recordedAt
+        };
+      }
+
+      this.scannedPatientInfo = {
+        id: session.sessionId,
+        name: 'Emergency Medical Card',
+        email: '',
+        bloodType: card.bloodType || 'Unknown',
+        allergies: allergyList.length > 0 ? allergyList.join(', ') : 'No known allergies',
+        diseases: conditionList,
+        medications: card.medications.map((m: EmergencyMedication) =>
+          `${m.name} ${m.strength} — ${m.instructions}`),
+        vitals: vitalsView
+      };
+      this.isScannedPatientModalOpen = true;
+    } catch (err) {
+      console.error(`[API] Emergency access failed: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Emergency access failed: ${(err as Error).message}` });
     }
   }
 
@@ -457,14 +492,23 @@ struct HomePage {
               .onClick(() => {
                 if (this.enteredVerificationCode === '123456') {
                   this.doctorProfile.isVerified = true;
-                  
-                  // Persist back to AppStorage
+
                   AppStorage.setOrCreate('doctorProfile', {
                     hospital: this.doctorProfile.hospital,
                     specialty: this.doctorProfile.specialty,
                     email: this.doctorProfile.email,
                     isVerified: true
                   });
+
+                  // AppStorage lives IN MEMORY; also write the verified flag to
+                  // the persistent store, otherwise the verification modal opens
+                  // again on every sign-in.
+                  SessionStore.patchLocalProfile({
+                    doctorVerified: true,
+                    doctorHospital: this.doctorProfile.hospital,
+                    doctorSpecialty: this.doctorProfile.specialty,
+                    doctorEmail: this.doctorProfile.email
+                  }).catch((err: Error) => console.warn(`[SessionStore] Could not persist verification: ${err.message}`));
 
                   this.isDoctorVerificationModalOpen = false;
                   promptAction.showToast({ message: 'Doctor portal unlocked successfully!' });
@@ -819,11 +863,17 @@ struct HomePage {
                   .fontColor('#191C1D')
                   .margin({ bottom: 2 })
 
-                Text(`ID: ${this.scannedPatientInfo.id || 'GP-XXXX-XXXX'}`)
+                // The session id is a UUID and used to overflow its container.
+                // Shortened and pinned to one line, ending with an ellipsis.
+                Text(`Oturum: ${DisplayFormat.shortId(this.scannedPatientInfo.id)}`)
                   .fontSize(12)
                   .fontColor('#737685')
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .width('100%')
               }
               .alignItems(HorizontalAlign.Start)
+              .layoutWeight(1)
             }
             .width('100%')
             .padding(12)
@@ -995,13 +1045,17 @@ struct HomePage {
               .padding({ top: 12, bottom: 12 })
               .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
 
-              // Location Row
+              // Son olcum zamani.
+              // ONCEDEN "Last Location" yaziyordu ama icine olcum ZAMANI
+              // konuyordu; ekranda ham ISO damgasi gorunuyordu. Acil tibbi
+              // kartta konum alani YOK (EmergencyMedicalCard semasinda yok),
+              // bu yuzden etiket gercege uygun hale getirildi.
               Row() {
-                Text('Last Location')
+                Text('Last Reading')
                   .fontSize(14)
                   .fontColor('#737685')
                   .layoutWeight(1)
-                Text(this.scannedPatientInfo.vitals?.location || 'Palo Alto, Live')
+                Text(DisplayFormat.dateTime(this.scannedPatientInfo.vitals?.recordedAt))
                   .fontSize(14)
                   .fontWeight(FontWeight.Bold)
                   .fontColor('#191C1D')
@@ -1081,6 +1135,8 @@ struct PatientDashboardView {
   @State currentSteps: number = 4500;
   @State currentCalories: number = 1450;
   private timerId: number = -1;
+  /** Single-flight guard so vitals requests do not pile up in the 2s loop. */
+  private vitalsInFlight: boolean = false;
 
   // --- REAL-TIME TELEMETRY HISTORY LISTS FOR LIVE CHARTS ---
   @StorageLink('heartRateHistory') heartRateHistory: number[] = [70, 72, 71, 73, 72, 70, 72];
@@ -1132,11 +1188,19 @@ struct PatientDashboardView {
       }
       this.oxygenHistory = newO2Hist;
 
-      // NEW: Silently send these generated vitals to the backend API
-      let token = AppStorage.get<string>('token') || '';
-      if (token) {
-        ApiService.sendVitals(token, this.currentHeartRate, this.currentOxygen)
-          .catch((err: Error) => console.error("Background vitals sync error: ", err.message));
+      // Send the reading to the backend. Single-flight guard: no new request is
+      // started while one is in flight, otherwise the 2s loop piled them up.
+      if (SessionStore.isAuthenticated() && !this.vitalsInFlight) {
+        this.vitalsInFlight = true;
+        // deviceSn is NOT sent. The backend (vitals.go) compares this field with
+        // the patient's registered band_identifier and returns 403 on a mismatch.
+        // With no paired band the field must stay empty. Once real device
+        // integration lands, the band serial goes here.
+        ApiService.sendVitals(this.currentHeartRate, this.currentOxygen)
+          .catch((err: Error) => console.error(`[API] POST /api/vitals - FAILED: ${err.message}`))
+          .finally(() => {
+            this.vitalsInFlight = false;
+          });
       }
 
       if (this.isGraphModalOpen) {
@@ -2696,8 +2760,7 @@ struct DoctorDashboardView {
   @StorageLink('doctorWatchScanResult') @Watch('onWatchScanResultChanged') doctorWatchScanResult: string = '';
 
   @State isLinkModalOpen: boolean = false;
-  @State linkPatientPhone: string = '';
-  @State linkPatientName: string = '';
+  @State linkPatientInvitationToken: string = '';
   @State isDoctorWatchPopupOpen: boolean = false;
   @State isEmergencyMedsExpanded: boolean = true;
   @State isChronicDiseasesExpanded: boolean = true;
@@ -2709,51 +2772,50 @@ struct DoctorDashboardView {
     this.loadDoctorPatients();
   }
 
+  /** GET /api/monitoring/patients — eski /api/clinician/patients yolu backend'de yoktu. */
   async loadDoctorPatients() {
-    let token = AppStorage.get<string>('token') || '';
-    if (token) {
-      try {
-        let backendPatients = await ApiService.getClinicianPatients(token);
-        
-        if (ApiService.isMockMode()) {
-          let mockListStr = AppStorage.get<string>('mockLinkedPatients') || '[]';
-          let localMockList = JSON.parse(mockListStr) as ClinicianPatient[];
-          for (let lp of localMockList) {
-            if (!backendPatients.some(bp => bp.patientId === lp.patientId)) {
-              backendPatients.push(lp);
-            }
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+    try {
+      const backendPatients: ClinicianPatient[] = await ApiService.getMonitoredPatients();
+      console.info(`[API] GET /api/monitoring/patients - OK, ${backendPatients.length} hasta`);
+
+      const list: MonitoredPatient[] = [];
+      for (const bp of backendPatients) {
+        let heart: number = 0;
+        let oxy: number = 0;
+        try {
+          const vitals = await ApiService.getVitalsLatest(bp.patientId);
+          if (vitals.heartRate) {
+            heart = vitals.heartRate;
           }
+          if (vitals.bloodOxygen) {
+            oxy = vitals.bloodOxygen;
+          }
+        } catch (e) {
+          // 404 = no readings for this patient yet. Expected.
+          console.info(`[API] No vitals yet for ${bp.patientId}`);
         }
 
-        let list: MonitoredPatient[] = [];
-        for (let bp of backendPatients) {
-          let heart = 75;
-          let oxy = 98;
-          try {
-            let vitals = await ApiService.getVitalsLatest(token, bp.patientId);
-            if (vitals && vitals.heartRate) heart = vitals.heartRate;
-            if (vitals && vitals.bloodOxygen) oxy = vitals.bloodOxygen;
-          } catch (e) {
-            console.error("Vitals fetch error for " + bp.patientId, e);
-          }
-
-          list.push({
-            id: bp.id,
-            name: bp.name,
-            gender: 'Male',
-            bloodType: bp.bloodType || 'N/A',
-            heartRate: heart,
-            oxygen: oxy,
-            calories: 1450,
-            sleep: '7h 15m',
-            meds: 'None',
-            location: 'Palo Alto • Live'
-          });
-        }
-        this.doctorPatients = list;
-      } catch (err) {
-        console.error("Failed to load doctor roster", err);
+        list.push({
+          id: bp.id,
+          name: bp.name && bp.name.length > 0 ? bp.name : 'Unnamed Patient',
+          // gender / calories / sleep / meds / location have no backend
+          // counterpart; left empty rather than filled with fake values.
+          gender: '',
+          bloodType: bp.bloodType || '',
+          heartRate: heart,
+          oxygen: oxy,
+          calories: 0,
+          sleep: '',
+          meds: '',
+          location: ''
+        });
       }
+      this.doctorPatients = list;
+    } catch (err) {
+      console.error(`[API] GET /api/monitoring/patients - FAILED: ${(err as Error).message}`);
     }
   }
 
@@ -2772,39 +2834,60 @@ struct DoctorDashboardView {
     if (!this.doctorWatchScanResult) return;
     let scanned = this.doctorWatchScanResult;
     AppStorage.setOrCreate('doctorWatchScanResult', '');
-    try {
-      let parsed = JSON.parse(scanned) as ScannedPatient;
-      let fallbackVitals: ScannedPatientVitals = {
-        heartRate: '135 bpm (High!)',
-        oxygen: '94% (Low Alert)',
-        location: 'Palo Alto, Live'
-      };
-      this.doctorWatchPatientInfo = {
-        id: parsed.id || 'GP-8321-2026',
-        name: parsed.name || 'John Doe',
-        email: parsed.email || '',
-        bloodType: parsed.bloodType || 'A-',
-        allergies: parsed.allergies || 'None',
-        diseases: parsed.diseases || [],
-        vitals: parsed.vitals || fallbackVitals
-      };
-    } catch (e) {
-      let fallbackVitals: ScannedPatientVitals = {
-        heartRate: '135 bpm (High!)',
-        oxygen: '94% (Low Alert)',
-        location: 'Palo Alto, Live'
-      };
-      this.doctorWatchPatientInfo = {
-        id: 'GP-8321-2026',
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        bloodType: 'A-',
-        allergies: 'None',
-        diseases: ['Diabetes', 'Hypertension'],
-        vitals: fallbackVitals
-      };
+    if (!SessionStore.isAuthenticated()) {
+      promptAction.showToast({ message: 'You need to sign in to use emergency access.' });
+      return;
     }
-    this.isDoctorWatchPopupOpen = true;
+
+    // The watch/band scan also carries an emergency access token; data comes
+    // from the server.
+    try {
+      const parsedWatch: QrContent = QrPayload.decode(scanned);
+      if (parsedWatch.kind === QrKind.LINK) {
+        promptAction.showToast({ message: QrPayload.wrongKindMessage(QrKind.EMERGENCY) });
+        return;
+      }
+      if (parsedWatch.kind === QrKind.LEGACY_JSON) {
+        promptAction.showToast({ message: QrPayload.legacyMessage() });
+        return;
+      }
+      const session: EmergencyAccessSession = await ApiService.redeemEmergencyToken(parsedWatch.token);
+      const card: EmergencyMedicalCard = await ApiService.getEmergencyMedicalCard(session.sessionId);
+      console.info(`[API] Watch scan - medical card retrieved, sessionId=${session.sessionId}`);
+
+      const allergyList: string[] = card.criticalFacts.allergies !== undefined ? card.criticalFacts.allergies : [];
+      const conditionList: string[] = card.criticalFacts.chronicConditions !== undefined
+        ? card.criticalFacts.chronicConditions : [];
+
+      let vitalsView: ScannedPatientVitals = {
+        heartRate: 'No data',
+        oxygen: 'No data',
+        recordedAt: ''
+      };
+      if (card.latestVitals !== undefined) {
+        vitalsView = {
+          heartRate: `${card.latestVitals.heartRate} bpm`,
+          oxygen: `${card.latestVitals.bloodOxygen}%`,
+          recordedAt: card.latestVitals.recordedAt
+        };
+      }
+
+      this.doctorWatchPatientInfo = {
+        id: session.sessionId,
+        name: 'Emergency Medical Card',
+        email: '',
+        bloodType: card.bloodType || 'Unknown',
+        allergies: allergyList.length > 0 ? allergyList.join(', ') : 'No known allergies',
+        diseases: conditionList,
+        medications: card.medications.map((m: EmergencyMedication) =>
+          `${m.name} ${m.strength} — ${m.instructions}`),
+        vitals: vitalsView
+      };
+      this.isDoctorWatchPopupOpen = true;
+    } catch (err) {
+      console.error(`[API] Watch scan failed: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Emergency access failed: ${(err as Error).message}` });
+    }
   }
 
   async onLinkRequestChanged() {
@@ -2813,40 +2896,40 @@ struct DoctorDashboardView {
     let scanned = this.scannedPatientLinkRequest;
     AppStorage.setOrCreate('scannedPatientLinkRequest', '');
 
+    if (!SessionStore.isAuthenticated()) {
+      promptAction.showToast({ message: 'No active session. Please sign in.' });
+      return;
+    }
+
+    const parsed: QrContent = QrPayload.decode(scanned);
+    if (parsed.kind === QrKind.EMERGENCY) {
+      promptAction.showToast({ message: QrPayload.wrongKindMessage(QrKind.LINK) });
+      return;
+    }
+    if (parsed.kind === QrKind.LEGACY_JSON) {
+      promptAction.showToast({ message: QrPayload.legacyMessage() });
+      return;
+    }
+
+    promptAction.showToast({ message: 'Verifying invitation code...' });
+
     try {
-      let parsed = JSON.parse(scanned) as ScannedPatient;
-      let patientName = parsed.name || 'Unknown Patient';
-      let patientPhone = parsed.email || 'scanned-patient';
-
-      promptAction.showToast({ message: `Linking with patient ${patientName}...` });
-
-      let token = AppStorage.get<string>('token') || '';
-      if (token) {
-        await ApiService.linkPatient(token, patientPhone, patientName, 'Physician');
-        
-        if (ApiService.isMockMode()) {
-          let mockList = AppStorage.get<string>('mockLinkedPatients') || '[]';
-          let list: ClinicianPatient[] = JSON.parse(mockList) as ClinicianPatient[];
-          
-          if (!list.some(p => p.patientId === parsed.id)) {
-            list.push({
-              id: (list.length + 3).toString(),
-              patientId: parsed.id || 'p' + (list.length + 3),
-              name: patientName,
-              relationship: 'Physician',
-              bloodType: parsed.bloodType || 'A-',
-              birthDate: '1980-01-01'
-            });
-            AppStorage.setOrCreate('mockLinkedPatients', JSON.stringify(list));
-          }
-        }
-        
-        await this.loadDoctorPatients();
-        promptAction.showToast({ message: `Successfully linked with ${patientName}!` });
-      }
+      const relationship: MonitoringRelationship = await ApiService.redeemLinkInvitation(parsed.token);
+      console.info(`[API] POST /api/patient-link-invitations/redeem - OK, patientId=${relationship.patientId}`);
+      await this.loadDoctorPatients();
+      promptAction.showToast({ message: 'Hasta listenize eklendi.' });
     } catch (e) {
-      console.error("Link request failed", e);
-      promptAction.showToast({ message: `Linking failed: ${(e as Error).message}` });
+      const status: number = e instanceof ApiError ? (e as ApiError).status : -1;
+      console.error(`[API] Could not redeem invitation (status=${status}): ${(e as Error).message}`);
+      if (status >= 500) {
+        // Known server-side bug (BT-05): the redeem query fails because openGauss
+        // does not support `ON CONFLICT`. Neither the QR nor the code is wrong.
+        promptAction.showToast({
+          message: 'Server error: patient linking is currently unavailable. The code is valid; the problem is on the server.'
+        });
+      } else {
+        promptAction.showToast({ message: `Could not link: ${(e as Error).message}` });
+      }
     }
   }
 
@@ -2855,23 +2938,10 @@ struct DoctorDashboardView {
     try {
       router.pushUrl({ url: 'pages/CameraPage' });
     } catch (e) {
-      // Fallback: show mock patient info directly
+      // If the camera fails to open, report it instead of showing a fake patient.
       AppStorage.setOrCreate('doctorIsWatchScan', false);
-      let fallbackVitals: ScannedPatientVitals = {
-        heartRate: '135 bpm (High!)',
-        oxygen: '94% (Low Alert)',
-        location: 'Palo Alto, Live'
-      };
-      this.doctorWatchPatientInfo = {
-        id: 'GP-8321-2026',
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        bloodType: 'A-',
-        allergies: 'None',
-        diseases: ['Diabetes', 'Hypertension'],
-        vitals: fallbackVitals
-      };
-      this.isDoctorWatchPopupOpen = true;
+      console.error(`[HomePage] Could not open camera: ${(e as Error).message}`);
+      promptAction.showToast({ message: 'Could not open the camera. You will need to enter the emergency code manually.' });
     }
   }
 
@@ -3074,10 +3144,14 @@ struct DoctorDashboardView {
             Column() {
               Text(this.doctorWatchPatientInfo.name || 'Unknown Patient')
                 .fontSize(16).fontWeight(FontWeight.Bold).fontColor('#191C1D').margin({ bottom: 2 })
-              Text(`ID: ${this.doctorWatchPatientInfo.id || 'GP-XXXX-XXXX'}`)
+              Text(`Oturum: ${DisplayFormat.shortId(this.doctorWatchPatientInfo.id)}`)
                 .fontSize(12).fontColor('#737685')
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+                .width('100%')
             }
             .alignItems(HorizontalAlign.Start)
+            .layoutWeight(1)
           }
           .width('100%').padding(12).backgroundColor('#FFEBEA').borderRadius(16).margin({ bottom: 20 })
 
@@ -3221,8 +3295,8 @@ struct DoctorDashboardView {
             .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
 
             Row() {
-              Text('Last Location').fontSize(14).fontColor('#737685').layoutWeight(1)
-              Text(this.doctorWatchPatientInfo.vitals?.location || 'Palo Alto, Live')
+              Text('Last Reading').fontSize(14).fontColor('#737685').layoutWeight(1)
+              Text(DisplayFormat.dateTime(this.doctorWatchPatientInfo.vitals?.recordedAt))
                 .fontSize(14).fontWeight(FontWeight.Bold).fontColor('#191C1D').textAlign(TextAlign.End)
             }
             .width('100%').padding({ top: 12, bottom: 12 })
@@ -3255,33 +3329,22 @@ struct DoctorDashboardView {
     if (this.isLinkModalOpen) {
         Column() {
           Column() {
-            Text('Link Patient via QR / Manual Entry')
+            Text('Link Patient with Invitation Code')
               .fontSize(18)
               .fontWeight(FontWeight.Bold)
               .fontColor('#191C1D')
               .margin({ bottom: 16 })
 
-            Text('Enter Patient Name')
+            Text('The patient opens "My QR Code" in their profile and shows it to you. Scan it or enter it manually. The code is valid for 15 minutes and can be used once.')
               .fontSize(12)
               .fontColor('#737685')
               .alignSelf(ItemAlign.Start)
-              .margin({ bottom: 4 })
-            TextInput({ placeholder: 'Bob Johnson', text: this.linkPatientName })
-              .width('100%')
-              .height(48)
               .margin({ bottom: 12 })
-              .onChange((val) => this.linkPatientName = val)
-
-            Text('Enter Patient Phone Number')
-              .fontSize(12)
-              .fontColor('#737685')
-              .alignSelf(ItemAlign.Start)
-              .margin({ bottom: 4 })
-            TextInput({ placeholder: 'e.g. 1234 or +905321112233', text: this.linkPatientPhone })
+            TextInput({ placeholder: 'Davet kodu', text: this.linkPatientInvitationToken })
               .width('100%')
               .height(48)
               .margin({ bottom: 20 })
-              .onChange((val) => this.linkPatientPhone = val)
+              .onChange((val: string) => this.linkPatientInvitationToken = val)
 
             Row() {
               Button('Cancel', { type: ButtonType.Normal })
@@ -3291,8 +3354,7 @@ struct DoctorDashboardView {
                 .fontColor('#737685')
                 .onClick(() => {
                   this.isLinkModalOpen = false;
-                  this.linkPatientName = '';
-                  this.linkPatientPhone = '';
+                  this.linkPatientInvitationToken = '';
                 })
 
               Blank()
@@ -3304,22 +3366,22 @@ struct DoctorDashboardView {
                 .fontColor(Color.White)
                 .borderRadius(8)
                 .onClick(async () => {
-                  if (!this.linkPatientName || !this.linkPatientPhone) {
-                    promptAction.showToast({ message: 'Please fill in all fields' });
+                  if (!this.linkPatientInvitationToken) {
+                    promptAction.showToast({ message: 'Enter the invitation code from the patient.' });
                     return;
                   }
-                  let token = AppStorage.get<string>('token') || '';
-                  if (token) {
-                    try {
-                      await ApiService.linkPatient(token, this.linkPatientPhone, this.linkPatientName, 'Physician');
-                      promptAction.showToast({ message: `Successfully linked with ${this.linkPatientName}!` });
-                      this.isLinkModalOpen = false;
-                      this.linkPatientName = '';
-                      this.linkPatientPhone = '';
-                      await this.loadDoctorPatients();
-                    } catch (e) {
-                      promptAction.showToast({ message: `Linking failed: ${(e as Error).message}` });
-                    }
+                  if (!SessionStore.isAuthenticated()) {
+                    promptAction.showToast({ message: 'No active session. Please sign in.' });
+                    return;
+                  }
+                  try {
+                    await ApiService.redeemLinkInvitation(QrPayload.decode(this.linkPatientInvitationToken).token);
+                    promptAction.showToast({ message: 'Hasta listenize eklendi.' });
+                    this.isLinkModalOpen = false;
+                    this.linkPatientInvitationToken = '';
+                    await this.loadDoctorPatients();
+                  } catch (e) {
+                    promptAction.showToast({ message: `Could not link: ${(e as Error).message}` });
                   }
                 })
             }.width('100%')

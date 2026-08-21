@@ -7,7 +7,8 @@ import { textRecognition } from '@kit.CoreVisionKit';
 import { image } from '@kit.ImageKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
-import { ApiService } from '../services/ApiService'; // IMPORT: Required for background uploads
+import { ApiService, MedicationCatalogItem, MedicationResponse, UploadedDocument, TakenResponse } from '../services/ApiService';
+import { SessionStore } from '../services/SessionStore';
 
 export interface MedicalProfile {
   gender?: string;
@@ -30,6 +31,8 @@ interface MedTime {
 
 interface MedicationItem {
   id: string;
+  /** Backend plan id. Empty means the plan lives on this device only. */
+  serverId: string;
   name: string;
   totalPills: number; // Stock-based tracking
   durationDays: number; // How many days to use
@@ -78,14 +81,109 @@ struct MedsPage {
     if (this.userRole !== 'patient') {
       promptAction.showToast({ message: 'Access Denied: Only patients have access to the Meds page.' });
       router.replaceUrl({ url: 'pages/HomePage' });
+      return;
     }
+    this.loadMedicationCatalog();
+    this.loadServerMedications();
+  }
+
+  /** GET /api/medication-catalog - the catalog used to be a hard-coded array. */
+  async loadMedicationCatalog(): Promise<void> {
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+    try {
+      const items: MedicationCatalogItem[] = await ApiService.getMedicationCatalog();
+      if (items.length > 0) {
+        this.catalogItems = items;
+        this.allMeds = items.map((i: MedicationCatalogItem) =>
+          i.strength && i.strength.length > 0 ? `${i.name} ${i.strength}` : i.name);
+        this.selectedMedName = this.allMeds[0];
+        console.info(`[API] GET /api/medication-catalog - OK, ${items.length} entries`);
+      }
+    } catch (err) {
+      // If the catalog fails, fall back to the local list so the screen still works.
+      console.warn(`[API] GET /api/medication-catalog - failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** GET /api/medications - mirrors server plans into the local list. */
+  async loadServerMedications(): Promise<void> {
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+    try {
+      const plans: MedicationResponse[] = await ApiService.getMedications();
+      console.info(`[API] GET /api/medications - OK, ${plans.length} plan`);
+      for (const plan of plans) {
+        const existing = this.medications.find((m: MedicationItem) => m.serverId === plan.id);
+        if (existing === undefined) {
+          this.medications.push({
+            id: plan.id,
+            serverId: plan.id,
+            name: plan.strength && plan.strength.length > 0 ? `${plan.name} ${plan.strength}` : plan.name,
+            totalPills: 0,
+            durationDays: 0,
+            mealTiming: plan.instructions || 'Any Time',
+            times: this.slotsFromFrequency(plan.frequencyHours),
+            days: ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+          });
+        }
+      }
+      this.medications = [...this.medications];
+    } catch (err) {
+      console.warn(`[API] GET /api/medications - failed: ${(err as Error).message}`);
+    }
+  }
+
+  /** Maps the backend frequencyHours value onto the UI meal slots. */
+  private slotsFromFrequency(frequencyHours: number): Array<MedTime> {
+    if (frequencyHours === 24) {
+      return [{ slot: 'Morning', specificTime: '', taken: false }];
+    }
+    if (frequencyHours === 12) {
+      return [
+        { slot: 'Morning', specificTime: '', taken: false },
+        { slot: 'Evening', specificTime: '', taken: false }
+      ];
+    }
+    return [
+      { slot: 'Morning', specificTime: '', taken: false },
+      { slot: 'Afternoon', specificTime: '', taken: false },
+      { slot: 'Evening', specificTime: '', taken: false }
+    ];
+  }
+
+  /**
+   * Maps the UI meal slots onto the backend frequencyHours value.
+   *
+   * CAREFUL - known model mismatch (BLG-007):
+   * The backend accepts only 6, 12 or 24 hours. Once a day -> 24 and twice a day
+   * -> 12 are correct. Three times a day is ~8 hours, which is NOT in the
+   * backend's set. Rounding it to 6 would mean four doses a day - a dosing
+   * error - so it is deliberately not done; the plan is kept on the device only
+   * and the user is warned.
+   *
+   * @returns the hour value when it can be mapped, otherwise 0
+   */
+  private frequencyFromSlots(slotCount: number): number {
+    if (slotCount === 1) {
+      return 24;
+    }
+    if (slotCount === 2) {
+      return 12;
+    }
+    return 0;
   }
 
   // Modal and Search States
   @State isModalOpen: boolean = false;
   @State searchQuery: string = '';
   @State isDropdownOpen: boolean = false;
-  private allMeds: Array<string> = ['Benical Cold', 'Flagyl 500 mg', 'Apranax Forte', 'Piyeloseptyl'];
+  // The catalog comes from the backend; this list is the offline fallback.
+  @State allMeds: Array<string> = ['Benical Cold', 'Flagyl 500 mg', 'Apranax Forte', 'Piyeloseptyl'];
+  @State catalogItems: MedicationCatalogItem[] = [];
+  @State lastPrescriptionDocId: string = '';
   @State selectedMedName: string = 'Benical Cold';
 
   // Duration State (Days)
@@ -94,7 +192,7 @@ struct MedsPage {
   // Stock-based Tracking State (Total Pills)
   @State totalPills: number = 20;
 
-  // Meal Timing State (Aç/Tok)
+  // Meal Timing State (before / after eating)
   @State mealTiming: string = 'Any Time';
   private mealOptions: Array<string> = ['Before Meal', 'During Meal', 'After Meal', 'Any Time'];
   @State medWarning: string = '';
@@ -178,7 +276,21 @@ struct MedsPage {
         this.medications.splice(medIndex, 1, this.medications[medIndex]);
 
         if (!isCurrentlyTaken) {
-          promptAction.showToast({ message: `Marked as taken. Stock updated.` });
+          // POST /api/medications/{id}/taken — dozu sunucuya da bildir.
+          const serverId: string = this.medications[medIndex].serverId;
+          if (serverId.length > 0 && SessionStore.isAuthenticated()) {
+            ApiService.takeMedicationDose(serverId)
+              .then((taken: TakenResponse) => {
+                console.info(`[API] POST /api/medications/${serverId}/taken - OK, next: ${taken.nextScheduledFor}`);
+                promptAction.showToast({ message: 'Dose recorded and synced with the server.' });
+              })
+              .catch((err: Error) => {
+                console.error(`[API] Doz kaydedilemedi: ${err.message}`);
+                promptAction.showToast({ message: `Could not record the dose on the server: ${err.message}` });
+              });
+          } else {
+            promptAction.showToast({ message: 'Marked as taken. Stock updated.' });
+          }
         }
       }
     }
@@ -201,17 +313,23 @@ struct MedsPage {
       if (pickerResult && pickerResult.resultUri) {
         promptAction.showToast({ message: 'Processing label, please wait...' });
 
-        // NEW: Silently upload the scanned image to the backend cloud storage
-        // This ensures the prescription is archived without interrupting the UI flow
-        // FIX: Added (err: Error) to strictly type the catch block and prevent ArkTS errors
-        let token = AppStorage.get<string>('token') || '';
-        if (token) {
+        // Archive the prescription photo. The returned document id is no longer
+        // discarded: it is attached to the new plan as prescriptionDocumentId.
+        if (SessionStore.isAuthenticated()) {
           ApiService.uploadDocument(
-            token,
             pickerResult.resultUri,
             'prescription',
             'Scanned Prescription - ' + new Date().toLocaleTimeString()
-          ).catch((err: Error) => console.error("Background upload error", err.message));
+          )
+            .then((doc: UploadedDocument) => {
+              this.lastPrescriptionDocId = doc.id;
+              console.info(`[API] POST /api/documents - OK id=${doc.id}`);
+            })
+            .catch((err: Error) => {
+              // Do not swallow this: the user must know the prescription was not archived.
+              console.error(`[API] POST /api/documents - FAILED: ${err.message}`);
+              promptAction.showToast({ message: `Could not upload prescription: ${err.message}` });
+            });
         }
 
         // Read the image and convert it to a PixelMap
@@ -253,6 +371,9 @@ struct MedsPage {
   }
 
   // Parses the raw text extracted from the OCR Vision Kit
+  // NOTE: the keywords below are intentionally Turkish. They match text printed
+  // on Turkish pharmacy labels, so they are OCR input data - not UI copy.
+  // Translating them would break label recognition.
   parsePharmacyLabel(rawText: string) {
     const upperText = rawText.toLocaleUpperCase('tr-TR');
 
@@ -386,14 +507,10 @@ struct MedsPage {
                       .layoutWeight(1)
 
                       // Delete Button
-                      Button('✕')
-                        .type(ButtonType.Circle)
-                        .width(28)
-                        .height(28)
-                        .backgroundColor('#FFEBEA')
-                        .fontColor('#BA1A1A')
-                        .fontSize(12)
-                        .fontWeight(FontWeight.Bold)
+                      Image($r('app.media.cancel'))
+                        .width(24)
+                        .height(24)
+                        .objectFit(ImageFit.Contain)
                         .margin({ left: 8 })
                         .onClick(() => {
                           this.deleteMedication(item.id);
@@ -419,9 +536,10 @@ struct MedsPage {
                     Row() {
                       ForEach(item.times, (timeObj: MedTime) => {
                         Row() {
-                          Text(timeObj.taken ? '✓ ' : '⏳ ')
-                            .fontSize(12)
-                            .fontColor(timeObj.taken ? '#006E2F' : '#003D9B')
+                          Image(timeObj.taken ? $r('app.media.check') : $r('app.media.hourglass'))
+                            .width(14)
+                            .height(14)
+                            .margin({ right: 4 })
 
                           Text(`${timeObj.slot}${timeObj.specificTime ? ' (' + timeObj.specificTime + ')' : ''}`)
                             .fontSize(12)
@@ -690,7 +808,7 @@ struct MedsPage {
                 .width('100%')
                 .margin({ bottom: 20 })
 
-                // 4. Meal Timing (Aç/Tok)
+                // 4. Meal Timing (before / after eating)
                 Text('Meal Timing')
                   .fontSize(13)
                   .fontColor('#8F92A1')
@@ -889,15 +1007,48 @@ struct MedsPage {
                       let activeDays = this.weekDays.filter((day, index) => this.selectedDays[index]);
                       let baseId = Date.now().toString();
 
-                      this.medications.push({
+                      const newItem: MedicationItem = {
                         id: baseId,
+                        serverId: '',
                         name: this.selectedMedName,
                         durationDays: this.durationDays,
                         totalPills: this.totalPills,
                         mealTiming: this.mealTiming,
                         times: chosenTimes,
                         days: activeDays
-                      });
+                      };
+                      this.medications.push(newItem);
+
+                      // POST /api/medications - also write the plan to the backend.
+                      const frequencyHours: number = this.frequencyFromSlots(chosenTimes.length);
+                      if (frequencyHours === 0) {
+                        // Deliberate: three doses a day cannot be mapped safely onto
+                        // the backend's {6,12,24} set. See BLG-007.
+                        promptAction.showToast({
+                          message: 'Three doses per day is not supported by the server yet; the plan was saved on this device only.'
+                        });
+                      } else if (SessionStore.isAuthenticated()) {
+                        const catalogEntry = this.catalogItems.find((c: MedicationCatalogItem) =>
+                          this.selectedMedName.startsWith(c.name));
+                        ApiService.createMedicationPlan({
+                          name: catalogEntry !== undefined ? catalogEntry.name : this.selectedMedName,
+                          strength: catalogEntry !== undefined ? catalogEntry.strength : '',
+                          instructions: this.mealTiming,
+                          frequencyHours: frequencyHours,
+                          prescriptionDocumentId: this.lastPrescriptionDocId.length > 0
+                            ? this.lastPrescriptionDocId : undefined
+                        })
+                          .then((created: MedicationResponse) => {
+                            newItem.serverId = created.id;
+                            this.medications = [...this.medications];
+                            this.lastPrescriptionDocId = '';
+                            console.info(`[API] POST /api/medications - OK id=${created.id}`);
+                          })
+                          .catch((err: Error) => {
+                            console.error(`[API] POST /api/medications - FAILED: ${err.message}`);
+                            promptAction.showToast({ message: `Could not save the plan to the server: ${err.message}` });
+                          });
+                      }
 
                       // Add to dashboardMeds (AppStorage) for Patient Dashboard
                       chosenTimes.forEach((time) => {

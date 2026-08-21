@@ -1,5 +1,8 @@
 import { router, promptAction } from '@kit.ArkUI';
-import { ApiService, PatientProfile } from '../services/ApiService';
+import { ApiService, PatientProfile, CriticalFacts } from '../services/ApiService';
+import { SessionStore, LocalUserProfile } from '../services/SessionStore';
+import { ApiConfig } from '../services/ApiConfig';
+import { ProfileRepository, UiMedicalProfile } from '../services/ProfileRepository';
 
 interface DoctorProfile {
   hospital: string;
@@ -28,11 +31,14 @@ struct ProfileSetupPage {
   
   // Family fields
   @State email: string = '';
+  /** Email format error shown under the field. Empty means no error. */
+  @State emailError: string = '';
   @State canGoBack: boolean = false;
 
   // Doctor fields
   @State doctorHospital: string = '';
   @State doctorEmail: string = '';
+  @State doctorEmailError: string = '';
   @State verificationCode: string = '';
   @State isCodeSent: boolean = false;
   @State isDoctorVerified: boolean = false;
@@ -43,7 +49,10 @@ struct ProfileSetupPage {
   private scroller: Scroller = new Scroller();
   
   private diseaseOptions: string[] = ['Hypertension', 'Diabetes', 'Asthma', 'Heart Failure', 'Alzheimer\'s', 'Other'];
-  private bloodTypes: string[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', '0+', '0-'];
+  // CAREFUL: use the letter "O", not the digit "0". The backend
+  // (profile.go validBloodTypes) accepts only A+/A-/B+/B-/AB+/AB-/O+/O-;
+  // a digit zero returned 400.
+  private bloodTypes: string[] = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
   private specialtyOptions: string[] = ['General Medicine', 'Cardiology', 'Neurology', 'Geriatrics', 'Pediatrics', 'Other'];
 
   aboutToAppear() {
@@ -55,6 +64,76 @@ struct ProfileSetupPage {
       if (params.canGoBack) {
         this.canGoBack = params.canGoBack as boolean;
       }
+    }
+    this.prefillFromExistingProfile();
+  }
+
+  /**
+   * Mevcut profili forma doldurur.
+   *
+   * This screen is used for both first-time setup and editing. Opening it to
+   * edit used to show every field blank, so pressing save OVERWROTE the server
+   * profile with empty values. The form now opens pre-filled.
+   */
+  private prefillFromExistingProfile(): void {
+    const existing = AppStorage.get<UiMedicalProfile>('medicalProfile');
+    if (existing !== undefined) {
+      this.birthDate = existing.birthDate ? existing.birthDate : this.birthDate;
+      this.selectedGender = existing.gender ? existing.gender : this.selectedGender;
+      this.heightCm = existing.height ? existing.height : this.heightCm;
+      this.weightKg = existing.weight ? existing.weight : this.weightKg;
+      this.bloodType = existing.bloodType ? existing.bloodType : this.bloodType;
+      this.chronicDiseases = existing.diseases ? existing.diseases : this.chronicDiseases;
+      this.allergies = existing.allergies ? existing.allergies : this.allergies;
+      this.pacemaker = existing.pacemaker;
+      this.hearingAid = existing.hearingAid;
+    }
+
+    const savedEmail = AppStorage.get<string>('userEmail');
+    if (savedEmail !== undefined && savedEmail.length > 0) {
+      this.email = savedEmail;
+    }
+    const savedDoctor = AppStorage.get<DoctorProfile>('doctorProfile');
+    if (savedDoctor !== undefined) {
+      this.doctorHospital = savedDoctor.hospital ? savedDoctor.hospital : this.doctorHospital;
+      this.doctorEmail = savedDoctor.email ? savedDoctor.email : this.doctorEmail;
+      this.doctorSpecialty = savedDoctor.specialty ? savedDoctor.specialty : this.doctorSpecialty;
+    }
+
+    // AppStorage is in memory and is empty after a restart. The per-user record
+    // in the persistent store is the real source.
+    const local: LocalUserProfile = SessionStore.getLocalProfile(SessionStore.getPhone());
+    if (local.email.length > 0 && this.email.length === 0) {
+      this.email = local.email;
+    }
+    if (local.doctorHospital.length > 0 && this.doctorHospital.length === 0) {
+      this.doctorHospital = local.doctorHospital;
+    }
+    if (local.doctorEmail.length > 0 && this.doctorEmail.length === 0) {
+      this.doctorEmail = local.doctorEmail;
+    }
+    if (local.doctorSpecialty.length > 0) {
+      this.doctorSpecialty = local.doctorSpecialty;
+    }
+
+    // The server copy may be newer than the local one; refresh quietly.
+    if (SessionStore.isAuthenticated()) {
+      ProfileRepository.load()
+        .then((fresh: UiMedicalProfile) => {
+          this.birthDate = fresh.birthDate ? fresh.birthDate : this.birthDate;
+          this.selectedGender = fresh.gender ? fresh.gender : this.selectedGender;
+          this.heightCm = fresh.height ? fresh.height : this.heightCm;
+          this.weightKg = fresh.weight ? fresh.weight : this.weightKg;
+          this.bloodType = fresh.bloodType ? fresh.bloodType : this.bloodType;
+          this.chronicDiseases = fresh.diseases.length > 0 ? fresh.diseases : this.chronicDiseases;
+          this.allergies = fresh.allergies ? fresh.allergies : this.allergies;
+          this.pacemaker = fresh.pacemaker;
+          this.hearingAid = fresh.hearingAid;
+        })
+        .catch((err: Error) => {
+          // 404 = no profile yet, first-time setup. Expected.
+          console.info(`[ProfileSetupPage] Existing profile not loaded: ${err.message}`);
+        });
     }
   }
 
@@ -209,7 +288,10 @@ struct ProfileSetupPage {
                     selected: this.birthDate ? new Date(this.birthDate) : new Date(),
                     onAccept: (value: DatePickerResult) => {
                       if (value.year !== undefined && value.month !== undefined && value.day !== undefined) {
-                        this.birthDate = `${value.year}-${value.month + 1}-${value.day}`;
+                        // The contract expects `format: date`: YYYY-MM-DD, zero padded.
+                        const mm: string = `${value.month + 1}`.padStart(2, '0');
+                        const dd: string = `${value.day}`.padStart(2, '0');
+                        this.birthDate = `${value.year}-${mm}-${dd}`;
                       }
                     }
                   })
@@ -625,6 +707,7 @@ struct ProfileSetupPage {
                     .margin({ left: 16, right: 8 })
 
                   TextInput({ placeholder: 'doctor@hospital.com', text: this.doctorEmail })
+                    .type(InputType.Email)
                     .placeholderColor('rgba(115, 118, 133, 0.5)')
                     .fontSize(16)
                     .backgroundColor(Color.Transparent)
@@ -632,12 +715,29 @@ struct ProfileSetupPage {
                     .layoutWeight(1)
                     .onChange((value: string) => {
                       this.doctorEmail = value;
+                      // Clear the error as the user keeps typing so the warning
+                      // disappears as soon as the address becomes valid.
+                      if (this.doctorEmailError.length > 0 && ApiService.isValidEmail(value)) {
+                        this.doctorEmailError = '';
+                      }
                     })}.width('100%')
                 .height(56)
                 .backgroundColor('#F3F4F5')
                 .borderRadius(16)
                 .alignItems(VerticalAlign.Center)
-                .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })}.width('100%')
+                .border({
+                  width: 1,
+                  color: this.doctorEmailError.length > 0 ? '#BA1A1A' : 'rgba(0, 61, 155, 0.1)',
+                  style: BorderStyle.Solid
+                })
+
+                if (this.doctorEmailError.length > 0) {
+                  Text(this.doctorEmailError)
+                    .fontSize(12)
+                    .fontColor('#BA1A1A')
+                    .alignSelf(ItemAlign.Start)
+                    .margin({ left: 4, top: 6 })
+                }}.width('100%')
               .margin({ bottom: 20 })
 
               // Specialized Area Select Pills Grid (Collapsible/Accordion Menu)
@@ -759,12 +859,27 @@ struct ProfileSetupPage {
                     .layoutWeight(1)
                     .onChange((value: string) => {
                       this.email = value;
+                      if (this.emailError.length > 0 && ApiService.isValidEmail(value)) {
+                        this.emailError = '';
+                      }
                     })}.width('100%')
                 .height(56)
                 .backgroundColor('#F3F4F5')
                 .borderRadius(16)
                 .alignItems(VerticalAlign.Center)
-                .border({ width: 1, color: 'rgba(0, 61, 155, 0.1)', style: BorderStyle.Solid })}.width('100%')
+                .border({
+                  width: 1,
+                  color: this.emailError.length > 0 ? '#BA1A1A' : 'rgba(0, 61, 155, 0.1)',
+                  style: BorderStyle.Solid
+                })
+
+                if (this.emailError.length > 0) {
+                  Text(this.emailError)
+                    .fontSize(12)
+                    .fontColor('#BA1A1A')
+                    .alignSelf(ItemAlign.Start)
+                    .margin({ left: 4, top: 6 })
+                }}.width('100%')
               .margin({ bottom: 24 })
             }
 
@@ -831,26 +946,59 @@ struct ProfileSetupPage {
                   hearingAid: this.hearingAid
                 });
 
-                let token = AppStorage.get<string>('token') || '';
-                if (token) {
-                  let profilePayload: PatientProfile = {
-                    birthDate: this.birthDate,
-                    bloodType: this.bloodType,
-                    criticalFacts: {
-                      "allergies": this.allergies ? [this.allergies] : [],
-                      "chronicConditions": finalDiseases
-                    } as Record<string, string[]>,
-                    timezone: "Europe/Istanbul"
+                if (SessionStore.isAuthenticated()) {
+                  // Allergies can be entered comma-separated; parse them instead of
+                  // squashing everything into a single array element.
+                  const allergyList: string[] = this.allergies
+                    ? this.allergies.split(',').map((a: string) => a.trim()).filter((a: string) => a.length > 0)
+                    : [];
+
+                  // Details that matter in an emergency, such as pacemaker and
+                  // hearing aid, used to go nowhere; they now travel in criticalFacts.
+                  const facts: CriticalFacts = {
+                    allergies: allergyList,
+                    chronicConditions: finalDiseases,
+                    pacemaker: this.pacemaker,
+                    hearingAid: this.hearingAid,
+                    gender: this.selectedGender,
+                    heightCm: Number(this.heightCm),
+                    weightKg: Number(this.weightKg)
                   };
 
-                  ApiService.putProfile(token, profilePayload)
-                    .catch((err: Error) => console.error("Profile sync error", err.message));
+                  const profilePayload: PatientProfile = {
+                    displayName: AppStorage.get<string>('fullName'),
+                    birthDate: this.birthDate,
+                    bloodType: this.bloodType,
+                    criticalFacts: facts,
+                    timezone: ApiConfig.deviceTimezone()
+                  };
+
+                  ApiService.putProfile(profilePayload)
+                    .then(() => {
+                      console.info('[API] PUT /api/profile - OK');
+                      promptAction.showToast({ message: 'Profile saved.' });
+                    })
+                    .catch((err: Error) => {
+                      // This error used to be swallowed silently, which is why the
+                      // blood type mismatch stayed invisible for so long.
+                      console.error(`[API] PUT /api/profile - FAILED: ${err.message}`);
+                      promptAction.showToast({ message: `Could not save profile: ${err.message}` });
+                    });
+                } else {
+                  promptAction.showToast({ message: 'No active session; the profile was saved on this device only.' });
                 }
               } else if (this.role === 'doctor') {
                 if (!this.doctorHospital || !this.doctorEmail) {
-                  promptAction.showToast({ message: 'Please fill in hospital name and email address.' });
+                  promptAction.showToast({ message: 'Hospital name and email address are required.' });
                   return;
                 }
+                if (!ApiService.isValidEmail(this.doctorEmail)) {
+                  this.doctorEmailError = 'Enter a valid email address. Example: name.surname@hospital.com';
+                  promptAction.showToast({ message: this.doctorEmailError });
+                  return;
+                }
+                this.doctorEmailError = '';
+                this.doctorEmail = ApiService.normalizeEmail(this.doctorEmail);
                 if (this.doctorSpecialty === 'Other' && !this.otherDoctorSpecialty) {
                   promptAction.showToast({ message: 'Please specify your specialized area.' });
                   return;
@@ -876,10 +1024,17 @@ struct ProfileSetupPage {
                 AppStorage.setOrCreate('doctorProfile', docProfileData);
               } else {
                 if (!this.email) {
-                  promptAction.showToast({ message: 'Please enter a valid email address.' });
+                  promptAction.showToast({ message: 'Email address is required.' });
                   return;
                 }
-                
+                if (!ApiService.isValidEmail(this.email)) {
+                  this.emailError = 'Enter a valid email address. Example: name.surname@example.com';
+                  promptAction.showToast({ message: this.emailError });
+                  return;
+                }
+                this.emailError = '';
+                this.email = ApiService.normalizeEmail(this.email);
+
                 // Log Family Profile Data
                 console.log("\n==================================================");
                 console.log(`[PROFILE SAVED] FAMILY DATA:`);
@@ -891,6 +1046,21 @@ struct ProfileSetupPage {
               }
 
               AppStorage.setOrCreate('userRole', this.role);
+
+              // Persist the role AND the family/doctor profile fields.
+              // These have no backend counterpart; they used to live only in
+              // AppStorage (in memory), so they were lost after sign-out or a
+              // restart and setup was requested all over again.
+              SessionStore.patchLocalProfile({
+                role: this.role,
+                email: this.role === 'family' ? this.email : undefined,
+                doctorHospital: this.role === 'doctor' ? this.doctorHospital : undefined,
+                doctorSpecialty: this.role === 'doctor'
+                  ? (this.doctorSpecialty === 'Other' ? this.otherDoctorSpecialty : this.doctorSpecialty)
+                  : undefined,
+                doctorEmail: this.role === 'doctor' ? this.doctorEmail : undefined
+              }).catch((err: Error) => console.warn(`[SessionStore] Yerel profil kaydedilemedi: ${err.message}`));
+
               promptAction.showToast({ message: 'Profile completed successfully!' });
               router.pushUrl({ url: 'pages/HomePage' });
             })}.width('100%')

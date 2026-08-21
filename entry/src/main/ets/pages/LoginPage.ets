@@ -1,5 +1,7 @@
 import { router, promptAction } from '@kit.ArkUI';
-import { ApiService } from '../services/ApiService';
+import { ApiService, ApiError, AuthResult } from '../services/ApiService';
+import { SessionStore, LocalUserProfile } from '../services/SessionStore';
+import { ProfileRepository } from '../services/ProfileRepository';
 
 @Entry
 @Component
@@ -94,7 +96,7 @@ struct LoginPage {
                 .height(20)
                 .margin({ left: 16, right: 8 })
 
-              TextInput({ placeholder: '+90 (555) 000 0000', text: this.identifier })
+              TextInput({ placeholder: '+905551234567', text: this.identifier })
                 .type(InputType.PhoneNumber)
                 .placeholderColor('rgba(115, 118, 133, 0.5)')
                 .fontSize(16)
@@ -176,30 +178,92 @@ struct LoginPage {
           .onClick(() => {
             if (this.isLoading) return;
             if (!this.identifier || !this.password) {
-              promptAction.showToast({ message: 'Please fill in all fields' })
+              promptAction.showToast({ message: 'Phone number and password are required.' })
             } else {
               this.isLoading = true;
-              ApiService.login(this.identifier, this.password)
-                .then((token: string) => {
-                  // BAŞARILI LOG ÇIKTISI (Terminale doğrudan basar)
-                  console.log("\n==================================================");
-                  console.log("[API EXECUTION] POST /api/login - SUCCESS: Operation completed successfully. (Code: 200)");
-                  console.log("==================================================\n");
+              const normalizedPhone: string = ApiService.normalizePhone(this.identifier);
+              ApiService.login(normalizedPhone, this.password)
+                .then((auth: AuthResult) => {
+                  // The token is now persisted by SessionStore.
+                  // userId stays empty until the backend adds it (backend request BT-01).
+                  const uid: string = auth.userId !== undefined ? auth.userId : '(not sent by backend)';
+                  console.info(`[API] POST /api/login - OK, userId=${uid}`);
 
-                  AppStorage.setOrCreate('token', token)
-                  AppStorage.setOrCreate('userPhone', this.identifier)
-                  AppStorage.setOrCreate('userRole', 'patient')
-                  AppStorage.setOrCreate('doctorProfile', { hospital: '', specialty: '', email: '', isVerified: false })
-                  promptAction.showToast({ message: 'Logged in successfully!' })
-                  router.replaceUrl({ url: 'pages/HomePage' })
+                  AppStorage.setOrCreate('userPhone', normalizedPhone)
+                  promptAction.showToast({ message: 'Signed in successfully.' })
+
+                  // This account's device-stored client-side profile: role,
+                  // family email, doctor details. Kept per user (keyed by phone
+                  // number), so another account's setup on the same device does
+                  // not affect it.
+                  const local: LocalUserProfile = SessionStore.getLocalProfile(normalizedPhone);
+                  const roleForUser: string = local.role;
+
+                  // RESTORE the family/doctor profile. It has no backend home;
+                  // it used to be wiped on every sign-in, so setup was asked again.
+                  if (roleForUser === 'doctor') {
+                    AppStorage.setOrCreate('doctorProfile', {
+                      hospital: local.doctorHospital,
+                      specialty: local.doctorSpecialty,
+                      email: local.doctorEmail,
+                      isVerified: local.doctorVerified
+                    })
+                  } else {
+                    AppStorage.setOrCreate('doctorProfile',
+                      { hospital: '', specialty: '', email: '', isVerified: false })
+                  }
+                  if (local.email.length > 0) {
+                    AppStorage.setOrCreate('userEmail', local.email)
+                  }
+
+                  // Having a profile is a hard prerequisite: every patient-scoped
+                  // table in the backend (SOS, emergency contacts, medications,
+                  // invitations) has an FK to patient_profiles(user_id). Without a
+                  // profile those endpoints return 500/403.
+                  //
+                  // The backend has no notion of roles, so we use the presence of a
+                  // profile as a role hint:
+                  //   profile FOUND   -> patient, go straight to the home screen
+                  //   profile MISSING -> could be a doctor, or a patient whose setup
+                  //                      was interrupted; let them pick a role
+                  // Load the FULL profile (name, height, weight, gender, conditions).
+                  // Just checking for existence was not enough: nothing was written
+                  // into AppStorage, so the fields looked empty after signing in.
+                  return ProfileRepository.load()
+                    .then(() => {
+                      // Profile exists. Use the stored role if there is one;
+                      // otherwise a patient profile implies this is a patient.
+                      const role: string = roleForUser.length > 0 ? roleForUser : 'patient';
+                      AppStorage.setOrCreate('userRole', role)
+                      console.info(`[Login] Rol: ${role} -> HomePage`);
+                      router.replaceUrl({ url: 'pages/HomePage' })
+                    })
+                    .catch((profileErr: Error) => {
+                      const status: number = profileErr instanceof ApiError ? (profileErr as ApiError).status : -1;
+                      if (status === 404) {
+                        // No patient profile. If a role is stored (doctor/family)
+                        // go straight to that dashboard; otherwise pick a role.
+                        if (roleForUser.length > 0) {
+                          AppStorage.setOrCreate('userRole', roleForUser)
+                          console.info(`[Login] No profile but role is stored: ${roleForUser} -> HomePage`);
+                          router.replaceUrl({ url: 'pages/HomePage' })
+                        } else {
+                          promptAction.showToast({ message: 'Complete your setup to continue.' })
+                          router.replaceUrl({ url: 'pages/SelectRolePage' })
+                        }
+                      } else {
+                        // A network/server error does not mean the profile is missing.
+                        console.warn(`[API] GET /api/profile check failed (status=${status}): ${profileErr.message}`);
+                        AppStorage.setOrCreate('userRole', roleForUser.length > 0 ? roleForUser : 'patient')
+                        router.replaceUrl({ url: 'pages/HomePage' })
+                      }
+                    })
                 })
                 .catch((err: Error) => {
-                  // HATALI LOG ÇIKTISI (Terminale doğrudan basar)
-                  console.log("\n==================================================");
-                  console.log("[API EXECUTION] POST /api/login - UNAUTHORIZED: Authentication failed. (Code: 401)");
-                  console.log("==================================================\n");
-
-                  promptAction.showToast({ message: `Login Failed: ${err.message}` })
+                  // Log the real status code; a hard-coded 401 was misleading when debugging.
+                  const status: number = err instanceof ApiError ? (err as ApiError).status : -1;
+                  console.error(`[API] POST /api/login - FAILED (status=${status}): ${err.message}`);
+                  promptAction.showToast({ message: err.message })
                 })
                 .finally(() => {
                   this.isLoading = false;

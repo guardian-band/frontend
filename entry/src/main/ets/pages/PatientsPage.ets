@@ -1,5 +1,7 @@
 import { router, promptAction } from '@kit.ArkUI';
-import { ApiService, ClinicianPatient } from '../services/ApiService';
+import { ApiService, ApiError, ClinicianPatient, MonitoringRelationship } from '../services/ApiService';
+import { QrPayload, QrKind, QrContent } from '../services/QrPayload';
+import { SessionStore } from '../services/SessionStore';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
 
@@ -29,15 +31,6 @@ interface MonitoredPatient {
   aiClinicalSummary: string;
 }
 
-interface ScannedPatient {
-  id: string;
-  name: string;
-  email: string;
-  bloodType: string;
-  allergies: string;
-  diseases: Array<string>;
-}
-
 @Entry
 @Component
 struct PatientsPage {
@@ -48,8 +41,7 @@ struct PatientsPage {
   @State selectedPatient: MonitoredPatient | null = null;
   @State isInspectorOpen: boolean = false;
   @State isLinkModalOpen: boolean = false;
-  @State linkPatientPhone: string = '';
-  @State linkPatientName: string = '';
+  @State linkPatientInvitationToken: string = '';
   @State isMedsExpanded: boolean = true;
 
   aboutToAppear() {
@@ -66,109 +58,123 @@ struct PatientsPage {
     }
   }
 
+  /** Computes age from the birth date; this used to be hard-coded by name. */
+  private calculateAge(birthDate: string): number {
+    if (!birthDate || birthDate.length === 0) {
+      return 0;
+    }
+    const born = new Date(birthDate);
+    if (isNaN(born.getTime())) {
+      return 0;
+    }
+    const today = new Date();
+    let age: number = today.getFullYear() - born.getFullYear();
+    const monthDiff: number = today.getMonth() - born.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < born.getDate())) {
+      age = age - 1;
+    }
+    return age;
+  }
+
+  /** GET /api/monitoring/patients — eski /api/clinician/patients yolu backend'de yoktu. */
   async loadDoctorPatients() {
-    let token = AppStorage.get<string>('token') || '';
-    if (token) {
-      try {
-        let backendPatients = await ApiService.getClinicianPatients(token);
-        
-        if (ApiService.isMockMode()) {
-          let mockListStr = AppStorage.get<string>('mockLinkedPatients') || '[]';
-          let localMockList = JSON.parse(mockListStr) as ClinicianPatient[];
-          for (let lp of localMockList) {
-            if (!backendPatients.some(bp => bp.patientId === lp.patientId)) {
-              backendPatients.push(lp);
-            }
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+    try {
+      const backendPatients: ClinicianPatient[] = await ApiService.getMonitoredPatients();
+      console.info(`[API] GET /api/monitoring/patients - OK, ${backendPatients.length} hasta`);
+
+      const list: MonitoredPatient[] = [];
+      for (let idx = 0; idx < backendPatients.length; idx++) {
+        const bp: ClinicianPatient = backendPatients[idx];
+
+        // With no vitals we leave 0 and show "no data" instead of a fake value.
+        let heart: number = 0;
+        let oxy: number = 0;
+        try {
+          const vitals = await ApiService.getVitalsLatest(bp.patientId);
+          if (vitals.heartRate) {
+            heart = vitals.heartRate;
           }
+          if (vitals.bloodOxygen) {
+            oxy = vitals.bloodOxygen;
+          }
+        } catch (e) {
+          // 404 = no readings recorded for this patient yet. Expected.
+          console.info(`[API] No vitals yet for ${bp.patientId}: ${(e as Error).message}`);
         }
 
-        let list: MonitoredPatient[] = [];
-        for (let idx = 0; idx < backendPatients.length; idx++) {
-          let bp = backendPatients[idx];
-          let heart = 75;
-          let oxy = 98;
-          try {
-            let vitals = await ApiService.getVitalsLatest(token, bp.patientId);
-            if (vitals && vitals.heartRate) heart = vitals.heartRate;
-            if (vitals && vitals.bloodOxygen) oxy = vitals.bloodOxygen;
-          } catch (e) {
-            console.error("Vitals fetch error for " + bp.patientId, e);
-          }
-
-          let isJohn = bp.name.toLowerCase().includes('john');
-
-          let meds: PatientMedication[] = isJohn ? [
-            { id: '1', name: 'Amlodipine 5mg', dosage: '1 pill', schedule: 'Once Daily (08:00)', mealTiming: 'After Meal', stockPills: 20 },
-            { id: '2', name: 'Atorvastatin 20mg', dosage: '1 pill', schedule: 'Once Daily (21:00)', mealTiming: 'During Meal', stockPills: 12 }
-          ] : [
-            { id: '1', name: 'Metformin 500mg', dosage: '1 pill', schedule: 'Twice Daily (08:00, 20:00)', mealTiming: 'After Meal', stockPills: 28 },
-            { id: '2', name: 'Lisinopril 10mg', dosage: '1 pill', schedule: 'Once Daily (09:00)', mealTiming: 'Before Meal', stockPills: 14 }
-          ];
-
-          let summaryStr = isJohn ?
-            "Patient vitals are stable with 82 BPM resting heart rate and optimal SpO2 (97%). Daily activity shows 6,400 steps with 1,680 kcal burned. Current adherence to Amlodipine & Atorvastatin is consistent. No arrhythmia flags in the last 24 hours." :
-            "Patient vitals are currently stable with normal sinus rhythm (75 BPM) and optimal SpO2 (98%). Daily steps reached 5,200 with 1,450 kcal burned. Active regimen includes Metformin (500mg) and Lisinopril (10mg). No medication interaction alerts recorded.";
-
-          list.push({
-            id: bp.id,
-            name: bp.name,
-            gender: isJohn ? 'Male' : 'Female',
-            bloodType: bp.bloodType || 'A+',
-            birthDate: isJohn ? '1962-09-24' : (bp.birthDate || '1958-06-15'),
-            age: isJohn ? 63 : 68,
-            heartRate: heart,
-            oxygen: oxy,
-            temperature: '36.6 °C',
-            calories: isJohn ? 1680 : 1450,
-            steps: isJohn ? 6400 : 5200,
-            sleep: isJohn ? '6h 45m' : '7h 20m',
-            medicationsList: meds,
-            aiClinicalSummary: summaryStr
-          });
-        }
-        this.doctorPatients = list;
-      } catch (err) {
-        console.error("Failed to load doctor roster", err);
+        list.push({
+          id: bp.id,
+          name: bp.name && bp.name.length > 0 ? bp.name : 'Unnamed Patient',
+          gender: '',
+          bloodType: bp.bloodType || '',
+          birthDate: bp.birthDate || '',
+          age: this.calculateAge(bp.birthDate),
+          heartRate: heart,
+          oxygen: oxy,
+          // The fields below have NO backend counterpart; they are not in the
+          // contract. Left empty rather than filled with fake data.
+          temperature: '',
+          calories: 0,
+          steps: 0,
+          sleep: '',
+          medicationsList: [],
+          aiClinicalSummary: ''
+        });
       }
+      this.doctorPatients = list;
+    } catch (err) {
+      console.error(`[API] GET /api/monitoring/patients - FAILED: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Could not load patient list: ${(err as Error).message}` });
     }
   }
 
+  /**
+   * The scanned QR no longer carries the patient's personal data but the
+   * invitation token issued by the backend. The doctor redeems it to create
+   * the relationship.
+   */
   async onScannedQrReceived(scanned: string) {
-    if (!scanned) return;
+    if (!scanned) {
+      return;
+    }
+    if (!SessionStore.isAuthenticated()) {
+      promptAction.showToast({ message: 'No active session. Please sign in.' });
+      return;
+    }
+
+    // The QR payload is typed (GB1:LINK: / GB1:EMG:). A code of the wrong kind
+    // gets a 400 from the backend, so show a clear message instead.
+    const parsed: QrContent = QrPayload.decode(scanned);
+    if (parsed.kind === QrKind.EMERGENCY) {
+      promptAction.showToast({ message: QrPayload.wrongKindMessage(QrKind.LINK) });
+      return;
+    }
+    if (parsed.kind === QrKind.LEGACY_JSON) {
+      promptAction.showToast({ message: QrPayload.legacyMessage() });
+      return;
+    }
+
+    promptAction.showToast({ message: 'Verifying invitation code...' });
+
     try {
-      let parsed = JSON.parse(scanned) as ScannedPatient;
-      let patientName = parsed.name || 'Unknown Patient';
-      let patientPhone = parsed.email || 'scanned-patient';
-
-      promptAction.showToast({ message: `Linking with patient ${patientName}...` });
-
-      let token = AppStorage.get<string>('token') || '';
-      if (token) {
-        await ApiService.linkPatient(token, patientPhone, patientName, 'Physician');
-
-        if (ApiService.isMockMode()) {
-          let mockList = AppStorage.get<string>('mockLinkedPatients') || '[]';
-          let list: ClinicianPatient[] = JSON.parse(mockList) as ClinicianPatient[];
-
-          if (!list.some(p => p.patientId === parsed.id)) {
-            list.push({
-              id: (list.length + 3).toString(),
-              patientId: parsed.id || 'p' + (list.length + 3),
-              name: patientName,
-              relationship: 'Physician',
-              bloodType: parsed.bloodType || 'A-',
-              birthDate: '1980-01-01'
-            });
-            AppStorage.setOrCreate('mockLinkedPatients', JSON.stringify(list));
-          }
-        }
-
-        await this.loadDoctorPatients();
-        promptAction.showToast({ message: `Successfully linked with ${patientName}!` });
-      }
+      const relationship: MonitoringRelationship = await ApiService.redeemLinkInvitation(parsed.token);
+      console.info(`[API] POST /api/patient-link-invitations/redeem - OK, patientId=${relationship.patientId}`);
+      await this.loadDoctorPatients();
+      promptAction.showToast({ message: 'Hasta listenize eklendi.' });
     } catch (e) {
-      console.error("Link request failed", e);
-      promptAction.showToast({ message: `Linking failed: ${(e as Error).message}` });
+      const status: number = e instanceof ApiError ? (e as ApiError).status : -1;
+      console.error(`[API] Could not redeem invitation (status=${status}): ${(e as Error).message}`);
+      if (status >= 500) {
+        // Known backend bug (BT-05): the redeem query fails on openGauss.
+        promptAction.showToast({
+          message: 'Server error: patient linking is currently unavailable. The code is valid; the problem is on the server.'
+        });
+      } else {
+        promptAction.showToast({ message: `Could not link: ${(e as Error).message}` });
+      }
     }
   }
 
@@ -758,30 +764,23 @@ struct PatientsPage {
             .onClick(() => { this.isLinkModalOpen = false; })
 
           Column() {
-            Text('Link Patient via QR / Phone')
+            Text('Link Patient with Invitation Code')
               .fontSize(18)
               .fontWeight(FontWeight.Bold)
               .fontColor('#191C1D')
               .margin({ bottom: 8 })
 
-            Text('Enter patient phone number or scanned QR token below to link them to your roster.')
+            Text('The patient opens "My QR Code" in their profile and shows it to you. You can scan it or type it below. The code is valid for 15 minutes and can be used once.')
               .fontSize(13)
               .fontColor('#737685')
               .margin({ bottom: 16 })
 
-            TextInput({ placeholder: 'Patient Name (e.g. John Doe)', text: this.linkPatientName })
-              .height(48)
-              .backgroundColor('#F0F4F8')
-              .borderRadius(12)
-              .margin({ bottom: 12 })
-              .onChange((val: string) => { this.linkPatientName = val; })
-
-            TextInput({ placeholder: 'Patient Phone (e.g. +1 555-0199)', text: this.linkPatientPhone })
+            TextInput({ placeholder: 'Davet kodu', text: this.linkPatientInvitationToken })
               .height(48)
               .backgroundColor('#F0F4F8')
               .borderRadius(12)
               .margin({ bottom: 20 })
-              .onChange((val: string) => { this.linkPatientPhone = val; })
+              .onChange((val: string) => { this.linkPatientInvitationToken = val; })
 
             Row() {
               Button('Cancel', { type: ButtonType.Normal })
@@ -804,35 +803,24 @@ struct PatientsPage {
                 .borderRadius(10)
                 .margin({ left: 8 })
                 .onClick(async () => {
-                  if (!this.linkPatientPhone || !this.linkPatientName) {
-                    promptAction.showToast({ message: 'Please enter name and phone number.' });
+                  // The backend does not support linking directly by phone number;
+                  // an invitation code issued by the patient is required.
+                  if (!this.linkPatientInvitationToken) {
+                    promptAction.showToast({ message: 'Enter the invitation code from the patient.' });
                     return;
                   }
-                  let token = AppStorage.get<string>('token') || '';
-                  if (token) {
-                    try {
-                      await ApiService.linkPatient(token, this.linkPatientPhone, this.linkPatientName, 'Physician');
-                      if (ApiService.isMockMode()) {
-                        let mockList = AppStorage.get<string>('mockLinkedPatients') || '[]';
-                        let list: ClinicianPatient[] = JSON.parse(mockList) as ClinicianPatient[];
-                        list.push({
-                          id: (list.length + 3).toString(),
-                          patientId: 'p' + (list.length + 3),
-                          name: this.linkPatientName,
-                          relationship: 'Physician',
-                          bloodType: 'A-',
-                          birthDate: '1985-05-12'
-                        });
-                        AppStorage.setOrCreate('mockLinkedPatients', JSON.stringify(list));
-                      }
-                      await this.loadDoctorPatients();
-                      promptAction.showToast({ message: `Linked with ${this.linkPatientName}` });
-                      this.isLinkModalOpen = false;
-                      this.linkPatientName = '';
-                      this.linkPatientPhone = '';
-                    } catch (err) {
-                      promptAction.showToast({ message: `Error: ${(err as Error).message}` });
-                    }
+                  if (!SessionStore.isAuthenticated()) {
+                    promptAction.showToast({ message: 'No active session. Please sign in.' });
+                    return;
+                  }
+                  try {
+                    await ApiService.redeemLinkInvitation(QrPayload.decode(this.linkPatientInvitationToken).token);
+                    await this.loadDoctorPatients();
+                    promptAction.showToast({ message: 'Hasta listenize eklendi.' });
+                    this.isLinkModalOpen = false;
+                    this.linkPatientInvitationToken = '';
+                  } catch (err) {
+                    promptAction.showToast({ message: `Could not link: ${(err as Error).message}` });
                   }
                 })
             }

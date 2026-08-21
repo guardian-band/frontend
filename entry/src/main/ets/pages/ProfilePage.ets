@@ -2,6 +2,11 @@ import { router, promptAction } from '@kit.ArkUI';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { contact } from '@kit.ContactsKit';
+import { ApiService, PatientProfile, MonitoringInvitation, EmergencyAccessToken } from '../services/ApiService';
+import { QrPayload } from '../services/QrPayload';
+import { SessionStore } from '../services/SessionStore';
+import { ContactsRepository, UiEmergencyContact } from '../services/ContactsRepository';
+import { ProfileRepository } from '../services/ProfileRepository';
 
 interface ContactWithDisplayName {
   displayName: string;
@@ -198,21 +203,31 @@ struct ProfilePage {
   @State showRoleSwitcher: boolean = false;
   @State expandedMedId: string = '';
   @State isMyQrModalOpen: boolean = false;
+  @State linkInvitationToken: string = '';
+  @State linkInvitationExpiresAt: string = '';
+  @State isGeneratingQr: boolean = false;
+  /** 'link' = hekime baglanma daveti, 'emergency' = acil erisim kodu. */
+  @State qrMode: string = 'link';
   @StorageLink('selectedFamilyMember') selectedMember: string = 'Father';
   @State showMemberDropdown: boolean = false;
 
   dialogController: CustomDialogController = new CustomDialogController({
     builder: AddContactDialog({
       onAdd: (name: string, phone: string, relation: string) => {
-        if (this.sosContacts.length < 2) {
-          this.sosContacts.push({
-            id: Date.now().toString(),
-            fullName: name,
-            phone: phone,
-            relation: relation
-          });
-          this.sosContacts = [...this.sosContacts];
+        if (this.sosContacts.length >= 2) {
+          return;
         }
+        // The contact is now written to the backend, not just the device:
+        // SOS notifications are sent to this list.
+        ContactsRepository.add(name, phone, relation, this.sosContacts.length === 0)
+          .then((created: UiEmergencyContact) => {
+            console.info(`[API] POST /api/emergency-contacts - OK id=${created.id}`);
+            promptAction.showToast({ message: 'Emergency contact saved.' });
+          })
+          .catch((err: Error) => {
+            console.error(`[API] POST /api/emergency-contacts - FAILED: ${err.message}`);
+            promptAction.showToast({ message: `Could not save contact: ${err.message}` });
+          });
       }
     }),
     alignment: DialogAlignment.Center,
@@ -246,18 +261,97 @@ struct ProfilePage {
     return `GP-${num}-2026`;
   }
 
-  // Helper to generate a unique QR code value representing patient details
+  /**
+   * QR payload.
+   *
+   * BEFORE: the patient's name, email, phone, blood type, allergies and
+   * conditions were printed into the QR as plain-text JSON - an open medical
+   * record with no expiry, no signature, no revocation and no audit trail.
+   *
+   * NOW: only a short-lived, single-use token issued by the backend is printed.
+   * Medical data comes from the server after authorisation is checked.
+   */
   getQrCodeValue(): string {
-    const data: Record<string, string | string[]> = {
-      'id': this.getPatientId(),
-      'name': this.fullName,
-      'email': this.userEmail || '',
-      'phone': this.userPhone || '',
-      'bloodType': this.medicalProfile.bloodType || 'N/A',
-      'allergies': this.medicalProfile.allergies || 'None',
-      'diseases': this.medicalProfile.diseases || []
-    };
-    return JSON.stringify(data);
+    if (this.linkInvitationToken.length === 0) {
+      return 'GB-TOKEN-BEKLENIYOR';
+    }
+    // The payload is printed with a type tag so the scanner knows which endpoint
+    // to call. An untagged token produced a 400 in both flows.
+    return this.qrMode === 'emergency'
+      ? QrPayload.encodeEmergency(this.linkInvitationToken)
+      : QrPayload.encodeLink(this.linkInvitationToken);
+  }
+
+  /** Requests a new token from the backend for the selected QR kind. */
+  generateQrToken(): void {
+    if (!SessionStore.isAuthenticated()) {
+      promptAction.showToast({ message: 'You need to sign in to generate a QR code.' });
+      return;
+    }
+    this.isGeneratingQr = true;
+    this.linkInvitationToken = '';
+    this.linkInvitationExpiresAt = '';
+
+    if (this.qrMode === 'emergency') {
+      // POST /api/emergency-access/tokens - the code emergency responders scan.
+      ApiService.createEmergencyAccessToken()
+        .then((access: EmergencyAccessToken) => {
+          this.linkInvitationToken = access.token;
+          this.linkInvitationExpiresAt = access.expiresAt;
+          console.info(`[API] POST /api/emergency-access/tokens - OK, expiresAt=${access.expiresAt}`);
+        })
+        .catch((err: Error) => {
+          console.error(`[API] Could not generate emergency access code: ${err.message}`);
+          promptAction.showToast({ message: `Could not generate emergency access code: ${err.message}` });
+        })
+        .finally(() => {
+          this.isGeneratingQr = false;
+        });
+      return;
+    }
+
+    // POST /api/patient-link-invitations - the invitation the doctor scans.
+    ApiService.createLinkInvitation({
+      relationship: 'Physician',
+      kind: 'clinician',
+      canMonitor: true,
+      isEmergencyContact: false,
+      expiresInSeconds: 900
+    })
+      .then((invitation: MonitoringInvitation) => {
+        this.linkInvitationToken = invitation.token;
+        this.linkInvitationExpiresAt = invitation.expiresAt;
+        console.info(`[API] POST /api/patient-link-invitations - OK, expiresAt=${invitation.expiresAt}`);
+      })
+      .catch((err: Error) => {
+        console.error(`[API] POST /api/patient-link-invitations - FAILED: ${err.message}`);
+        promptAction.showToast({ message: `Could not generate invitation code: ${err.message}` });
+      })
+      .finally(() => {
+        this.isGeneratingQr = false;
+      });
+  }
+
+  /** Switches the QR kind and requests a new token. */
+  switchQrMode(mode: string): void {
+    if (this.qrMode === mode) {
+      return;
+    }
+    this.qrMode = mode;
+    this.generateQrToken();
+  }
+
+  /** Refreshes the profile and emergency contacts from the backend on open. */
+  aboutToAppear(): void {
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+    ContactsRepository.refreshQuietly();
+    // Restore the FULL profile from the server: name, gender, height, weight,
+    // blood type, chronic conditions, allergies, pacemaker, hearing aid.
+    // The backend keeps these inside criticalFacts; the mapping lives in one
+    // place, ProfileRepository.
+    ProfileRepository.refreshQuietly();
   }
 
   // Photo picker function to change profile picture from gallery
@@ -695,6 +789,7 @@ struct ProfilePage {
                 .height(30)
                 .onClick(() => {
                   this.isMyQrModalOpen = true;
+                  this.generateQrToken();
                 })}.width('100%')
             .padding(14)
             .backgroundColor(Color.White)
@@ -1296,7 +1391,7 @@ struct ProfilePage {
 
                 Blank()
 
-                // Sadece 2 kişiden az eklendiyse Add butonunu gösterir
+                // Show the Add button only when fewer than 2 contacts exist
                 if (this.sosContacts.length < 2) {
                   Button('+ Add')
                     .fontSize(13)
@@ -1363,8 +1458,14 @@ struct ProfilePage {
                         .borderRadius(8)
                         .height(28)
                         .onClick(() => {
-                          this.sosContacts = this.sosContacts.filter(c => c.id !== contact.id);
-                          this.sosContacts = [...this.sosContacts];
+                          ContactsRepository.remove(contact.id)
+                            .then(() => {
+                              promptAction.showToast({ message: 'Contact removed.' });
+                            })
+                            .catch((err: Error) => {
+                              console.error(`[API] DELETE /api/emergency-contacts - FAILED: ${err.message}`);
+                              promptAction.showToast({ message: `Could not remove contact: ${err.message}` });
+                            });
                         })}.width('100%')
                     .padding({ top: 12, bottom: 12 })
                     .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
@@ -1410,7 +1511,9 @@ struct ProfilePage {
           .borderRadius(16)
           .margin({ top: 8, bottom: 20 })
           .onClick(() => {
-              AppStorage.setOrCreate('token', '');
+              // Remove the registered notification endpoint and clear the session.
+              ApiService.logout()
+                .catch((err: Error) => console.warn(`[API] Error during sign-out: ${err.message}`));
               AppStorage.setOrCreate('fullName', '');
               AppStorage.setOrCreate('profilePicture', '');
               AppStorage.setOrCreate('userRole', 'patient');
@@ -1658,12 +1761,43 @@ struct ProfilePage {
               })}.width('100%')
             .margin({ bottom: 20 })
 
+            // QR kind selector. The two flows use different token types; a single
+            // QR cannot serve both (a token sent to the wrong endpoint gets a 400).
+            Row() {
+              Text('Link to Doctor')
+                .fontSize(13)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(this.qrMode === 'link' ? Color.White : '#434654')
+                .textAlign(TextAlign.Center)
+                .layoutWeight(1)
+                .height(38)
+                .borderRadius(10)
+                .backgroundColor(this.qrMode === 'link' ? '#003D9B' : '#F0F4F8')
+                .padding({ top: 10 })
+                .onClick(() => { this.switchQrMode('link'); })
+
+              Text('Emergency Access')
+                .fontSize(13)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(this.qrMode === 'emergency' ? Color.White : '#434654')
+                .textAlign(TextAlign.Center)
+                .layoutWeight(1)
+                .height(38)
+                .borderRadius(10)
+                .backgroundColor(this.qrMode === 'emergency' ? '#BA1A1A' : '#F0F4F8')
+                .padding({ top: 10 })
+                .margin({ left: 8 })
+                .onClick(() => { this.switchQrMode('emergency'); })
+            }
+            .width('100%')
+            .margin({ bottom: 16 })
+
             // Display Dynamic QR Code Container
             Row() {
               QRCode(this.getQrCodeValue())
                 .width(180)
                 .height(180)
-                .color('#003D9B')}.width(220)
+                .color(this.qrMode === 'emergency' ? '#BA1A1A' : '#003D9B')}.width(220)
             .height(220)
             .justifyContent(FlexAlign.Center)
             .alignItems(VerticalAlign.Center)
@@ -1682,6 +1816,27 @@ struct ProfilePage {
               .fontSize(12)
               .fontColor('#737685')
               .margin({ bottom: 16 })
+
+            if (this.isGeneratingQr) {
+              Text('Generating code...')
+                .fontSize(13)
+                .fontColor('#737685')
+                .margin({ bottom: 8 })
+            } else if (this.linkInvitationExpiresAt.length > 0) {
+              Text(`Single use. Expires: ${this.linkInvitationExpiresAt}`)
+                .fontSize(12)
+                .fontColor('#BA1A1A')
+                .textAlign(TextAlign.Center)
+                .margin({ bottom: 8 })
+            }
+
+            Text(this.qrMode === 'emergency'
+              ? 'Emergency responders can scan this code to see your blood type, allergies and medications. Every access is logged.'
+              : 'Your doctor can scan this code to add you to their patient list and monitor your readings.')
+              .fontSize(12)
+              .fontColor('#737685')
+              .textAlign(TextAlign.Center)
+              .margin({ bottom: 8 })
 
             Text('Let your doctor scan this code to link you as their patient for real-time vitals checks.')
               .fontSize(13)

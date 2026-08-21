@@ -35,7 +35,7 @@ export struct BottomNavBar {
         }
       })
 
-      // Meds Tab (İlaç Sayfasına Geçiş Yapar!)
+      // Meds Tab (navigates to the medications page)
       if (this.userRole === 'patient') {
         Column() {
           Image($r('app.media.medicine'))

@@ -1,5 +1,5 @@
 import { router, promptAction } from '@kit.ArkUI';
-import { ApiService } from '../services/ApiService';
+import { ApiService, ApiError, AuthResult, RegisterResult } from '../services/ApiService';
 
 @Entry
 @Component
@@ -155,7 +155,7 @@ struct RegisterPage {
                   .height(20)
                   .margin({ left: 16, right: 8 })
 
-                TextInput({ placeholder: '+90 (555) 000 0000', text: this.phone })
+                TextInput({ placeholder: '+905551234567', text: this.phone })
                   .type(InputType.PhoneNumber)
                   .placeholderColor('rgba(115, 118, 133, 0.5)')
                   .fontSize(16)
@@ -234,40 +234,45 @@ struct RegisterPage {
             .shadow({ radius: 8, color: 'rgba(0, 61, 155, 0.2)', offsetX: 0, offsetY: 4 })
             .onClick(() => {
               if (!this.fullName || !this.phone || !this.password) {
-                promptAction.showToast({ message: 'Please fill in all fields' })
+                promptAction.showToast({ message: 'Please fill in all fields.' })
               } else {
 
-                ApiService.register(this.phone, this.password)
-                  .then(() => {
-                    // BAŞARILI KAYIT ÇIKTISI
-                    console.log("\n==================================================");
-                    console.log("[API EXECUTION] POST /api/register - CREATED: Resource was successfully registered or created. (Code: 201)");
-                    console.log("==================================================\n");
+                const normalizedPhone: string = ApiService.normalizePhone(this.phone);
+                if (!ApiService.isValidPhone(normalizedPhone)) {
+                  promptAction.showToast({ message: 'Invalid phone number. Example: +905551234567' })
+                  return;
+                }
+                if (this.password.length < 8) {
+                  promptAction.showToast({ message: 'Password must be at least 8 characters.' })
+                  return;
+                }
 
-                    // Auto-login after successful registration to retrieve the JWT token
-                    return ApiService.login(this.phone, this.password);
+                // displayName is now sent to the backend, so names are not blank
+                // in the doctor's patient list.
+                ApiService.register(normalizedPhone, this.password, this.fullName)
+                  .then((created: RegisterResult) => {
+                    console.info(`[API] POST /api/register - CREATED id=${created.id}`);
+                    // Auto sign-in after registration to obtain the JWT and userId.
+                    return ApiService.login(normalizedPhone, this.password);
                   })
-                  .then((token: string) => {
-                    // BAŞARILI GİRİŞ ÇIKTISI
-                    console.log("\n==================================================");
-                    console.log("[API EXECUTION] POST /api/login - SUCCESS: Operation completed successfully. (Code: 200)");
-                    console.log("==================================================\n");
+                  .then((auth: AuthResult) => {
+                    console.info(`[API] POST /api/login - OK, userId=${auth.userId}`);
 
-                    AppStorage.setOrCreate('token', token);
                     AppStorage.setOrCreate('fullName', this.fullName);
-                    AppStorage.setOrCreate('userPhone', this.phone);
-                    AppStorage.setOrCreate('userRole', 'patient');
+                    AppStorage.setOrCreate('userPhone', normalizedPhone);
                     AppStorage.setOrCreate('doctorProfile', { hospital: '', specialty: '', email: '', isVerified: false });
-                    promptAction.showToast({ message: 'Registered and logged in successfully!' })
+                    // The role is NOT fixed here. The next step is SelectRolePage;
+                    // whatever the user picks there is written by ProfileSetupPage
+                    // into both AppStorage and the per-user persistent store.
+                    // This used to write 'patient' unconditionally, so anyone
+                    // registering as a doctor started with the wrong role.
+                    promptAction.showToast({ message: 'Registration complete. You are signed in.' })
                     router.pushUrl({ url: 'pages/SelectRolePage' })
                   })
                   .catch((err: Error) => {
-                    // HATALI KAYIT ÇIKTISI
-                    console.log("\n==================================================");
-                    console.log("[API EXECUTION] POST /api/register - BAD REQUEST: Registration failed. (Code: 400)");
-                    console.log("==================================================\n");
-
-                    promptAction.showToast({ message: `Registration Failed: ${err.message}` })
+                    const status: number = err instanceof ApiError ? (err as ApiError).status : -1;
+                    console.error(`[API] Registration flow failed (status=${status}): ${err.message}`);
+                    promptAction.showToast({ message: err.message })
                   })
               }
             })

@@ -4,7 +4,9 @@ import { AppHeader } from '../components/AppHeader';
 import { contact } from '@kit.ContactsKit';
 import { geoLocationManager } from '@kit.LocationKit';
 import { abilityAccessCtrl, common } from '@kit.AbilityKit';
-import { ApiService } from '../services/ApiService'; // IMPORT: Required for background SOS trigger
+import { ApiService, SOSIncident } from '../services/ApiService';
+import { SessionStore } from '../services/SessionStore';
+import { ContactsRepository } from '../services/ContactsRepository';
 
 interface ContactWithDisplayName {
   displayName: string;
@@ -217,6 +219,8 @@ struct PatientSOSView {
 
   aboutToAppear() {
     this.requestLocationPermission();
+    // Refresh emergency contacts from the backend: SOS alerts go to this list.
+    ContactsRepository.refreshQuietly();
   }
 
   aboutToDisappear() {
@@ -286,33 +290,56 @@ struct PatientSOSView {
     if (event.type === TouchType.Down) {
       this.sosSent = true;
       this.isPressing = false;
-      promptAction.showToast({ message: 'EMERGENCY ALERT BROADCASTED TO ALL CONTACTS!' });
 
-      // Trigger the SOS incident on the backend API instantly
-      let token = AppStorage.get<string>('token') || '';
-      if (token) {
-        // Attempt to parse the latitude and longitude from the string, or use mock coordinates
-        let lat = 37.4275; // Fallback mock latitude
-        let lng = -122.1697; // Fallback mock longitude
-        try {
-          if (this.locationAddress.includes('Lat:')) {
-            const parts = this.locationAddress.split(',');
-            lat = parseFloat(parts[0].replace('Lat:', '').trim());
-            lng = parseFloat(parts[1].replace('Lng:', '').trim());
-          }
-        } catch (e) {
-          console.error("Could not parse coordinates", e);
-        }
-
-        // Clean the accuracy string (e.g., "3.0m" -> 3.0)
-        let accuracy = parseFloat(this.locationAccuracy.replace('m', '').trim()) || 0;
-
-        ApiService.triggerSOS(token, lat, lng, accuracy, this.locationAddress)
-          .then((incidentId: string) => {
-            this.activeIncidentId = incidentId;
-          })
-          .catch((err: Error) => console.error("Background SOS trigger error: ", err.message));
+      if (!SessionStore.isAuthenticated()) {
+        promptAction.showToast({ message: 'No active session - the emergency alert could not be sent. Please sign in.' });
+        return;
       }
+
+      // We no longer invent a fixed coordinate when parsing fails; with no
+      // coordinates the field is left empty and only the address is sent.
+      let lat: number = 0;
+      let lng: number = 0;
+      let hasCoordinates: boolean = false;
+      try {
+        if (this.locationAddress.includes('Lat:')) {
+          const parts = this.locationAddress.split(',');
+          const parsedLat: number = parseFloat(parts[0].replace('Lat:', '').trim());
+          const parsedLng: number = parseFloat(parts[1].replace('Lng:', '').trim());
+          if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+            lat = parsedLat;
+            lng = parsedLng;
+            hasCoordinates = true;
+          }
+        }
+      } catch (e) {
+        console.error(`[SOS] Could not parse coordinates: ${(e as Error).message}`);
+      }
+      if (!hasCoordinates) {
+        console.warn('[SOS] No coordinates available; sending address only.');
+      }
+
+      const accuracy: number = parseFloat(this.locationAccuracy.replace('m', '').trim()) || 0;
+
+      // Emergency alert: ApiService retries this with exponential backoff.
+      ApiService.triggerSOS(lat, lng, accuracy, this.locationAddress)
+        .then((incident: SOSIncident) => {
+          this.activeIncidentId = incident.id;
+          console.info(`[API] POST /api/sos/incidents - OK id=${incident.id}`);
+          if (this.sosContacts.length === 0) {
+            promptAction.showToast({
+              message: 'WARNING: You have no emergency contacts. The alert was recorded but nobody will be notified.'
+            });
+          } else {
+            promptAction.showToast({ message: 'Emergency alert sent.' });
+          }
+        })
+        .catch((err: Error) => {
+          // This must not fail silently: the user has to know help is not coming.
+          console.error(`[API] POST /api/sos/incidents - FAILED: ${err.message}`);
+          this.sosSent = false;
+          promptAction.showToast({ message: `EMERGENCY ALERT FAILED: ${err.message}` });
+        });
     }
   }
 
@@ -421,6 +448,29 @@ struct PatientSOSView {
           Blank()}.width('100%')
         .margin({ bottom: 12 })
         .padding({ left: 4, right: 4 })
+
+        // With no saved contacts an SOS reaches nobody. Warn instead of staying silent.
+        if (this.sosContacts.length === 0) {
+          Column() {
+            Text('⚠ No emergency contacts set')
+              .fontSize(14)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#BA1A1A')
+              .margin({ bottom: 4 })
+            Text('If you press SOS the alert is recorded but nobody is notified. Add at least one contact from the Profile screen.')
+              .fontSize(12)
+              .fontColor('#8C0013')
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Start)
+          .padding(12)
+          .backgroundColor('rgba(186, 26, 26, 0.08)')
+          .borderRadius(12)
+          .margin({ bottom: 12 })
+          .onClick(() => {
+            router.pushUrl({ url: 'pages/ProfilePage' });
+          })
+        }
 
         Column() {
           // Dynamically added contacts and priority rankings
@@ -583,9 +633,8 @@ struct PatientSOSView {
       .backgroundColor('rgba(186, 26, 26, 0.08)')
       .borderRadius(16)
       .onClick(() => {
-        let token = AppStorage.get<string>('token') || '';
-        if (token && this.activeIncidentId) {
-          ApiService.sendSOSAllClear(token, this.activeIncidentId)
+        if (SessionStore.isAuthenticated() && this.activeIncidentId) {
+          ApiService.sendSOSAllClear(this.activeIncidentId)
             .then(() => {
               promptAction.showToast({ message: 'All-clear notification sent to contacts!' });
             })
