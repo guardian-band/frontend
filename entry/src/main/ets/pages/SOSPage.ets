@@ -299,7 +299,7 @@ struct PatientSOSView {
     }
   }
 
-  // Handle the SOS button press and hold logic (Now instant trigger)
+  // Handle the emergency SOS trigger logic.
   handleTouch(event: TouchEvent) {
     if (this.sosSent) return;
 
@@ -312,8 +312,8 @@ struct PatientSOSView {
         return;
       }
 
-      // We no longer invent a fixed coordinate when parsing fails; with no
-      // coordinates the field is left empty and only the address is sent.
+      // Parse location coordinates gracefully; fallback to address-only if parsing fails.
+      
       let lat: number = 0;
       let lng: number = 0;
       let hasCoordinates: boolean = false;
@@ -467,7 +467,7 @@ struct PatientSOSView {
         .margin({ bottom: 12 })
         .padding({ left: 4, right: 4 })
 
-        // With no saved contacts an SOS reaches nobody. Warn instead of staying silent.
+        // Display a warning if the SOS was triggered but no emergency contacts are configured.
         if (this.sosContacts.length === 0) {
           Column() {
             Text('⚠ No emergency contacts set')

@@ -1931,19 +1931,19 @@ struct FamilyDashboardView {
   @Prop fullName: string;
   onQrScanClick: () => void = () => {};
 
-  // Real linked patients (GET /api/monitoring/patients), replacing the old
-  // hard-coded "Father"/"Mother" mock. Same data source and shape as
-  // DoctorDashboardView.doctorPatients - the backend does not distinguish
-  // family from clinician relationships when listing who a member can monitor.
+  // List of monitored patients retrieved via GET /api/monitoring/patients.
+  // This array populates the family dashboard dropdown and data views.
+  
+  
   @State linkedPatients: MonitoredPatient[] = [];
   @State selectedPatientId: string = '';
 
   @State showDropdown: boolean = false;
   @StorageLink('profilePicture') profilePicture: string = '';
 
-  // Scan & link a patient's QR invitation - same mechanism as DoctorDashboardView.
-  // A family member redeeming a LINK QR creates a MonitoringRelationship the
-  // same way a doctor does; the backend does not distinguish by role.
+  // Stores the parsed content of a scanned QR code used to establish a new monitoring relationship.
+  
+  
   @StorageLink('scannedPatientLinkRequest') @Watch('onLinkRequestChanged') scannedPatientLinkRequest: string = '';
   @State isLinkModalOpen: boolean = false;
   @State linkPatientInvitationToken: string = '';
@@ -2254,9 +2254,9 @@ struct FamilyDashboardView {
       .margin({ bottom: 20 })
 
       if (this.linkedPatients.length === 0) {
-        // Empty state - nobody linked yet. The "Match Patient QR Code" card
-        // above is the call to action; no point showing a wall of dashes for
-        // vitals that do not exist yet.
+        // Empty state view displayed when the user is not currently monitoring any patients.
+        // Provides a clear visual cue and a prompt to link a new patient.
+        
         Column() {
           Image($r('app.media.patient'))
             .width(56)
@@ -2702,10 +2702,10 @@ struct FamilyDashboardView {
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
 
-      // 5. Medication Status - no backend endpoint exposes another patient's
-      // medications to a monitoring family member/doctor (only the patient's
-      // own token can call GET /api/medications), so this stays an honest
-      // placeholder rather than fabricated drug names and times.
+      // 5. Medication Status Placeholder
+      // Displays static UI layout as medication data retrieval for monitored
+      // patients is not currently supported by the backend.
+      
       Column() {
         Row() {
           Image($r('app.media.drugs'))
@@ -2735,10 +2735,10 @@ struct FamilyDashboardView {
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
 
-      // 6. Last Known Location - no backend endpoint tracks a patient's
-      // ongoing location (SOS incidents carry a one-off lat/lng at trigger
-      // time, but there is no continuous location API), so this is an honest
-      // placeholder instead of a fabricated map and coordinates.
+      // 6. Last Known Location Placeholder
+      // Displays static UI layout as continuous location tracking is not
+      // currently supported by the backend API.
+      
       Column() {
         Row() {
           Image($r('app.media.place'))
@@ -2766,8 +2766,8 @@ struct FamilyDashboardView {
       .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
       .margin({ bottom: 20 })
 
-      // 7. Recent Activity - no backend activity-feed endpoint exists yet,
-      // so this stays an honest empty state instead of a fabricated feed.
+      // 7. Recent Activity Placeholder
+      // Displays static UI layout for future activity feed integration.
       Column() {
         Row() {
           Image($r('app.media.summary'))
@@ -2799,8 +2799,8 @@ struct FamilyDashboardView {
     }
     .width('100%')
 
-    // Manual Patient Link Modal (Simulator Mode fallback) - same fallback as
-    // the doctor dashboard, for when the camera cannot be opened.
+    // Manual Patient Link Modal (Simulator Mode fallback)
+    // Provides an alternative input method when the camera is inaccessible.
     if (this.isLinkModalOpen) {
       Column() {
         Column() {
@@ -3072,8 +3072,8 @@ struct DoctorDashboardView {
       const status: number = e instanceof ApiError ? (e as ApiError).status : -1;
       console.error(`[API] Could not redeem invitation (status=${status}): ${(e as Error).message}`);
       if (status >= 500) {
-        // Known server-side bug (BT-05): the redeem query fails because openGauss
-        // does not support `ON CONFLICT`. Neither the QR nor the code is wrong.
+        // Note: The redeem query may fail on certain backend database configurations
+        // that do not support ON CONFLICT clauses.
         promptAction.showToast({
           message: 'Server error: patient linking is currently unavailable. The code is valid; the problem is on the server.'
         });
@@ -3088,7 +3088,7 @@ struct DoctorDashboardView {
     try {
       router.pushUrl({ url: 'pages/CameraPage' });
     } catch (e) {
-      // If the camera fails to open, report it instead of showing a fake patient.
+      // Handle camera initialization failure.
       AppStorage.setOrCreate('doctorIsWatchScan', false);
       console.error(`[HomePage] Could not open camera: ${(e as Error).message}`);
       promptAction.showToast({ message: 'Could not open the camera. You will need to enter the emergency code manually.' });

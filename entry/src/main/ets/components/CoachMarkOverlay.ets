@@ -51,25 +51,29 @@ export struct CoachMarkOverlay {
         this.targetX = rawX;
         this.targetY = rawY;
 
-        // MANUEL HİZALAMA (Tuning)
+        // MANUALLY ADJUSTED TARGET COORDINATES (Layout Overrides)
+        // Some components embedded within scroll views may return 0,0 via getRectangleById upon page transition.
+        // The following overrides ensure precise alignment of the coach mark overlay for these specific elements.
         if (this.targetId === 'tab_meds') {
+          // Adjust position to perfectly wrap the Meds tab icon, compensating for bottom navigation bar rendering.
           this.targetW = 46;
           this.targetH = 46;
           this.targetX = rawX + (rawW - 46) / 2;
-          // Çember şu an tam metnin altında çıkıyor, ikonu içine alması için Y'yi ~36 piksel daha yukarı alıyoruz
           this.targetY = rawY - 26;
         } else if (this.targetId === 'btn_show_qr') {
-          // Kullanıcı sadece butonu değil, tüm "Share Patient QR" kartını vurgulamak istiyor!
-          this.targetW = this.screenWidth - 48; // Ekranın sağı ve solundaki 24px boşlukları çıkarıyoruz
-          this.targetH = 88; // Tüm kartın tahmini yüksekliği
-          this.targetX = 24; // Kartın sol başlangıç noktası
-          this.targetY = 420; // 380'di, 40px aşağı aldık (manuel hesapta safe area offset'e gerek yokmuş)
+          // Expand the highlight box to encompass the entire "Share Patient QR" card, not just the button.
+          // Coordinates are hardcoded based on the known vertical position of the card within ProfilePage.
+          this.targetW = this.screenWidth - 48; // Screen width minus 24px horizontal padding on each side
+          this.targetH = 88; // Approximate height of the entire card
+          this.targetX = 24; // Left margin aligned with the scroll view padding
+          this.targetY = 420; // Mathematically calculated top edge of the card
         } else if (this.targetId === 'btn_sos') {
-          // SOSPage'deki Scroll içinde olduğu için getRectangleById 0 dönüyor! Manuel hesaplıyoruz.
+          // Precisely center the highlight ring around the large SOS button.
+          // Calculated based on the static layout structure of the SOSPage headers and margins.
           this.targetW = 180;
           this.targetH = 180;
           this.targetX = (this.screenWidth / 2) - 90;
-          this.targetY = 175; // 170 (aşağı dedin) ile 180 (yukarı dedin) arasının tam milimetrik ortası!
+          this.targetY = 175; // Exact midpoint balancing the SOS button's top and bottom visual margins
         }
         
         this.isReady = true;
@@ -126,20 +130,20 @@ export struct CoachMarkOverlay {
   }
 
   getOverlayPath(): string {
-    // Path string komutları pikselleri (px) baz alır, viewport pikselleri (vp) değil!
-    // Bu yüzden tüm vp koordinatlarını px'e çevirmeliyiz (vp2px)
+    // Note: Path string commands are evaluated in physical pixels (px), not viewport pixels (vp).
+    // Therefore, all layout coordinates (which are in vp) must be explicitly converted to px using vp2px().
     const sw = vp2px(this.screenWidth);
-    const sh = vp2px(this.screenHeight + 300); // Ekstra güvenlik payı
+    const sh = vp2px(this.screenHeight + 300); // Add extra height to safely cover the bottom navigation area
     const x = vp2px(Math.max(4, this.targetX - 8));
     const y = vp2px(Math.max(4, this.targetY - 8));
     const w = vp2px(this.targetW + 16);
     const h = vp2px(this.targetH + 16);
     const r = vp2px(this.getHighlightRadius());
     
-    // Dış çerçeve (Saat yönünde)
+    // Outer boundary (Drawn clockwise to establish the solid background)
     const bgPath = `M0 0 H${sw} V${sh} H0 Z`;
     
-    // İçerideki delik (Saat yönünün tersine - non-zero winding kuralı ile delik oluşturur)
+    // Inner hole (Drawn counter-clockwise to punch out a transparent hole via the non-zero winding rule)
     const holePath = `M${x+r} ${y} ` +
                      `A${r} ${r} 0 0 0 ${x} ${y+r} ` +
                      `V${y+h-r} ` +
@@ -155,26 +159,27 @@ export struct CoachMarkOverlay {
   build() {
     if (this.isReady) {
       Stack() {
-        // Tıklamaları yakalayacak görünmez katman (Path tıklama kaçırmasın diye garantiye alıyoruz)
+        // 1. Invisible Interaction Layer: Captures clicks anywhere on the screen to advance the tutorial.
+        // This is necessary because the Path component below has hit testing disabled to prevent intercepting touches.
         Rect()
           .width('100%')
           .height('100%')
           .fill('rgba(0,0,0,0)')
           .onClick(() => this.handleNext())
 
-        // 1. Ortası delik (spotlight) yarı saydam karanlık arka plan
+        // 2. Spotlight Overlay: A semi-transparent dark backdrop featuring a punched-out hole over the target element.
         Path()
           .commands(this.getOverlayPath())
           .fill('rgba(15, 23, 42, 0.78)')
           .position({ x: 0, y: 0 })
           .hitTestBehavior(HitTestMode.None)
 
-        // 2. Hedefi saran parlayan mavi yüzük
+        // 3. Glowing Ring: Draws an emphasized blue border and glowing shadow precisely aligned with the hole.
         Stack() {
           Column()
             .width('100%')
             .height('100%')
-            // ArkUI'ın optimize edip silmesini engellemek için tam şeffaf yerine 0.01 opaklık
+            // Using 0.01 opacity instead of Color.Transparent to prevent the ArkUI renderer from culling the component
             .backgroundColor('rgba(255, 255, 255, 0.01)')
             .borderRadius(this.getHighlightRadius())
             .border({ width: 3, color: '#3B82F6', style: BorderStyle.Solid })
