@@ -2058,7 +2058,11 @@ struct FamilyDashboardView {
         this.selectedPatientId = list[0].id;
       }
     } catch (err) {
+      // Surfaced, not just logged: a silent failure leaves an empty roster on
+      // screen and reads as "the QR link did not work", when in fact the link
+      // succeeded and only this request failed.
       console.error(`[API] GET /api/monitoring/patients - FAILED: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Patient list could not be loaded: ${(err as Error).message}` });
     }
   }
 
@@ -2971,7 +2975,11 @@ struct DoctorDashboardView {
       }
       this.doctorPatients = list;
     } catch (err) {
+      // Surfaced, not just logged: a silent failure leaves an empty roster on
+      // screen and reads as "the QR link did not work", when in fact the link
+      // succeeded and only this request failed.
       console.error(`[API] GET /api/monitoring/patients - FAILED: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Patient list could not be loaded: ${(err as Error).message}` });
     }
   }
 

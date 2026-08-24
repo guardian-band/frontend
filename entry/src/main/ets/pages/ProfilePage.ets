@@ -228,7 +228,7 @@ struct ProfilePage {
   @State linkInvitationExpiresAt: string = '';
   @State isGeneratingQr: boolean = false;
   /** 'link' = monitoring invitation, 'emergency' = emergency access code. */
-  @State qrMode: string = 'emergency';
+  @State qrMode: string = 'link';
   /**
    * Who the "Link" QR is for: 'clinician' (Doctor) or 'family' (Family
    * Member). Same QR flow/UI for both - only kind/relationship differ, so the
@@ -494,7 +494,11 @@ struct ProfilePage {
         this.selectedPatientId = list[0].id;
       }
     } catch (err) {
+      // Surfaced, not just logged: a silent failure leaves an empty roster on
+      // screen and reads as "the QR link did not work", when in fact the link
+      // succeeded and only this request failed.
       console.error(`[API] GET /api/monitoring/patients - FAILED: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Patient list could not be loaded: ${(err as Error).message}` });
     }
   }
 
@@ -989,6 +993,7 @@ struct ProfilePage {
                 .borderRadius(8)
                 .height(30)
                 .onClick(() => {
+                  this.qrMode = 'link';
                   this.isMyQrModalOpen = true;
                   this.generateQrToken();
                 })

@@ -42,6 +42,7 @@ interface MonitoredPatient {
 @Component
 struct PatientsPage {
   @StorageLink('userRole') userRole: string = 'doctor';
+  @StorageLink('monitoredPatientsRefresh') @Watch('onPatientsRefresh') monitoredPatientsRefresh: number = 0;
   @StorageLink('scannedPatientLinkRequest') @Watch('onLinkRequestChanged') scannedPatientLinkRequest: string = '';
 
   @State doctorPatients: MonitoredPatient[] = [];
@@ -173,7 +174,11 @@ struct PatientsPage {
       }
       this.doctorPatients = list;
     } catch (err) {
+      // Surfaced, not just logged: a silent failure leaves an empty roster on
+      // screen and reads as "the QR link did not work", when in fact the link
+      // succeeded and only this request failed.
       console.error(`[API] GET /api/monitoring/patients - FAILED: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Patient list could not be loaded: ${(err as Error).message}` });
       promptAction.showToast({ message: `Could not load patient list: ${(err as Error).message}` });
     }
   }
@@ -223,6 +228,10 @@ struct PatientsPage {
         promptAction.showToast({ message: `Could not link: ${(e as Error).message}` });
       }
     }
+  }
+
+  async onPatientsRefresh() {
+    await this.loadDoctorPatients();
   }
 
   async onLinkRequestChanged() {
