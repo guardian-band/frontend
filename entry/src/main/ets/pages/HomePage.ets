@@ -3555,6 +3555,9 @@ struct VitalsGraphModal {
 
   private chartCanvasController: CanvasRenderingContext2D = new CanvasRenderingContext2D(new RenderingContextSettings(true));
 
+  @State chartWidth: number = 300;
+  @State chartHeight: number = 160;
+
   getVitalsStatusText(): string {
     let val = Number(this.selectedValue);
     if (this.selectedMetric === 'Heart Rate') {
@@ -3593,8 +3596,10 @@ struct VitalsGraphModal {
 
   drawMinimalistLineChart() {
     const ctx = this.chartCanvasController;
-    const width = 300;
-    const height = 160;
+    const width = this.chartWidth;
+    const height = this.chartHeight;
+
+    if (width <= 0 || height <= 0) return;
 
     ctx.clearRect(0, 0, width, height);
 
@@ -3804,6 +3809,11 @@ struct VitalsGraphModal {
               .layoutWeight(1)
               .height(160)
               .backgroundColor('#FFFFFF')
+              .onAreaChange((oldValue: Area, newValue: Area) => {
+                this.chartWidth = Number(newValue.width);
+                this.chartHeight = Number(newValue.height);
+                this.drawMinimalistLineChart();
+              })
               .onReady(() => {
                 this.drawMinimalistLineChart();
               })
