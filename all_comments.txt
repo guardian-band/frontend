@@ -1,0 +1,3769 @@
+entry\src\main\ets\components\AppHeader.ets:
+// Logo Button (Clickable to Profile Page)
+
+entry\src\main\ets\components\AppHeader.ets:
+// Brand and Page Titles
+
+entry\src\main\ets\components\BottomNavBar.ets:
+// Home Tab
+
+entry\src\main\ets\components\BottomNavBar.ets:
+// Meds Tab (navigates to the medications page)
+
+entry\src\main\ets\components\BottomNavBar.ets:
+// Patients Tab (Doctor role only - Family Member sees their linked
+
+entry\src\main\ets\components\BottomNavBar.ets:
+// patient directly on the HomePage dashboard instead)
+
+entry\src\main\ets\components\BottomNavBar.ets:
+// SOS Tab
+
+entry\src\main\ets\components\BottomNavBar.ets:
+// Profile Tab
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Wait for page transition animations to completely finish!
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// MANUALLY ADJUSTED TARGET COORDINATES (Layout Overrides)
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Some components embedded within scroll views may return 0,0 via getRectangleById upon page transition.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// The following overrides ensure precise alignment of the coach mark overlay for these specific elements.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Adjust position to perfectly wrap the Meds tab icon, compensating for bottom navigation bar rendering.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Expand the highlight box to encompass the entire "Share Patient QR" card, not just the button.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Coordinates are hardcoded based on the known vertical position of the card within ProfilePage.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Screen width minus 24px horizontal padding on each side
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Approximate height of the entire card
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Left margin aligned with the scroll view padding
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Mathematically calculated top edge of the card
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Precisely center the highlight ring around the large SOS button.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Calculated based on the static layout structure of the SOSPage headers and margins.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Exact midpoint balancing the SOS button's top and bottom visual margins
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Note: Path string commands are evaluated in physical pixels (px), not viewport pixels (vp).
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Therefore, all layout coordinates (which are in vp) must be explicitly converted to px using vp2px().
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Add extra height to safely cover the bottom navigation area
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Outer boundary (Drawn clockwise to establish the solid background)
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Inner hole (Drawn counter-clockwise to punch out a transparent hole via the non-zero winding rule)
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// 1. Invisible Interaction Layer: Captures clicks anywhere on the screen to advance the tutorial.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// This is necessary because the Path component below has hit testing disabled to prevent intercepting touches.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// 2. Spotlight Overlay: A semi-transparent dark backdrop featuring a punched-out hole over the target element.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// 3. Glowing Ring: Draws an emphasized blue border and glowing shadow precisely aligned with the hole.
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Using 0.01 opacity instead of Color.Transparent to prevent the ArkUI renderer from culling the component
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// 3. Floating Tooltip Balloon Card next to spotlight hole
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Step pill badge
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Description
+
+entry\src\main\ets\components\CoachMarkOverlay.ets:
+// Action Buttons
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+/** Body-map id, e.g. 'liver'. See `RiskAnalysis.organIdFor`. */
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+/**
+   * The model's own wording for the organ system, e.g.
+   * "Hepatobiliary (Liver)". Shown as the row title: capitalising the id gave
+   * "Eyeear" for anything the body map does not know about.
+   */
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+/** 0..1 from the model. Shown next to the level so the colour is explained. */
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+/**
+ * Body-map ids that have a spot on the figure. The model reports 15 organ
+ * SYSTEMS, and several of them ("Dermatologic", "Immune System",
+ * "General Disorders & Systemic") are body-wide - there is no honest single
+ * point to pin them to. Those are left off the figure and appear only in the
+ * list below it, instead of piling up on top of each other at its centre.
+ */
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+/**
+ * Media resource per organ system. Replaces plain emojis with dedicated icons.
+ */
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+/**
+ * Icon per organ system fallback.
+ */
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+/** Row title: the model's own wording, falling back to the id. */
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Left Icon Container with soft pastel background
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Title and Risk Badge
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Modern Pill Badge for Risk & Probability
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Expand / Collapse Chevron Button
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Expanded Details
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// 'male' | 'female'
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Coordinates tuned for the 1:1 minimalist images in a 1:1 stack
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Right abdomen (user's right)
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Left abdomen (user's left)
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Lower abdomen
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Lower abdomen
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Heart/Chest area
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Chest area
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// --- COLLAPSIBLE HEADER (Always Visible) ---
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// --- EXPANDABLE CONTENT ---
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Heatmap Image & Markers Container
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Dynamic Pulse Markers based on AI Result. Only organs with a
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// real location are pinned; the body-wide systems would all land
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// on the same default point in the middle of the figure.
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Force the Stack itself to be perfectly square
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Dynamic Interactive Legend
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Safe State
+
+entry\src\main\ets\components\SafetyAnalysisCard.ets:
+// Incompatibility Summary Card (Dynamic AI Message)
+
+entry\src\main\ets\entryability\EntryAbility.ets:
+// Pick the network environment. When testing on a physical device use
+
+entry\src\main\ets\entryability\EntryAbility.ets:
+// ApiConfig.DEVICE and update the LAN IP inside ApiConfig.ets.
+
+entry\src\main\ets\entryability\EntryAbility.ets:
+// Restore the persisted session: the token now survives app restarts.
+
+entry\src\main\ets\entryability\EntryAbility.ets:
+// On a 401, clear the session and return to the sign-in screen.
+
+entry\src\main\ets\entryability\EntryAbility.ets:
+// Main window is created, set main page for this ability
+
+entry\src\main\ets\entryability\EntryAbility.ets:
+// Main window is destroyed, release UI related resources
+
+entry\src\main\ets\entryability\EntryAbility.ets:
+// Ability has brought to foreground
+
+entry\src\main\ets\entryability\EntryAbility.ets:
+// Ability has back to background
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Request runtime permission
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Start laser line scanning animation
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Stop laser animation
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Initialize Scan Kit and start scanning preview session
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Initialize scan options
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Prepare ViewControl matching emulator standard camera sizing
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Start customized scan
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Store scanned result in AppStorage
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Return to previous page
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Stop session & clean up resources
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Safely go back to the previous page
+
+entry\src\main\ets\pages\CameraPage.ets:
+// 1. Light Ambient Background
+
+entry\src\main\ets\pages\CameraPage.ets:
+// 2. Main Page Layout Container
+
+entry\src\main\ets\pages\CameraPage.ets:
+// TOP HEADER BAR (Clean light design)
+
+entry\src\main\ets\pages\CameraPage.ets:
+// "Go back" button
+
+entry\src\main\ets\pages\CameraPage.ets:
+// PREVIEW AREA CONTAINER
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Live Feed Surface via XComponent
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Scanning Target Box & Laser Line Overlay (Uses brand blue #003D9B instead of green)
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Dimmed surrounding background overlay cutout simulated by absolute layout
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Laser scanning box & text
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Scanning square box
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Scanning Laser line animation
+
+entry\src\main\ets\pages\CameraPage.ets:
+// Warning Overlay if permission not granted
+
+entry\src\main\ets\pages\CameraPage.ets:
+// BOTTOM CONTROLS PANEL
+
+entry\src\main\ets\pages\HomePage.ets:
+// HomePage.ets
+
+entry\src\main\ets\pages\HomePage.ets:
+/**
+   * Son olcumun ISO zaman damgasi.
+   * Bu alan eskiden `location` adiniydi ve UI'da "Last Location" olarak
+   * gosteriliyordu; ancak icine hep olcum ZAMANI yaziliyordu. Acil tibbi
+   * kartta (EmergencyMedicalCard) konum alani yok, bu yuzden ad duzeltildi.
+   */
+
+entry\src\main\ets\pages\HomePage.ets:
+/** From criticalFacts.gender - the backend already sends this today. */
+
+entry\src\main\ets\pages\HomePage.ets:
+/** Computed from EmergencyMedicalCard.birthDate. */
+
+entry\src\main\ets\pages\HomePage.ets:
+/** A patient the current user (doctor or family member) is allowed to monitor. */
+
+entry\src\main\ets\pages\HomePage.ets:
+// Interface for chart coordinates to satisfy ArkTS strict typing
+
+entry\src\main\ets\pages\HomePage.ets:
+// Helper function to format diseases list as an array and replace 'Other' with custom typed disease name
+
+entry\src\main\ets\pages\HomePage.ets:
+// Helper function to format diseases list and replace 'Other' with custom typed disease name
+
+entry\src\main\ets\pages\HomePage.ets:
+// Helper function for Emergency Vitals active medications list
+
+entry\src\main\ets\pages\HomePage.ets:
+// Helper function for Emergency Vitals active medications
+
+entry\src\main\ets\pages\HomePage.ets:
+// Helper function for the Emergency Vitals header subtitle: "Age 74 · Female",
+
+entry\src\main\ets\pages\HomePage.ets:
+// only age, only gender, or a fallback when the backend has sent neither yet.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Fallback for emulator environments
+
+entry\src\main\ets\pages\HomePage.ets:
+// Laser animation simulation
+
+entry\src\main\ets\pages\HomePage.ets:
+// Auto capture after 3.5 seconds of scanning (simulating QR detection)
+
+entry\src\main\ets\pages\HomePage.ets:
+// This animated screen is not a real scanner; it used to show a made-up
+
+entry\src\main\ets\pages\HomePage.ets:
+// patient here. Now it routes to the real camera.
+
+entry\src\main\ets\pages\HomePage.ets:
+// The QR payload is now typed (GB1:LINK: / GB1:EMG:). Which endpoint to
+
+entry\src\main\ets\pages\HomePage.ets:
+// call is decided from the code itself, not the scanning context - a token
+
+entry\src\main\ets\pages\HomePage.ets:
+// sent to the wrong endpoint used to get a 400 from the backend.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Untagged code: an old QR or manual entry. Decide from the scan context.
+
+entry\src\main\ets\pages\HomePage.ets:
+/**
+   * POST /api/emergency-access/redeem sonra GET .../medical-card
+   *
+   * This used to read plain-text JSON out of the QR and, failing that, show a
+   * made-up patient. The data now comes from the server and every access is
+   * written to the backend's audit log.
+   */
+
+entry\src\main\ets\pages\HomePage.ets:
+// The card carries the patient's identity; the fallback only covers a
+
+entry\src\main\ets\pages\HomePage.ets:
+// profile that was never filled in.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Full-Screen Vitals Graph Modal (zIndex 200 - covers ENTIRE screen including status bar & navbar)
+
+entry\src\main\ets\pages\HomePage.ets:
+// Doctor Verification Overlay Modal
+
+entry\src\main\ets\pages\HomePage.ets:
+// Dimmed background
+
+entry\src\main\ets\pages\HomePage.ets:
+// Alert Image Icon
+
+entry\src\main\ets\pages\HomePage.ets:
+// Code Entry Field
+
+entry\src\main\ets\pages\HomePage.ets:
+// Action Buttons
+
+entry\src\main\ets\pages\HomePage.ets:
+// AppStorage lives IN MEMORY; the verified flag also goes to
+
+entry\src\main\ets\pages\HomePage.ets:
+// the account (`PUT /api/account`), otherwise the verification
+
+entry\src\main\ets\pages\HomePage.ets:
+// modal opens again on every sign-in - and on every device.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Return to their previous working role dashboard (patient or family)
+
+entry\src\main\ets\pages\HomePage.ets:
+// QR Code Scanner Overlay Modal
+
+entry\src\main\ets\pages\HomePage.ets:
+// Dark overlay background
+
+entry\src\main\ets\pages\HomePage.ets:
+// SCANNING VIEW
+
+entry\src\main\ets\pages\HomePage.ets:
+// Animated Scan Frame
+
+entry\src\main\ets\pages\HomePage.ets:
+// Scanner visual mockup background
+
+entry\src\main\ets\pages\HomePage.ets:
+// Scanning laser animation line
+
+entry\src\main\ets\pages\HomePage.ets:
+// TELEMETRY RESULT VIEW
+
+entry\src\main\ets\pages\HomePage.ets:
+// Patient Info Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// Vitals Details
+
+entry\src\main\ets\pages\HomePage.ets:
+// Heart Rate
+
+entry\src\main\ets\pages\HomePage.ets:
+// Oxygen
+
+entry\src\main\ets\pages\HomePage.ets:
+// Active Medications
+
+entry\src\main\ets\pages\HomePage.ets:
+// Last Sync
+
+entry\src\main\ets\pages\HomePage.ets:
+// Actions
+
+entry\src\main\ets\pages\HomePage.ets:
+// Centered Pop-up Modal for Scanned Patient Details (List style)
+
+entry\src\main\ets\pages\HomePage.ets:
+// Dark background overlay
+
+entry\src\main\ets\pages\HomePage.ets:
+// Modal Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// Header
+
+entry\src\main\ets\pages\HomePage.ets:
+// Highlight Header Info Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// List Details
+
+entry\src\main\ets\pages\HomePage.ets:
+// Blood Type Row
+
+entry\src\main\ets\pages\HomePage.ets:
+// Allergies Row
+
+entry\src\main\ets\pages\HomePage.ets:
+// Chronic Conditions Collapsible Section
+
+entry\src\main\ets\pages\HomePage.ets:
+// Active Medications Collapsible Section
+
+entry\src\main\ets\pages\HomePage.ets:
+// Heart Rate Row
+
+entry\src\main\ets\pages\HomePage.ets:
+// Oxygen Saturation Row
+
+entry\src\main\ets\pages\HomePage.ets:
+// Son olcum zamani.
+
+entry\src\main\ets\pages\HomePage.ets:
+// ONCEDEN "Last Location" yaziyordu ama icine olcum ZAMANI
+
+entry\src\main\ets\pages\HomePage.ets:
+// konuyordu; ekranda ham ISO damgasi gorunuyordu. Acil tibbi
+
+entry\src\main\ets\pages\HomePage.ets:
+// kartta konum alani YOK (EmergencyMedicalCard semasinda yok),
+
+entry\src\main\ets\pages\HomePage.ets:
+// bu yuzden etiket gercege uygun hale getirildi.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Actions Row
+
+entry\src\main\ets\pages\HomePage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\HomePage.ets:
+// PATIENT DASHBOARD VIEW
+
+entry\src\main\ets\pages\HomePage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\HomePage.ets:
+/** Single-flight guard so vitals requests do not pile up in the 2s loop. */
+
+entry\src\main\ets\pages\HomePage.ets:
+// --- REAL-TIME TELEMETRY HISTORY LISTS FOR LIVE CHARTS ---
+
+entry\src\main\ets\pages\HomePage.ets:
+// --- MODAL GRAPH STATES ---
+
+entry\src\main\ets\pages\HomePage.ets:
+/**
+   * GET /api/vitals/{userId}/latest for the signed-in patient.
+   *
+   * The simulation used to always restart from the hard-coded 72 bpm / 98%,
+   * so every app launch threw away the last reading the server had. The login
+   * response carries the patient's own userId (`AuthResponse.userId`), so the
+   * last stored packet can be read back and used as the starting point.
+   */
+
+entry\src\main\ets\pages\HomePage.ets:
+// 404 = no reading recorded yet. Expected on a new account; the
+
+entry\src\main\ets\pages\HomePage.ets:
+// simulation just starts from its defaults.
+
+entry\src\main\ets\pages\HomePage.ets:
+/**
+   * The paired band's serial, or '' when none is set.
+   *
+   * Read fresh from the profile on every send rather than cached once: the
+   * patient can pair a band from the setup screen while this dashboard is
+   * alive, and a cached empty value would keep the readings anonymous
+   * afterwards.
+   */
+
+entry\src\main\ets\pages\HomePage.ets:
+// Send the reading to the backend. Single-flight guard: no new request is
+
+entry\src\main\ets\pages\HomePage.ets:
+// started while one is in flight, otherwise the 2s loop piled them up.
+
+entry\src\main\ets\pages\HomePage.ets:
+// deviceSn carries the paired band's serial, or nothing at all.
+
+entry\src\main\ets\pages\HomePage.ets:
+// vitals.go compares it against the patient's registered
+
+entry\src\main\ets\pages\HomePage.ets:
+// band_identifier and answers 403 on a mismatch, so a guessed value
+
+entry\src\main\ets\pages\HomePage.ets:
+// would break the upload outright - see `pairedBandSerial`.
+
+entry\src\main\ets\pages\HomePage.ets:
+// My Emergency Access QR - shortcut to the code shown to responders in
+
+entry\src\main\ets\pages\HomePage.ets:
+// an emergency. Opens ProfilePage's QR modal directly in Emergency
+
+entry\src\main\ets\pages\HomePage.ets:
+// Access mode so it does not need a second tap once there.
+
+entry\src\main\ets\pages\HomePage.ets:
+// AI Health Insight Box
+
+entry\src\main\ets\pages\HomePage.ets:
+// Emergency Watch Scanner Banner Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// 2x2 Grid for Vital Cards
+
+entry\src\main\ets\pages\HomePage.ets:
+// Daily Steps Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// Next Medication Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// Sync back to medications list in AppStorage to update MedsPage UI and stock
+
+entry\src\main\ets\pages\HomePage.ets:
+// Decrease stock
+
+entry\src\main\ets\pages\HomePage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\HomePage.ets:
+// FAMILY DASHBOARD VIEW
+
+entry\src\main\ets\pages\HomePage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\HomePage.ets:
+// List of monitored patients retrieved via GET /api/monitoring/patients.
+
+entry\src\main\ets\pages\HomePage.ets:
+// This array populates the family dashboard dropdown and data views.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Stores the parsed content of a scanned QR code used to establish a new monitoring relationship.
+
+entry\src\main\ets\pages\HomePage.ets:
+/** POST /api/patient-link-invitations/redeem - the same flow doctors use. */
+
+entry\src\main\ets\pages\HomePage.ets:
+/**
+   * GET /api/monitoring/patients - the exact same endpoint and shape
+   * DoctorDashboardView uses. The backend has no notion of "family" vs
+   * "clinician" here; it just returns everyone this account has an active
+   * can-monitor relationship with.
+   */
+
+entry\src\main\ets\pages\HomePage.ets:
+// 404 = no readings for this patient yet. Expected.
+
+entry\src\main\ets\pages\HomePage.ets:
+// gender / calories / sleep / meds / location have no backend
+
+entry\src\main\ets\pages\HomePage.ets:
+// counterpart for a monitored patient; left empty rather than
+
+entry\src\main\ets\pages\HomePage.ets:
+// filled with fake values.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Nothing selected yet, or the previous selection is no longer in the
+
+entry\src\main\ets\pages\HomePage.ets:
+// list (e.g. the relationship was revoked) - fall back to the first.
+
+entry\src\main\ets\pages\HomePage.ets:
+/** Currently selected patient, or undefined if none is linked yet. */
+
+entry\src\main\ets\pages\HomePage.ets:
+/** GET /api/vitals/{userId}/latest result, formatted for display; '--' when there is none yet. */
+
+entry\src\main\ets\pages\HomePage.ets:
+/**
+   * A short factual line based on the latest reading actually on file - no
+   * fabricated "everything is fine" narrative like the old mock text.
+   */
+
+entry\src\main\ets\pages\HomePage.ets:
+// Emergency Watch Scanner Banner Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// Match Patient via QR - same "Link" invitation mechanism as the doctor
+
+entry\src\main\ets\pages\HomePage.ets:
+// dashboard (POST /api/patient-link-invitations/redeem).
+
+entry\src\main\ets\pages\HomePage.ets:
+// Empty state view displayed when the user is not currently monitoring any patients.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Provides a clear visual cue and a prompt to link a new patient.
+
+entry\src\main\ets\pages\HomePage.ets:
+// 2. Monitoring Profile Title Section
+
+entry\src\main\ets\pages\HomePage.ets:
+// Green dot + Live Text
+
+entry\src\main\ets\pages\HomePage.ets:
+// Dropdown Overlay Menu - one row per real linked patient.
+
+entry\src\main\ets\pages\HomePage.ets:
+// 3. AI Health Summary (Blue Card)
+
+entry\src\main\ets\pages\HomePage.ets:
+// 4. Health Metrics Grid (2x2 Grid)
+
+entry\src\main\ets\pages\HomePage.ets:
+// Heart Rate Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// Oxygen Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// Sleep Quality Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// Calories Burned Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// 4b. Steps Card (Full-width row)
+
+entry\src\main\ets\pages\HomePage.ets:
+// 5. Medication Status Placeholder
+
+entry\src\main\ets\pages\HomePage.ets:
+// Displays static UI layout as medication data retrieval for monitored
+
+entry\src\main\ets\pages\HomePage.ets:
+// patients is not currently supported by the backend.
+
+entry\src\main\ets\pages\HomePage.ets:
+// 6. Last Known Location Placeholder
+
+entry\src\main\ets\pages\HomePage.ets:
+// Displays static UI layout as continuous location tracking is not
+
+entry\src\main\ets\pages\HomePage.ets:
+// currently supported by the backend API.
+
+entry\src\main\ets\pages\HomePage.ets:
+// 7. Recent Activity Placeholder
+
+entry\src\main\ets\pages\HomePage.ets:
+// Displays static UI layout for future activity feed integration.
+
+entry\src\main\ets\pages\HomePage.ets:
+// end of else (linkedPatients.length > 0)
+
+entry\src\main\ets\pages\HomePage.ets:
+// Manual Patient Link Modal (Simulator Mode fallback)
+
+entry\src\main\ets\pages\HomePage.ets:
+// Provides an alternative input method when the camera is inaccessible.
+
+entry\src\main\ets\pages\HomePage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\HomePage.ets:
+// DOCTOR DASHBOARD VIEW
+
+entry\src\main\ets\pages\HomePage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\HomePage.ets:
+/** GET /api/monitoring/patients — eski /api/clinician/patients yolu backend'de yoktu. */
+
+entry\src\main\ets\pages\HomePage.ets:
+// 404 = no readings for this patient yet. Expected.
+
+entry\src\main\ets\pages\HomePage.ets:
+// gender / calories / sleep / meds / location have no backend
+
+entry\src\main\ets\pages\HomePage.ets:
+// counterpart; left empty rather than filled with fake values.
+
+entry\src\main\ets\pages\HomePage.ets:
+// The watch/band scan also carries an emergency access token; data comes
+
+entry\src\main\ets\pages\HomePage.ets:
+// from the server.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Used to be the fixed label 'Emergency Medical Card', because the card
+
+entry\src\main\ets\pages\HomePage.ets:
+// carried no identity. It does now, so the responder sees who they are
+
+entry\src\main\ets\pages\HomePage.ets:
+// looking at.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Note: The redeem query may fail on certain backend database configurations
+
+entry\src\main\ets\pages\HomePage.ets:
+// that do not support ON CONFLICT clauses.
+
+entry\src\main\ets\pages\HomePage.ets:
+// Handle camera initialization failure.
+
+entry\src\main\ets\pages\HomePage.ets:
+// --- DOCTOR PORTAL DASHBOARD MAIN VIEW ---
+
+entry\src\main\ets\pages\HomePage.ets:
+// Emergency Watch Scanner Banner Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// Action Card: Match Patient via QR
+
+entry\src\main\ets\pages\HomePage.ets:
+// Emergency Watch Scanner patient info popup (doctor role)
+
+entry\src\main\ets\pages\HomePage.ets:
+// Chronic Conditions Collapsible Section
+
+entry\src\main\ets\pages\HomePage.ets:
+// Active Medications Collapsible Section
+
+entry\src\main\ets\pages\HomePage.ets:
+// 1. Full-screen dark overlay covering status bar, navbar, and window
+
+entry\src\main\ets\pages\HomePage.ets:
+// 2. White Dialog Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// Header: Title & Sleek 32x32 Close Button
+
+entry\src\main\ets\pages\HomePage.ets:
+// 1. Single Main Reading & Status Card
+
+entry\src\main\ets\pages\HomePage.ets:
+// 2. Chart with Native ArkUI Labels
+
+entry\src\main\ets\pages\HomePage.ets:
+// 3. Explanation Banner
+
+entry\src\main\ets\pages\HomePage.ets:
+// 4. Confirmation Button
+
+entry\src\main\ets\pages\LoginPage.ets:
+/**
+   * Decides where a successful sign-in lands.
+   *
+   * The role comes from `GET /api/account` now. It used to be read from a
+   * device-local, phone-number-keyed map, so a user signing in on a new device
+   * was sent through the role picker and the whole setup flow again even though
+   * their account was fully configured. `AccountRepository` also restores the
+   * doctor/family details, which had the same problem.
+   */
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Falls back to the device cache when the server cannot be reached, so an
+
+entry\src\main\ets\pages\LoginPage.ets:
+// offline sign-in still opens the right dashboard.
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Having a patient profile is a hard prerequisite for a patient: every
+
+entry\src\main\ets\pages\LoginPage.ets:
+// patient-scoped table in the backend (SOS, emergency contacts,
+
+entry\src\main\ets\pages\LoginPage.ets:
+// medications, invitations) has an FK to patient_profiles(user_id), and
+
+entry\src\main\ets\pages\LoginPage.ets:
+// those endpoints return 500/403 without it.
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Load the FULL profile (name, height, weight, gender, conditions). Just
+
+entry\src\main\ets\pages\LoginPage.ets:
+// checking for existence was not enough: nothing was written into
+
+entry\src\main\ets\pages\LoginPage.ets:
+// AppStorage, so the fields looked empty after signing in.
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Profile exists. Use the account role if there is one; otherwise a
+
+entry\src\main\ets\pages\LoginPage.ets:
+// patient profile implies this is a patient.
+
+entry\src\main\ets\pages\LoginPage.ets:
+// A network/server error does not mean the profile is missing.
+
+entry\src\main\ets\pages\LoginPage.ets:
+// No patient profile. A doctor/family account is complete without one, so
+
+entry\src\main\ets\pages\LoginPage.ets:
+// it goes straight to its dashboard; anyone with no role yet picks one.
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Neither a profile nor a role. Note whether the account really is empty
+
+entry\src\main\ets\pages\LoginPage.ets:
+// (`exists: false` from a 404) or whether the server just could not be
+
+entry\src\main\ets\pages\LoginPage.ets:
+// reached and the empty cache is what is being trusted.
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Background Hologram/Ambient Blurs (Balanced Brand Navy & Red)
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Content Container
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Dynamic spacer for centering layout
+
+entry\src\main\ets\pages\LoginPage.ets:
+// 1. Branding Header
+
+entry\src\main\ets\pages\LoginPage.ets:
+// 2. Login Form Card (Glassmorphism look)
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Phone Number Input
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Password Input
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Uses the system's built-in interactive eye icon
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Login Button
+
+entry\src\main\ets\pages\LoginPage.ets:
+// The token and the userId are now persisted by SessionStore.
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Log the real status code; a hard-coded 401 was misleading when debugging.
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Dynamic spacer for centering layout
+
+entry\src\main\ets\pages\LoginPage.ets:
+// 3. Footer Link (Don't have an account? Create one)
+
+entry\src\main\ets\pages\LoginPage.ets:
+// Base background color under blurs
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 'Morning', 'Afternoon', 'Evening'
+
+entry\src\main\ets\pages\MedsPage.ets:
+// e.g., '08:00' or '' (empty if optional)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Tracks if the dose was taken today
+
+entry\src\main\ets\pages\MedsPage.ets:
+/** Backend plan id. Empty means the plan lives on this device only. */
+
+entry\src\main\ets\pages\MedsPage.ets:
+/**
+   * Catalog entry this plan was created from. Empty for a free-text plan.
+   * Only plans WITH one can take part in the interaction analysis: the backend
+   * reaches a plan's ingredients through this id, and a plan without it makes
+   * the analysis answer 422.
+   */
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Stock-based tracking
+
+entry\src\main\ets\pages\MedsPage.ets:
+// How many days to use
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 'Before Meal', 'During Meal', 'After Meal', 'Any Time'
+
+entry\src\main\ets\pages\MedsPage.ets:
+// --- AI interaction analysis (POST /api/medication-risk-analyses) ----------
+
+entry\src\main\ets\pages\MedsPage.ets:
+// This card used to render a hard-coded example: a fixed "Aspirin + Ibuprofen
+
+entry\src\main\ets\pages\MedsPage.ets:
+// irritates the stomach" card that appeared no matter which medications the
+
+entry\src\main\ets\pages\MedsPage.ets:
+// patient actually took. It now shows what the model returns for THIS
+
+entry\src\main\ets\pages\MedsPage.ets:
+// patient's own plans.
+
+entry\src\main\ets\pages\MedsPage.ets:
+/**
+   * Why there is no analysis to show, when there is none. Kept separate from
+   * `currentAnalysis.message` so an error is never dressed up as a result -
+   * "no risk found" and "could not be analysed" must not look the same on a
+   * medical screen.
+   */
+
+entry\src\main\ets\pages\MedsPage.ets:
+/** GET /api/documents - the patient's archived prescriptions and reports. */
+
+entry\src\main\ets\pages\MedsPage.ets:
+/**
+   * Downloads a document and opens the preview.
+   *
+   * The content endpoint needs the bearer token, so the file cannot be handed
+   * to a viewer as a URL: it is fetched into the app's cache directory first
+   * and shown from there.
+   */
+
+entry\src\main\ets\pages\MedsPage.ets:
+/** PUT /api/documents/{id}/content - re-photograph a document in place. */
+
+entry\src\main\ets\pages\MedsPage.ets:
+// The catalog row carries updatedAt/currentVersionId, both of which just
+
+entry\src\main\ets\pages\MedsPage.ets:
+// changed on the server.
+
+entry\src\main\ets\pages\MedsPage.ets:
+/** Catalog entry behind a display name ("Parol 500mg"). */
+
+entry\src\main\ets\pages\MedsPage.ets:
+/**
+   * Is this plan something the interaction model can actually reason about?
+   *
+   * Two things have to hold: the plan is linked to a catalog entry, and that
+   * entry has at least one ingredient the model was trained on. The second is
+   * the one that surprises people - Lipitor is a perfectly good catalog entry,
+   * but atorvastatin sits outside the model's drug set, so it can never take
+   * part in an analysis. Filtering here lets the patient see a result for the
+   * rest of their medications instead of a refusal covering all of them.
+   *
+   * Returns true when the catalog is not loaded yet: better to ask the server
+   * and let the 422 handler sort it out than to silently drop a plan.
+   */
+
+entry\src\main\ets\pages\MedsPage.ets:
+/** "A", "A and B", "A, B and C" - reads better than a bare comma list. */
+
+entry\src\main\ets\pages\MedsPage.ets:
+/**
+   * POST /api/medication-risk-analyses over the patient's synced plans.
+   *
+   * Only plans that reached the server take part: the analysis works on backend
+   * medication ids, so device-only plans are skipped.
+   *
+   * Medications the model does not cover are left OUT rather than turned into
+   * an error. A patient on Lipitor, Parol and Aspirin should still get the
+   * Parol + Aspirin result; refusing the whole analysis over the one uncovered
+   * drug hid information they were entitled to.
+   */
+
+entry\src\main\ets\pages\MedsPage.ets:
+// The backend refuses more than 10 in one request.
+
+entry\src\main\ets\pages\MedsPage.ets:
+/**
+   * One analysis round trip.
+   *
+   * `mayRetry` allows exactly one second attempt: when the server rejects
+   * medications the client had no catalog information for, they are dropped and
+   * the rest are analysed. Capped at one retry so a disagreement between client
+   * and server can never become a request loop.
+   */
+
+entry\src\main\ets\pages\MedsPage.ets:
+// The model itself flagged the input as weaker than usual; saying so is
+
+entry\src\main\ets\pages\MedsPage.ets:
+// more honest than showing the same confident-looking card.
+
+entry\src\main\ets\pages\MedsPage.ets:
+/**
+   * Explains a 422 in terms that are actually true for it.
+   *
+   * The backend answers 422 for two different situations that need opposite
+   * advice. A rejected medication that still carries an `ingredient` IS linked
+   * to the catalog - the model simply does not cover that drug, and re-adding
+   * it would change nothing. Only a rejection with no ingredient at all is a
+   * missing catalog link, which the patient can actually fix.
+   */
+
+entry\src\main\ets\pages\MedsPage.ets:
+/** GET /api/medication-catalog - the catalog used to be a hard-coded array. */
+
+entry\src\main\ets\pages\MedsPage.ets:
+// If the catalog fails, fall back to the local list so the screen still works.
+
+entry\src\main\ets\pages\MedsPage.ets:
+/** GET /api/medications - mirrors server plans into the local list. */
+
+entry\src\main\ets\pages\MedsPage.ets:
+/**
+   * Maps the backend frequencyHours value onto the UI meal slots.
+   * 24 -> once a day, 12 -> twice, 8 -> three times. 6 (four doses) has no
+   * fourth meal slot in this UI, so it also renders as three.
+   */
+
+entry\src\main\ets\pages\MedsPage.ets:
+/**
+   * Maps the UI meal slots onto the backend frequencyHours value.
+   *
+   * The backend accepts 6, 8, 12 or 24 hours, so all three meal-slot counts map
+   * exactly: once a day -> 24, twice -> 12, three times -> 8. (Three doses a
+   * day used to have no safe mapping and such plans stayed on the device only -
+   * BLG-007; the 8-hour value closes that gap.)
+   *
+   * @returns the hour value when it can be mapped, otherwise 0
+   */
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Modal and Search States
+
+entry\src\main\ets\pages\MedsPage.ets:
+// The catalog comes from the backend; this list is the offline fallback.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// --- Archived prescriptions and reports (GET /api/documents) --------------
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Uploads had no way back: a scanned prescription went to S3 and the patient
+
+entry\src\main\ets\pages\MedsPage.ets:
+// could never look at it again. These drive the list and the viewer.
+
+entry\src\main\ets\pages\MedsPage.ets:
+/** Local path of the document being previewed, and its content type. */
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Duration State (Days)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Stock-based Tracking State (Total Pills)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Meal Timing State (before / after eating)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Day Selection States (M, T, W, T, F, S, S)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Optional Time States
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Restricted Time Data for Picker
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Custom Time Picker Dialog
+
+entry\src\main\ets\pages\MedsPage.ets:
+/**
+   * Medication deletion.
+   *
+   * A synced plan (`serverId` set) has to go through
+   * `DELETE /api/medications/{id}` first. Removing it only from this local list
+   * used to look like it worked - until `loadServerMedications()` re-fetched
+   * `GET /api/medications` on the next visit and added it right back, and the
+   * plan also kept showing up as an active medication on the Emergency Medical
+   * Card. So the local rows are dropped only after the server confirms.
+   */
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Device-only plan: nothing to delete on the server.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// One fewer medication means a different interaction picture; leaving
+
+entry\src\main\ets\pages\MedsPage.ets:
+// the old card up would show risks for a plan that is gone.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Toggle dose taken status and update stock
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Toggle the taken status
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Also update dashboardMeds in AppStorage
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Adjust stock automatically
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Force UI update by splicing the array
+
+entry\src\main\ets\pages\MedsPage.ets:
+// POST /api/medications/{id}/taken — dozu sunucuya da bildir.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Real OCR Camera Scanning Function using Vision Kit
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Launch Camera Picker and take a photo
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Archive the prescription photo. The returned document id is no longer
+
+entry\src\main\ets\pages\MedsPage.ets:
+// discarded: it is attached to the new plan as prescriptionDocumentId.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// The list is open behind this flow; keep it in step.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Do not swallow this: the user must know the prescription was not archived.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Read the image and convert it to a PixelMap
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Recognize text using Core Vision Kit
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Extract and parse the recognized text
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Calculates the difference in days between two date strings (Format: DD.MM.YYYY)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Ensure we have exactly 3 parts (Day, Month, Year)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Parses the raw text extracted from the OCR Vision Kit
+
+entry\src\main\ets\pages\MedsPage.ets:
+// NOTE: the keywords below are intentionally Turkish. They match text printed
+
+entry\src\main\ets\pages\MedsPage.ets:
+// on Turkish pharmacy labels, so they are OCR input data - not UI copy.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Translating them would break label recognition.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 1. Parse Meal Timing
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 2. Parse Schedule
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 3. Parse Strict Intervals (Optional)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 4. Parse Warnings
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 5. Parse Dates to Calculate Duration (DD.MM.YYYY)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// If both Start and End dates are found
+
+entry\src\main\ets\pages\MedsPage.ets:
+// If only one date is found (assuming it's the end date)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// January is 0!
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Background
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Main Content Container
+
+entry\src\main\ets\pages\MedsPage.ets:
+// --------------------------------
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Empty State
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Medication List
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Display Duration and Meal Timing
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Display Stock Remaining
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Delete Button
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Days Badges
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Interactive Time Badges (Tick to mark as taken)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// --- Safety (Side Effect Analysis) Section (Now positioned below Medication List) ---
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Why there is no result, when there is none. Deliberately NOT
+
+entry\src\main\ets\pages\MedsPage.ets:
+// rendered inside the analysis card: a failure must not be mistaken
+
+entry\src\main\ets\pages\MedsPage.ets:
+// for an "all clear".
+
+entry\src\main\ets\pages\MedsPage.ets:
+// --- Archived prescriptions and reports -------------------------
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Floating Action Button (+)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// MODAL OVERLAY
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Real Camera / OCR Scan Button
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 1. Medication Search
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Custom Dropdown Trigger (Row + Text instead of TextInput to prevent keyboard opening)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 2. Duration (Days to Use)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// - Button
+
+entry\src\main\ets\pages\MedsPage.ets:
+// + Button
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 3. Stock Tracking (Total Pills in Box)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// - Button
+
+entry\src\main\ets\pages\MedsPage.ets:
+// + Button
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 4. Meal Timing (before / after eating)
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 5. Days Selection
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 6. Flexible Schedule Selection
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Morning Flexible Option
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Afternoon Flexible Option
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Evening Flexible Option
+
+entry\src\main\ets\pages\MedsPage.ets:
+// 7. Actions
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Resolved up front: the catalog id has to travel with the
+
+entry\src\main\ets\pages\MedsPage.ets:
+// plan both locally and to the server, otherwise the plan
+
+entry\src\main\ets\pages\MedsPage.ets:
+// can never be analysed for interactions.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// POST /api/medications - also write the plan to the backend.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// No meal slot maps onto the backend's {6,8,12,24} set;
+
+entry\src\main\ets\pages\MedsPage.ets:
+// the plan stays on this device only.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Without this the backend cannot reach the plan's
+
+entry\src\main\ets\pages\MedsPage.ets:
+// ingredients, and every later risk analysis that
+
+entry\src\main\ets\pages\MedsPage.ets:
+// includes this plan comes back 422.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// A new plan changes the interaction picture.
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Add to dashboardMeds (AppStorage) for Patient Dashboard
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Reset fields
+
+entry\src\main\ets\pages\MedsPage.ets:
+// Document preview. Images render in place; anything else (a PDF) is
+
+entry\src\main\ets\pages\MedsPage.ets:
+// downloaded and its location reported - the app ships no PDF renderer,
+
+entry\src\main\ets\pages\MedsPage.ets:
+// and pretending otherwise would just show a blank frame.
+
+entry\src\main\ets\pages\MedsPage.ets:
+//${this.previewPath}`)
+
+entry\src\main\ets\pages\PatientsPage.ets:
+/** Computes age from the birth date; this used to be hard-coded by name. */
+
+entry\src\main\ets\pages\PatientsPage.ets:
+/** GET /api/monitoring/patients — eski /api/clinician/patients yolu backend'de yoktu. */
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// With no vitals we leave 0 and show "no data" instead of a fake value.
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// 404 = no readings recorded for this patient yet. Expected.
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// The fields below have NO backend counterpart; they are not in the
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// contract. Left empty rather than filled with fake data.
+
+entry\src\main\ets\pages\PatientsPage.ets:
+/**
+   * The scanned QR no longer carries the patient's personal data but the
+   * invitation token issued by the backend. The doctor redeems it to create
+   * the relationship.
+   */
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// The QR payload is typed (GB1:LINK: / GB1:EMG:). A code of the wrong kind
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// gets a 400 from the backend, so show a clear message instead.
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Known backend bug (BT-05): the redeem query fails on openGauss.
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Scrollable content area
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// --- PATIENT ROSTER VIEW (LIST OF PATIENTS) ---
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Initial/Avatar
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// --- PATIENT VITALS INSPECTOR (DETAIL VIEW FOR DOCTOR) ---
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// 1. Header bar (Back to list + Connection indicator)
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// 2. Monitored Patient Profile Header Card
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// 3. AI Clinical Summary & Risk Assessment Card
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// 4. Complete Vitals & Health Metrics Grid
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Grid Row 1: Heart Rate & Blood Oxygen
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Heart Rate Card
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Blood Oxygen Card
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Grid Row 2: Daily Steps & Calories Burned
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Daily Steps Card
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Calories Burned Card
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Grid Row 3: Body Temperature & Sleep Quality
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Temperature Card
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Sleep Quality Card
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// 5. Collapsible Active Prescriptions Section
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Header Bar (Clickable to expand/collapse)
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Expanded Medication Items
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// Manual Patient Link Modal (Simulator Mode)
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// The backend does not support linking directly by phone number;
+
+entry\src\main\ets\pages\PatientsPage.ets:
+// an invitation code issued by the patient is required.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/** A patient a family member is allowed to monitor, for the "Monitored Member" card. */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/** Empty unless the patient consented to share it. */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Data model interface for medical profile
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Interface for dynamic emergency contacts (Syncs with SOS Page)
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// AppStorage links for user session data
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Dynamic contacts fetched from SOS Page
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Link to medical profile data
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/** GET /api/emergency-access/audit-logs - who opened the emergency card. */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/** 'link' = baglanma daveti, 'emergency' = acil erisim kodu. */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/**
+   * Who the "Link" QR is for: 'clinician' (Doctor) or 'family' (Family
+   * Member). Same QR flow/UI for both - only kind/relationship differ, so the
+   * backend records the relationship correctly - reusing one QR for both would
+   * mislabel family links as clinician links.
+   */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/**
+   * Consent to share the patient's phone number with whoever redeems the link
+   * QR. Off by default and reset on every switch: sharing a phone number is a
+   * decision that must be made deliberately, per invitation, not inherited from
+   * the last time the screen was used.
+   */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Real linked patients for the "Monitored Member" card (GET /api/monitoring/patients),
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// replacing the old hard-coded "Father"/"Mother" mock - same data source as
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// HomePage.ets's FamilyDashboardView.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// The contact is now written to the backend, not just the device:
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// SOS notifications are sent to this list.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Helper function to extract initials for avatar
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Helper to generate a patient ID dynamically based on fullName and email
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/**
+   * QR payload.
+   *
+   * BEFORE: the patient's name, email, phone, blood type, allergies and
+   * conditions were printed into the QR as plain-text JSON - an open medical
+   * record with no expiry, no signature, no revocation and no audit trail.
+   *
+   * NOW: only a short-lived, single-use token issued by the backend is printed.
+   * Medical data comes from the server after authorisation is checked.
+   */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// The payload is printed with a type tag so the scanner knows which endpoint
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// to call. An untagged token produced a 400 in both flows.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/** Requests a new token from the backend for the selected QR kind. */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// POST /api/emergency-access/tokens - the code emergency responders scan.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// POST /api/patient-link-invitations - the invitation a doctor or family
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// member scans. kind/relationship follow linkTargetKind so the backend
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// records which kind of relationship this actually is.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// isEmergencyContact was hard-coded false for both kinds. The backend
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// sends SOS/all-clear alerts to a linked member ONLY when this flag is
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// true (see gb-go-main/api/sos.go createOutboxEntries: it queries
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// patient_relationships WHERE is_emergency_contact = TRUE). So a linked
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// family member - the person you would actually expect to be alerted in
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// an emergency - was silently never notified through this relationship;
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// only the separate, 2-contact-max "Emergency Contacts" list worked. A
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// doctor keeps false: a clinician monitoring relationship is not the same
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// as consenting to receive personal SOS alerts.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// The token is minted now, so the consent has to be decided now: the
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// backend stamps it onto the invitation and it cannot be changed after
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// the code is scanned.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/** Switches the QR kind and requests a new token. */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/** Switches who the "Link" QR is for (Doctor/Family) and requests a new token. */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// A new recipient is a new decision; carrying the previous consent over
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// would share the number with someone the patient never agreed to.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/** Toggles phone sharing and mints a fresh token carrying the new consent. */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// The consent lives inside the token, so the old QR still carries the old
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// answer; it has to be reissued.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/** Refreshes the profile and emergency contacts from the backend on open. */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// HomePage's "My Emergency Access QR" shortcut routes here with this flag
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// so the modal opens straight into Emergency Access mode instead of
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// requiring an extra tap on the "Emergency Access" pill.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Role and the doctor/family details live on the account now, so this page
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// shows what the server has rather than whatever this device last cached.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Restore the FULL profile from the server: name, gender, height, weight,
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// blood type, chronic conditions, allergies, pacemaker, hearing aid.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// The backend keeps these inside criticalFacts; the mapping lives in one
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// place, ProfileRepository.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/**
+   * GET /api/monitoring/patients - same endpoint and shape as
+   * HomePage.ets's FamilyDashboardView.loadFamilyPatients(). Feeds the
+   * "Monitored Member" card below.
+   */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// 404 = no readings for this patient yet. Expected.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/**
+   * Loads the emergency-access audit trail.
+   *
+   * Fetched on demand rather than on open: it is a privacy log a patient looks
+   * at deliberately, and it should not be pulled down on every visit to the
+   * profile screen.
+   */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/** Who the responder was, with a readable fallback for an unnamed account. */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+/**
+   * Puts the patient's number on the clipboard.
+   *
+   * Not a direct dial on purpose: placing a call needs the restricted
+   * `ohos.permission.PLACE_CALL`, which this app does not declare and which is
+   * not something to add quietly from a feature branch. Copying works with no
+   * new permission and still gets the monitor to the number in one tap.
+   */
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Photo picker function to change profile picture from gallery
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Helper function to calculate age from birth date
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Ignore parsing errors
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Formatter to display birth date nicely
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Ignore parsing errors
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Background Hologram/Ambient Blurs (Balanced Brand Navy & Red)
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// 1. Header Area
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Setup Prompt Banner
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// 2. Profile Main Header Card
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// User Full Name
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Clickable Role Badge with Switch Action (Ends with ⇅)
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// DOB / Email / Hospital display based on role
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Interactive Medical Badges (Blood Type, Allergies, Diseases) - Only for Patient
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Specialty Badge
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Verified Email Badge
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Blood Type Badge
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Allergy Badge
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Chronic Disease Badges
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Fallback text if no medical parameters are registered
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Conditionally Render Patient Cards
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Share Patient QR Code Card
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// 3b. Emergency access history. The QR above hands out a key to
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// this patient's medical card; this is where they can see who used
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// it - and who was turned away.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// 4. Physical Info & Devices Card
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Height Info
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Weight Info
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Pacemaker Status
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Hearing Aid Status
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// 5. Currently Used Medications
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// 1. Weekly Days active
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// 2. Schedule times slot detail
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// 3. Treatment Duration and Meal Timing
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Conditionally Render Family Member Cards
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Monitored Family Member Card - real data from
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// GET /api/monitoring/patients, see loadLinkedPatients().
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Switch Member Button
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Dropdown Menu for choosing Monitored Member - one row per real linked patient.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Header of the monitored person
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Avatar with initials
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Status dot - green once a reading is on file, grey otherwise.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Quick stats
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Shared phone number. Present only when the patient consented
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// while generating the link QR; nothing is shown otherwise, so
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// an absent number never looks like a missing feature.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Actions row
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// The number is only here when the patient ticked "share my
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// phone number" while generating the link QR; otherwise the
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// backend sends an empty string and there is nothing to dial.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Conditionally Render Doctor Cards
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Clinic Row
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Specialty Row
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Verification Status Row
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Emergency Contacts - Rendered only for Patients
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Show the Add button only when fewer than 2 contacts exist
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Avatar (Left Side)
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Contact Info
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Priority Badge and Relation
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Remove Button
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Fallback screen if no contacts are added
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Sign Out Button
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Reset preference and manually trigger tutorial
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Remove the registered notification endpoint and clear the session.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Blank space to prevent overlap with BottomNavBar
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Bottom Navigation Bar
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Role Switcher Drawer/Card Overlay
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Semi-transparent Overlay Background
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Role Switcher Bottom Sheet Card
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Drag Handle
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Role 1: Patient
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Role 2: Family Member
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Role 3: Doctor
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Close Button
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// My Patient QR Code Modal Dialog
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Semi-transparent background
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Close Button
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// QR kind selector. The two flows use different token types; a single
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// QR cannot serve both (a token sent to the wrong endpoint gets a 400).
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Who the "Link" QR is for. One QR flow, two possible relationship
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// kinds - reusing the doctor QR for a family member would record
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// the relationship as "clinician" on the backend, which is wrong.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Phone-number consent. Sits with the QR because that is where
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// the decision takes effect: the flag is baked into the token.
+
+entry\src\main\ets\pages\ProfilePage.ets:
+// Display Dynamic QR Code Container
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Patient fields
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+/** Serial printed on the band. Empty means no band is paired. */
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Family fields
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+/** Email format error shown under the field. Empty means no error. */
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Doctor fields
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// CAREFUL: use the letter "O", not the digit "0". The backend
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// (profile.go validBloodTypes) accepts only A+/A-/B+/B-/AB+/AB-/O+/O-;
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// a digit zero returned 400.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+/**
+   * Mevcut profili forma doldurur.
+   *
+   * This screen is used for both first-time setup and editing. Opening it to
+   * edit used to show every field blank, so pressing save OVERWROTE the server
+   * profile with empty values. The form now opens pre-filled.
+   */
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// AppStorage is in memory and is empty after a restart. The per-user record
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// in the persistent store is the real source.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// The server copy may be newer than the local one; refresh quietly.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// 404 = no profile yet, first-time setup. Expected.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Background Hologram/Ambient Blurs (Balanced Brand Navy & Red)
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Main Scrollable Area
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// 1. Header
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// 2. Profile Setup Card
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// PATIENT FORM FIELDS
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Birth Date Input
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// The contract expects `format: date`: YYYY-MM-DD, zero padded.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Gender Segmented Select
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Height and Weight Row
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Height Input
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Weight Input
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Blood Type Selection (Custom Grid)
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Chronic Diseases Selection (Collapsible checklist)
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Header / Expand-Collapse click bar
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Dropdown content list
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Checkbox custom container
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Conditionally display details input when "Other" option is checked
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Allergies (Text input)
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Medical Devices (Toggles)
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Pacemaker switch
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Hearing Aid switch
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// GuardianBand serial. The backend checks readings against this
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// value and rejects a mismatch with 403, so the app only stamps a
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// serial onto readings once the patient has entered one here.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// DOCTOR FORM FIELDS
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Hospital / Clinic Input
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Doctor Email Address Input
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Clear the error as the user keeps typing so the warning
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// disappears as soon as the address becomes valid.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Specialized Area Select Pills Grid (Collapsible/Accordion Menu)
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Collapsible Header Row
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Expanded Section showing the pills
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Custom Specialty Input (if "Other" is chosen)
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// FAMILY MEMBER FORM FIELDS
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Email Input
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Complete Button
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Log Patient Profile Data
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Map chronicDiseases to replace 'Other' with custom typed disease name
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Store in AppStorage for local frontend use
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Allergies can be entered comma-separated; parse them instead of
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// squashing everything into a single array element.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Details that matter in an emergency, such as pacemaker and
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// hearing aid, used to go nowhere; they now travel in criticalFacts.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Sent even when empty: PUT is a full replace, so omitting
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// it would unpair a band the patient set up earlier.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// This error used to be swallowed silently, which is why the
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// blood type mismatch stayed invisible for so long.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Log Doctor Profile Data
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Store in AppStorage for local frontend use - initially NOT verified
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Log Family Profile Data
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Store in AppStorage for local frontend use
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// Persist the role AND the family/doctor profile fields through
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// `PUT /api/account`, so they survive a reinstall or a sign-in on
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// another device. They used to be written to the device only,
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// which meant setup was requested all over again elsewhere.
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// The saved `role` is only updated when this is the FIRST,
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// primary-role setup reached from SelectRolePage (canGoBack is
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// unset there). When this page is reached from ProfilePage's role
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// switcher (canGoBack: true) to configure an ADDITIONAL role, the
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// account's primary role must not silently change - otherwise
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// trying out "Doctor" once permanently redirected every future
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// login to the doctor dashboard instead of the role picked at
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// registration. Leaving `role` out of the patch keeps the stored
+
+entry\src\main\ets\pages\ProfileSetupPage.ets:
+// one; AccountRepository merges the rest on top of it.
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// Input fields state
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// Background Hologram/Ambient Blurs (Balanced Brand Navy & Red)
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// Main Scrollable Area
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// 1. Branding Header
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// 2. Create Account Card
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// Full Name Input
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// Phone Number Input
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// Password Input
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// Continue Button
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// displayName is now sent to the backend, so names are not blank
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// in the doctor's patient list.
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// Auto sign-in after registration to obtain the JWT and userId.
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// The role is NOT fixed here. The next step is SelectRolePage;
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// whatever the user picks there is written by ProfileSetupPage
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// into both AppStorage and the per-user persistent store.
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// This used to write 'patient' unconditionally, so anyone
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// registering as a doctor started with the wrong role.
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// 3. Footer Link (Already have an account? Log in)
+
+entry\src\main\ets\pages\RegisterPage.ets:
+// Base background color under blurs
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// Background Hologram/Ambient Blurs (Balanced Brand Navy & Red)
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// Main Scrollable Content Layer
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// 1. Branding Header Section
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// 3. Selection Cards List
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// Card 1: Patient
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// Content
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// Card 2: Family Member
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// Content
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// Card 3: Doctor
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// Content
+
+entry\src\main\ets\pages\SelectRolePage.ets:
+// Base background color under blurs
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Background Radial Gradients for visual effect (Balanced Brand Navy & Red)
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Render different views based on the user's role
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Spacer for bottom nav
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\SOSPage.ets:
+// PATIENT SOS VIEW
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\SOSPage.ets:
+//lh3.googleusercontent.com/aida-public/AB6AXuB3DOyWbt3lkFVxP7NZrMYwn2N2qMUViMOW8kmdLoZRwafSBGctOWa0h_NyOGWvH7lLEe-peA0lMD0rWxan9ngub_ZscVBdvYK36Ok2LwedrhLMChEBn0HbW1M3W2J52BmUHnVkqCD_IXASCujUzz0YHctn6QPQ0AE3diw5bECh8ePev6al4j6vy_EAhApcfrwDxV1v2zuTEugICNWfy6OR6LZSiSzPJW4Q5nh-PNv7WHRwX0UwoBqkYQiorTLYWnFGyukCa8wwmW8';
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Refresh emergency contacts from the backend: SOS alerts go to this list.
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Request location permissions from the user
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Use a fallback location if permission is denied or retrieval fails
+
+entry\src\main\ets\pages\SOSPage.ets:
+//static-maps.yandex.ru/1.x/?ll=-122.1697,37.4275&z=16&l=map&size=600,200';
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Fetch the current GPS location
+
+entry\src\main\ets\pages\SOSPage.ets:
+//static-maps.yandex.ru/1.x/?ll=${lng.toFixed(5)},${lat.toFixed(5)}&z=16&l=map&size=600,200`;
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Handle the emergency SOS trigger logic.
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Parse location coordinates gracefully; fallback to address-only if parsing fails.
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Emergency alert: ApiService retries this with exponential backoff.
+
+entry\src\main\ets\pages\SOSPage.ets:
+// This must not fail silently: the user has to know help is not coming.
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Get initials for the contact avatar
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Cleaned up header
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Status text
+
+entry\src\main\ets\pages\SOSPage.ets:
+// HOLD TO SEND SOS Button
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Contacts Notified Card
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Display a warning if the SOS was triggered but no emergency contacts are configured.
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Dynamically added contacts and priority rankings
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Priority Badge and Title
+
+entry\src\main\ets\pages\SOSPage.ets:
+// 1st Red, 2nd Orange
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Call Button
+
+entry\src\main\ets\pages\SOSPage.ets:
+// 112 Default Fixed EMS
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Location Card
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Cancel Action
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\SOSPage.ets:
+// FAMILY SOS VIEW
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Patient Live Location Map Card
+
+entry\src\main\ets\pages\SOSPage.ets:
+//static-maps.yandex.ru/1.x/?ll=-122.1697,37.4275&z=16&l=map&pt=-122.1697,37.4275,pm2rdm&size=600,240')
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\SOSPage.ets:
+// RESPONDER SOS VIEW
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\SOSPage.ets:
+// RESPONDER LOCK VIEW
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\SOSPage.ets:
+// PIN Input
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\SOSPage.ets:
+// DOCTOR SOS PORTAL VIEW
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ----------------------------------------------------
+
+entry\src\main\ets\pages\SOSPage.ets:
+// 1. Header
+
+entry\src\main\ets\pages\SOSPage.ets:
+// 2. Pulsing Critical Alerts Panel
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Actions row
+
+entry\src\main\ets\pages\SOSPage.ets:
+// clear alert mockup
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Safe Banner
+
+entry\src\main\ets\pages\SOSPage.ets:
+// 3. Hospital ER Quick Calls
+
+entry\src\main\ets\pages\SOSPage.ets:
+// ER Card
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Ambulance Service Card
+
+entry\src\main\ets\pages\SOSPage.ets:
+// Chief of Medicine Card
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// Background Hologram/Ambient Blurs (Balanced Brand Navy & Red)
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// Main Content Layer
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// Pushes logo and welcome content down towards the buttons
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// 1. Centered Logo Section
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// 2. Welcome Message Section
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// Headline
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// Subtitle
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// Flexible space between welcome content and action buttons
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// 3. Action Buttons Section
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// Login Button
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// Create Account Button
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// Privacy and Terms Note
+
+entry\src\main\ets\pages\WelcomePage.ets:
+// Base background color under blurs
+
+entry\src\main\ets\services\AccountRepository.ets:
+/**
+ * Sync layer for the user's role.
+ *
+ * The role and the family/doctor details (email, hospital, specialty) used to
+ * exist ONLY on the device: `SessionStore` kept them in a phone-number-keyed
+ * map, because the backend had no place for them. Signing in on a second
+ * device therefore looked like a brand-new account - the role picker and the
+ * whole setup flow came up again every time.
+ *
+ * The backend now owns them: `GET/PUT /api/account` stores `role` plus a
+ * free-form `roleFacts` object. The server is the source of truth; the device
+ * map is kept as an offline cache so a failed request does not drop the user
+ * back into the role picker.
+ *
+ * NOTE - two different notions of "role":
+ *   - the PRIMARY role, stored here and on the server; it decides which
+ *     dashboard a login lands on.
+ *   - the ACTIVE role in `AppStorage('userRole')`, which ProfilePage's role
+ *     switcher flips for the current session only.
+ * A role switch must not silently rewrite the primary role, so the switcher
+ * still only touches AppStorage.
+ */
+
+entry\src\main\ets\services\AccountRepository.ets:
+/** Mirrors AppStorage('doctorProfile'), which the pages read. */
+
+entry\src\main\ets\services\AccountRepository.ets:
+/** View model: the account as the pages need it. */
+
+entry\src\main\ets\services\AccountRepository.ets:
+/** false only when the server explicitly answered 404 - no role picked yet. */
+
+entry\src\main\ets\services\AccountRepository.ets:
+/** true when the server could not be reached and the device cache was used. */
+
+entry\src\main\ets\services\AccountRepository.ets:
+/** Server payload -> view model. Every fact is optional on the wire. */
+
+entry\src\main\ets\services\AccountRepository.ets:
+/** View model -> server payload. */
+
+entry\src\main\ets\services\AccountRepository.ets:
+/**
+   * Server value over cached value, field by field.
+   *
+   * An empty value from the server does NOT clear a cached one. The cache can
+   * legitimately be ahead: `savePatch` writes it before the PUT, so a save that
+   * failed offline leaves details here that the server has never seen. Blanking
+   * them on the next sign-in would throw that away silently, and nothing in the
+   * app ever clears these fields on purpose - so "empty means unknown, not
+   * deleted" is the safe reading. The next successful save pushes the merged
+   * result up.
+   */
+
+entry\src\main\ets\services\AccountRepository.ets:
+// Verification only ever moves forward, so either side saying "verified"
+
+entry\src\main\ets\services\AccountRepository.ets:
+// is enough; a stale `false` must not lock a verified doctor out again.
+
+entry\src\main\ets\services\AccountRepository.ets:
+/**
+   * Mirrors the account into AppStorage and into the persistent device cache,
+   * so pages reading `@StorageLink('userRole')` / `('doctorProfile')` refresh
+   * on their own.
+   *
+   * `applyRole` guards the ACTIVE role: `AppStorage('userRole')` is what
+   * ProfilePage's role switcher flips for the current session, so a background
+   * refresh must not write the primary role over it - that would throw a
+   * patient who switched to the Doctor view straight back out of it. Only
+   * sign-in and an explicit save set the active role.
+   */
+
+entry\src\main\ets\services\AccountRepository.ets:
+// The doctor card is restored whenever the account HAS doctor details, not
+
+entry\src\main\ets\services\AccountRepository.ets:
+// only when 'doctor' is the current role: the role switcher lets a patient
+
+entry\src\main\ets\services\AccountRepository.ets:
+// configure a doctor profile as a secondary role, and gating on the primary
+
+entry\src\main\ets\services\AccountRepository.ets:
+// role used to wipe it back to empty on every sign-in.
+
+entry\src\main\ets\services\AccountRepository.ets:
+/**
+   * GET /api/account.
+   *
+   * A 404 means the user has not picked a role yet - that is a normal state for
+   * a fresh account, not an error, so it is reported through `exists: false`.
+   * Any other failure falls back to the device cache and is reported through
+   * `fromCache: true`, so an offline sign-in still lands on the right dashboard.
+   */
+
+entry\src\main\ets\services\AccountRepository.ets:
+/**
+   * Merges `patch` into the cached account and writes the whole thing back with
+   * `PUT /api/account`.
+   *
+   * The merge is what makes the full-replace endpoint safe: updating only
+   * `doctorVerified`, say, still sends the email and the hospital along, so the
+   * server does not lose them.
+   *
+   * @returns the saved account, or `undefined` when it could not be written to
+   *          the server (the device cache is updated either way).
+   */
+
+entry\src\main\ets\services\AccountRepository.ets:
+// Nothing to write: the backend rejects an account without a role.
+
+entry\src\main\ets\services\AccountRepository.ets:
+// Only a patch that deliberately carries a role may move the active one.
+
+entry\src\main\ets\services\AccountRepository.ets:
+// A patch WITHOUT a role (configuring a secondary role, confirming doctor
+
+entry\src\main\ets\services\AccountRepository.ets:
+// verification) still writes the stored primary role to the server, and
+
+entry\src\main\ets\services\AccountRepository.ets:
+// applying it here would flip the screen the user is standing on back to
+
+entry\src\main\ets\services\AccountRepository.ets:
+// that primary role.
+
+entry\src\main\ets\services\AccountRepository.ets:
+// The local copy is already updated, so the screen stays consistent; the
+
+entry\src\main\ets\services\AccountRepository.ets:
+// next successful save pushes it up.
+
+entry\src\main\ets\services\AccountRepository.ets:
+/**
+   * Refresh on open without blocking the screen. Leaves the active role alone -
+   * see `mirror`.
+   */
+
+entry\src\main\ets\services\ApiConfig.ets:
+/**
+ * Network layer configuration.
+ *
+ * BASE_URL is no longer hard-coded inside ApiService. The environment is chosen
+ * here, in one place.
+ *
+ * IMPORTANT: on a device or emulator `localhost` is NOT the machine running the
+ * backend - it is the device itself. Pick the correct address below.
+ */
+
+entry\src\main\ets\services\ApiConfig.ets:
+/** Standard NAT address from the emulator to the host machine. */
+
+entry\src\main\ets\services\ApiConfig.ets:
+//10.0.2.2:3000',
+
+entry\src\main\ets\services\ApiConfig.ets:
+/** Physical device: update the host machine LAN IP for your own network. */
+
+entry\src\main\ets\services\ApiConfig.ets:
+//192.168.1.100:3000',
+
+entry\src\main\ets\services\ApiConfig.ets:
+/** For previews running on the same machine. */
+
+entry\src\main\ets\services\ApiConfig.ets:
+//localhost:3000',
+
+entry\src\main\ets\services\ApiConfig.ets:
+//staging.guardianband.example',
+
+entry\src\main\ets\services\ApiConfig.ets:
+//api.guardianband.example',
+
+entry\src\main\ets\services\ApiConfig.ets:
+// ---------------------------------------------------------------------------
+
+entry\src\main\ets\services\ApiConfig.ets:
+// Active environment. This is the ONLY place to change during development.
+
+entry\src\main\ets\services\ApiConfig.ets:
+// ---------------------------------------------------------------------------
+
+entry\src\main\ets\services\ApiConfig.ets:
+/** For a custom address that is not in the environment list. */
+
+entry\src\main\ets\services\ApiConfig.ets:
+/** Turns a relative path into a full URL. */
+
+entry\src\main\ets\services\ApiConfig.ets:
+/**
+   * The device time zone. Profile saves previously hard-coded 'Europe/Istanbul',
+   * which was wrong for any user outside that zone.
+   */
+
+entry\src\main\ets\services\ApiConfig.ets:
+// --- Timeouts and limits ----------------------------------------------------
+
+entry\src\main\ets\services\ApiConfig.ets:
+/** File uploads can take longer. */
+
+entry\src\main\ets\services\ApiConfig.ets:
+/** Backend multipart limit is 10 MB; we enforce the same limit client-side. */
+
+entry\src\main\ets\services\ApiConfig.ets:
+/** Attempt count for calls that are retried. */
+
+entry\src\main\ets\services\ApiService.ets:
+// =============================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Hata tipi
+
+entry\src\main\ets\services\ApiService.ets:
+// =============================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+ * Carries a backend error together with its status code.
+ * Errors used to be swallowed with `console.error`; now they reach the caller.
+ */
+
+entry\src\main\ets\services\ApiService.ets:
+/** When the network layer was never reached (no connection, timeout). */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Turns the backend's plain-text error bodies into messages that can be
+   * shown to the user. The raw bodies are terse and technical, so they are not
+   * suitable for display as-is.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// CAREFUL: "invalid or expired token" means two different things.
+
+entry\src\main\ets\services\ApiService.ets:
+//   401 -> AuthenticateMiddleware; the JWT expired (a session problem)
+
+entry\src\main\ets\services\ApiService.ets:
+//   400 -> emergency-access/redeem; the QR code is invalid
+
+entry\src\main\ets\services\ApiService.ets:
+// So the QR message is used only OUTSIDE 401; a 401 falls through to the
+
+entry\src\main\ets\services\ApiService.ets:
+// "session has expired" message below.
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Turns a status code into a message that can be shown to the user.
+   *
+   * @param authenticated Did the request require a session? A `401` means very
+   *   different things depending on this: on a protected endpoint the session
+   *   has expired, but on sign-in/sign-up it means **wrong credentials**. Both
+   *   used to be shown as "session expired".
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// Prefer the server's own message when recognised; it is the most specific.
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+ * The 422 from `POST /api/medication-risk-analyses`.
+ *
+ * Not a plain failure: it names the medications the model cannot reason about,
+ * which is exactly what the screen has to tell the patient. It is its own type
+ * so a caller can react to it with `instanceof` instead of re-parsing the body.
+ */
+
+entry\src\main\ets\services\ApiService.ets:
+/** Names, for a message the patient can act on. */
+
+entry\src\main\ets\services\ApiService.ets:
+// =============================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Data types - aligned one-to-one with the openapi.yaml schemas
+
+entry\src\main\ets\services\ApiService.ets:
+// =============================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * The signed-in user's UUID. `AuthResponse` in `openapi.yaml` lists it as
+   * required, so the backend always sends it; it is what identifies the user
+   * in path parameters such as `GET /api/vitals/{userId}/latest`.
+   *
+   * Still optional on the type: an older backend build would omit it, and the
+   * client stays usable in that case (only own-readings lookups are lost).
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Serial of the paired band. `vitals.go` compares an incoming `deviceSn`
+   * against this value and answers 403 on a mismatch, so readings may only
+   * carry a serial once this is set.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+ * Free-form `roleFacts` object on `UserAccount`. The column is JSONB, so the
+ * backend stores whatever is sent; these are the keys this client uses.
+ */
+
+entry\src\main\ets\services\ApiService.ets:
+/** Family member's email address. */
+
+entry\src\main\ets\services\ApiService.ets:
+/** `UserAccount` in openapi.yaml - the user's role and its metadata. */
+
+entry\src\main\ets\services\ApiService.ets:
+/** patient | family | doctor */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+ * Counterpart of MonitoringPatient in the backend.
+ * The name is kept as ClinicianPatient for backwards compatibility.
+ */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Only filled in when the patient consented to share it while creating the
+   * invitation (`sharePhoneNumber`). Empty otherwise - never assume it is set.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Consent to reveal the patient's phone number to whoever redeems this
+   * invitation; it then comes back on `MonitoringPatient.phone`. Defaults to
+   * false on the backend, so leaving it out shares nothing.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+ * One active ingredient of a catalog entry.
+ *
+ * `aiSupported` is what decides whether a medication can take part in a risk
+ * analysis: the model only knows ingredients that carry a DrugBank id it was
+ * trained on. An unsupported one makes the whole analysis return 422.
+ */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Catalog identity. REQUIRED for risk analysis: the backend maps a plan to
+   * its ingredients through this column, and a plan created without it can
+   * never be analysed. The catalog's own name and strength override whatever
+   * the client sends alongside it.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/** Arrives as JSON null when unset; normalised to undefined on parse. */
+
+entry\src\main\ets\services\ApiService.ets:
+// --- Medication risk analysis (polypharmacy) --------------------------------
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Organ-system label straight from the model, e.g. "Hepatobiliary (Liver)".
+   * `RiskAnalysis` maps it onto the body-map ids the UI uses.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/** 0..1 */
+
+entry\src\main\ets\services\ApiService.ets:
+/** fused | baseline */
+
+entry\src\main\ets\services\ApiService.ets:
+/** standard | reduced */
+
+entry\src\main\ets\services\ApiService.ets:
+/** One medication the model cannot reason about; part of the 422 body. */
+
+entry\src\main\ets\services\ApiService.ets:
+// The four below arrive as JSON null when no location was captured;
+
+entry\src\main\ets\services\ApiService.ets:
+// normalised to undefined on parse.
+
+entry\src\main\ets\services\ApiService.ets:
+/** Emergency contact aligned with the backend field names. */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Who the card belongs to. Both are required in `openapi.yaml`, but they are
+   * left optional here: a responder screen must still render if the patient
+   * never filled in their profile and the server sends an empty value.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/** Arrives as JSON null for a patient with no readings; normalised on parse. */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+ * One emergency-card access attempt, from the patient's point of view.
+ *
+ * `allowed: false` rows matter as much as the successful ones: they are the
+ * refused attempts, which is exactly what a patient checking "who looked at my
+ * medical card" needs to see.
+ */
+
+entry\src\main\ets\services\ApiService.ets:
+// --- Dahili istek tipleri ----------------------------------------------------
+
+entry\src\main\ets\services\ApiService.ets:
+// =============================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Servis
+
+entry\src\main\ets\services\ApiService.ets:
+// =============================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Fired when the session drops (401). Registered at app start so it can
+   * route back to the sign-in screen.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// ---------------------------------------------------------------------------
+
+entry\src\main\ets\services\ApiService.ets:
+// Central request layer
+
+entry\src\main\ets\services\ApiService.ets:
+// ---------------------------------------------------------------------------
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Single entry point: sets headers, applies timeouts, handles 401 centrally,
+   * and retries when appropriate.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// Clear the session ONLY when a 401 comes from a protected endpoint.
+
+entry\src\main\ets\services\ApiService.ets:
+// A 401 on sign-in/sign-up means "wrong credentials"; a failed sign-in
+
+entry\src\main\ets\services\ApiService.ets:
+// attempt must not drop the session or claim it expired.
+
+entry\src\main\ets\services\ApiService.ets:
+// 5xx yeniden denenebilir; 4xx denenmez.
+
+entry\src\main\ets\services\ApiService.ets:
+// 4xx is not retried; network errors (status 0) and 5xx are.
+
+entry\src\main\ets\services\ApiService.ets:
+// Exponential backoff: 300ms, 600ms, 1200ms ...
+
+entry\src\main\ets\services\ApiService.ets:
+// ---------------------------------------------------------------------------
+
+entry\src\main\ets\services\ApiService.ets:
+// null -> undefined normalisation
+
+entry\src\main\ets\services\ApiService.ets:
+// Go marshals a nil pointer WITHOUT `omitempty` as an explicit JSON `null`,
+
+entry\src\main\ets\services\ApiService.ets:
+// and `JSON.parse` hands that straight through. So a field declared here as
+
+entry\src\main\ets\services\ApiService.ets:
+// `latestVitals?: EmergencyLatestVitals` can actually hold `null` at runtime,
+
+entry\src\main\ets\services\ApiService.ets:
+// and the natural `if (x !== undefined)` guard passes - the next property
+
+entry\src\main\ets\services\ApiService.ets:
+// access then crashes.
+
+entry\src\main\ets\services\ApiService.ets:
+// That is not hypothetical: the emergency medical card sends
+
+entry\src\main\ets\services\ApiService.ets:
+// `"latestVitals": null` for a patient with no readings, which took down the
+
+entry\src\main\ets\services\ApiService.ets:
+// responder's screen at the exact moment it is needed.
+
+entry\src\main\ets\services\ApiService.ets:
+// These helpers run once at the parse boundary so the declared optional types
+
+entry\src\main\ets\services\ApiService.ets:
+// are true for every caller, instead of asking each of them to remember.
+
+entry\src\main\ets\services\ApiService.ets:
+// ---------------------------------------------------------------------------
+
+entry\src\main\ets\services\ApiService.ets:
+// ---------------------------------------------------------------------------
+
+entry\src\main\ets\services\ApiService.ets:
+// Helpers
+
+entry\src\main\ets\services\ApiService.ets:
+// ---------------------------------------------------------------------------
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Normalises a phone number to E.164. The backend expects
+   * `^\+[1-9]\d{1,14}$`; input with spaces, parentheses or dashes used to 400.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// Local number entered without a country code: drop the leading 0.
+
+entry\src\main\ets\services\ApiService.ets:
+/** The backend expects the letter O; fixes a digit 0 typed in the UI. */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Normalises an email address: trims surrounding whitespace and lowercases
+   * it. Email addresses are effectively case-insensitive in practice, so
+   * "Name@Example.COM" is stored in a single canonical form.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Email format check.
+   *
+   * We deliberately do not implement all of RFC 5322 - that regex is unreadable
+   * and produces more false positives than real catches. This rule covers the
+   * overwhelming majority of user mistakes:
+   *   - exactly one "@"
+   *   - non-empty on both sides of the "@"
+   *   - at least one dot in the domain, followed by at least 2 letters
+   *   - no whitespace anywhere
+   *
+   * Kabul eder : ad.soyad+etiket@alt.alan.com
+   * Reddeder   : "asdf", "a@b", "a@b.", "@b.com", "a b@c.com", "a@@b.com"
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Authentication
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/** POST /api/register */
+
+entry\src\main\ets\services\ApiService.ets:
+/** POST /api/login - persists the token and userId. */
+
+entry\src\main\ets\services\ApiService.ets:
+// Should not happen: openapi.yaml marks AuthResponse.userId as required.
+
+entry\src\main\ets\services\ApiService.ets:
+/** GET /api/protected - connectivity and token health check. */
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Profil
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/** GET /api/profile */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * PUT /api/profile - full replace.
+   *
+   * Every field the profile should keep has to be in the payload; a field left
+   * out is cleared server-side. `bandIdentifier` is the easy one to forget, and
+   * dropping it would unpair the band on any unrelated profile edit.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Account (role)
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * GET /api/account - the user's role and role facts.
+   *
+   * Throws a 404 `ApiError` when the account has no role yet, i.e. the user
+   * never finished the role picker. Callers must treat that as "not set up",
+   * not as a failure.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * PUT /api/account - creates or replaces the account.
+   *
+   * Both fields are replaced wholesale, so `roleFacts` has to carry every key
+   * that should survive: sending only the changed one would drop the rest.
+   * `AccountRepository` does that merge; prefer it over calling this directly.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Vitals
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/** POST /api/vitals */
+
+entry\src\main\ets\services\ApiService.ets:
+/** GET /api/vitals/{userId}/latest */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * The signed-in user's own latest reading. Uses the userId persisted at
+   * login (`AuthResponse.userId`).
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Documents
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/** GET /api/documents */
+
+entry\src\main\ets\services\ApiService.ets:
+/** GET /api/documents/{documentId} */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * POST /api/documents - multipart upload.
+   * The returned document id is no longer discarded; it is needed to attach a
+   * prescription to a medication plan.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * GET /api/documents/{documentId}/content - downloads the file and writes it
+   * into the app's own cache directory.
+   *
+   * Returns a local path rather than the bytes: the caller wants to show or
+   * share a PDF/image, and every viewer on the platform takes a file. The
+   * download is authenticated, so it cannot be handed to a plain URL viewer.
+   *
+   * @param cacheDir the ability's `context.cacheDir`
+   * @returns absolute path of the written file
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// The body is a PDF or an image, so it must NOT be decoded as text.
+
+entry\src\main\ets\services\ApiService.ets:
+// An error body is text even though the success body is binary.
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * PUT /api/documents/{documentId}/content - replaces the file behind an
+   * existing catalog entry, keeping its id, title and kind.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/** Reads a local file into memory, enforcing the backend's 10 MB limit. */
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Medications
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * GET /api/medication-catalog
+   *
+   * The search parameter is named `search` - the backend reads
+   * `r.URL.Query().Get("search")` (`medications.go:53`). Sending `q` is silently
+   * ignored and the whole catalog comes back.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/** GET /api/medications */
+
+entry\src\main\ets\services\ApiService.ets:
+/** POST /api/medications */
+
+entry\src\main\ets\services\ApiService.ets:
+// `CreateMedicationRequest.frequencyHours` in openapi.yaml: enum [6, 8, 12, 24].
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * DELETE /api/medications/{medicationId} - soft-delete on the server; the
+   * plan stops being active and drops off the emergency medical card.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/** POST /api/medications/{medicationId}/taken */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * POST /api/medication-risk-analyses - interaction analysis over the
+   * patient's own active plans.
+   *
+   * Takes 2..10 medication ids and analyses every distinct ingredient pair, so
+   * the cost grows quadratically; the backend refuses more than 100 pairs.
+   *
+   * Throws `UnsupportedMedicationsError` on 422, i.e. at least one plan has no
+   * AI-supported ingredient behind it - almost always a plan that was saved
+   * without a `catalogItemId`. A 503 means the model service itself is down.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// Every pair is a separate model inference; the backend caps the whole
+
+entry\src\main\ets\services\ApiService.ets:
+// analysis at 15s, so the client has to wait longer than the default.
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * Rebuilds the 422 body into a typed error. The endpoint answers 422 in two
+   * shapes: the JSON `unsupported_medication` payload, and a plain-text "no
+   * distinct ingredient pair". Only the first parses, and the plain-text one
+   * keeps the message ApiError already produced.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+// Not the JSON shape; fall through to the original error.
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/** POST /api/sos/incidents - emergency alert; retried on failure. */
+
+entry\src\main\ets\services\ApiService.ets:
+// The backend echoes coordinates it never received as null.
+
+entry\src\main\ets\services\ApiService.ets:
+/** POST /api/sos/incidents/{incidentId}/all-clear */
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Emergency contacts
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/** GET /api/emergency-contacts */
+
+entry\src\main\ets\services\ApiService.ets:
+/** POST /api/emergency-contacts */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * PUT /api/emergency-contacts/{contactId} - full replace.
+   *
+   * PATCH is still unreachable from this client (the `http.RequestMethod` enum
+   * in HarmonyOS SDK 6.1.1(24) has no PATCH, and forcing a string into the enum
+   * trips the ArkTS `arkts-no-any-unknown` rule), so the PUT counterpart is
+   * used. Being a full replace it takes every field: anything left out would be
+   * cleared on the server, so callers must pass the current values too.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/** DELETE /api/emergency-contacts/{contactId} */
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Monitoring relationships (patient-approved invitation flow)
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * POST /api/patient-link-invitations - PATIENT side.
+   * The returned token is printed into the QR; the doctor/family member redeems it.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * POST /api/patient-link-invitations/redeem - DOCTOR/FAMILY side.
+   * Replaces the old `linkPatient(phone, ...)` method; the backend has no
+   * capability for linking directly by phone number.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/** GET /api/monitoring/patients — izlenen hastalar. */
+
+entry\src\main\ets\services\ApiService.ets:
+// The backend sends both displayName and name; if one is empty use the other.
+
+entry\src\main\ets\services\ApiService.ets:
+/** GET /api/patient-relationships — "beni kim izliyor". */
+
+entry\src\main\ets\services\ApiService.ets:
+/** DELETE /api/patient-relationships/{relationshipId} — izni geri al. */
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Emergency access (QR / medical card)
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * POST /api/emergency-access/tokens - PATIENT side.
+   * The QR must carry ONLY this token, never plain-text medical data.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/** POST /api/emergency-access/redeem - responder side. */
+
+entry\src\main\ets\services\ApiService.ets:
+/** GET /api/emergency-access/sessions/{sessionId}/medical-card */
+
+entry\src\main\ets\services\ApiService.ets:
+// Sent as an explicit null for a patient with no readings.
+
+entry\src\main\ets\services\ApiService.ets:
+/**
+   * GET /api/emergency-access/audit-logs - who opened this patient's emergency
+   * medical card, and who was refused.
+   */
+
+entry\src\main\ets\services\ApiService.ets:
+/** DELETE /api/emergency-access/sessions/{sessionId} */
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+// Notification endpoints
+
+entry\src\main\ets\services\ApiService.ets:
+// ===========================================================================
+
+entry\src\main\ets\services\ApiService.ets:
+/** PUT /api/notification-endpoints/{endpointId} */
+
+entry\src\main\ets\services\ApiService.ets:
+/** DELETE /api/notification-endpoints/{endpointId} */
+
+entry\src\main\ets\services\ContactsRepository.ets:
+/**
+ * Sync layer for emergency contacts.
+ *
+ * This list used to live only in AppStorage('sosContacts'), i.e. on the device.
+ * The backend reads SOS notification targets from the emergency_contacts table,
+ * so that table stayed empty and SOS alerts reached nobody.
+ *
+ * This file maps between the two models:
+ *   UI     : { id, fullName, phone, relation }
+ *   Backend: { id, displayName, phone, relationship, isPrimary }
+ */
+
+entry\src\main\ets\services\ContactsRepository.ets:
+/** View model used by the pages. */
+
+entry\src\main\ets\services\ContactsRepository.ets:
+/**
+   * Carried through because `PUT /api/emergency-contacts/{id}` is a full
+   * replace: an edit that did not send the current value would silently demote
+   * the primary contact.
+   */
+
+entry\src\main\ets\services\ContactsRepository.ets:
+/**
+   * Loads from the backend and refreshes the local cache.
+   * On a network error the cached list is kept and the error is rethrown.
+   */
+
+entry\src\main\ets\services\ContactsRepository.ets:
+/** Refresh without blocking the UI when it fails. */
+
+entry\src\main\ets\services\ContactsRepository.ets:
+/** Writes to the backend, then updates the local list. */
+
+entry\src\main\ets\services\ContactsRepository.ets:
+/**
+   * Edits a contact in place through `PUT /api/emergency-contacts/{id}`.
+   *
+   * This used to be a delete + re-create, because the backend only offered
+   * PATCH and the HarmonyOS SDK 6.1.1(24) http stack cannot send that method.
+   * The workaround changed the contact id on every edit; the PUT counterpart
+   * keeps it stable.
+   *
+   * PUT replaces the whole record, so `isPrimary` is taken from the cached
+   * contact when the caller does not pass one - otherwise editing a name would
+   * also clear the primary flag.
+   */
+
+entry\src\main\ets\services\ContactsRepository.ets:
+/** So the SOS screen can show a warning. */
+
+entry\src\main\ets\services\ProfileRepository.ets:
+/**
+ * Sync layer for the health profile.
+ *
+ * The backend `PatientProfile` schema defines only four top-level fields:
+ * `displayName`, `birthDate`, `bloodType`, `timezone`. Everything else the UI
+ * collects (gender, height, weight, chronic conditions, allergies, pacemaker,
+ * hearing aid) travels inside the free-form `criticalFacts` object.
+ *
+ * This file is the ONE place that maps between the two models. The write side
+ * (ProfileSetupPage) already put those fields into criticalFacts, but the read
+ * side only restored bloodType and birthDate - so after signing in again the
+ * name, height, weight, gender and conditions appeared to be lost.
+ */
+
+entry\src\main\ets\services\ProfileRepository.ets:
+/** View model the pages read through AppStorage('medicalProfile'). */
+
+entry\src\main\ets\services\ProfileRepository.ets:
+/** Serial of the paired band. Empty when no band is paired. */
+
+entry\src\main\ets\services\ProfileRepository.ets:
+/** Converts the server schema into the UI model. */
+
+entry\src\main\ets\services\ProfileRepository.ets:
+// Stored as a number on the server, as text in the UI. 0 is not a
+
+entry\src\main\ets\services\ProfileRepository.ets:
+// meaningful height/weight, so it maps to an empty string.
+
+entry\src\main\ets\services\ProfileRepository.ets:
+// The UI expects a single line; the server array is joined with commas.
+
+entry\src\main\ets\services\ProfileRepository.ets:
+/**
+   * GET /api/profile - fetches the server profile and mirrors it into
+   * AppStorage. Pages already read it via `@StorageLink('medicalProfile')`,
+   * so screens refresh on their own.
+   */
+
+entry\src\main\ets\services\ProfileRepository.ets:
+// The name is on the server too: saved as displayName during registration.
+
+entry\src\main\ets\services\ProfileRepository.ets:
+/** Refresh on open without blocking the screen. */
+
+entry\src\main\ets\services\ProfileRepository.ets:
+// 404 = profile not created yet. Expected; stay silent.
+
+entry\src\main\ets\services\QrPayload.ets:
+/**
+ * QR code payload format.
+ *
+ * PROBLEM: the app has two distinct QR flows and each needs a **different kind**
+ * of token:
+ *
+ *   1. Patient-doctor linking     -> POST /api/patient-link-invitations/redeem
+ *   2. Emergency access (med card) -> POST /api/emergency-access/redeem
+ *
+ * The tokens are not interchangeable; a token sent to the wrong endpoint is
+ * rejected with `400 invalid or expired token`. The QR previously carried only a
+ * bare token, so the scanner could not tell which kind it was and the user just
+ * saw "QR does not scan / server error".
+ *
+ * SOLUTION: tag the QR payload with its kind.
+ *
+ *   GB1:LINK:<token>   -> monitoring invitation
+ *   GB1:EMG:<token>    -> emergency access
+ *
+ * `GB1` is a format version prefix so older clients are not confused if the
+ * format changes later.
+ */
+
+entry\src\main\ets\services\QrPayload.ets:
+/** Patient-doctor/family monitoring invitation. */
+
+entry\src\main\ets\services\QrPayload.ets:
+/** Emergency access medical-card session. */
+
+entry\src\main\ets\services\QrPayload.ets:
+/** Kind could not be determined (untagged bare token). */
+
+entry\src\main\ets\services\QrPayload.ets:
+/** Plain-text JSON card produced by older versions. No longer supported. */
+
+entry\src\main\ets\services\QrPayload.ets:
+/** Monitoring invitation QR payload. */
+
+entry\src\main\ets\services\QrPayload.ets:
+/** Emergency access QR payload. */
+
+entry\src\main\ets\services\QrPayload.ets:
+/**
+   * Decodes scanned QR text.
+   * With no tag the kind is UNKNOWN; the caller decides based on its own context.
+   */
+
+entry\src\main\ets\services\QrPayload.ets:
+// Older versions printed a plain-text JSON medical card into the QR.
+
+entry\src\main\ets\services\QrPayload.ets:
+// Untagged: could be an old QR or a manually entered code.
+
+entry\src\main\ets\services\QrPayload.ets:
+/** Message shown when a QR of the wrong kind is scanned. */
+
+entry\src\main\ets\services\QrPayload.ets:
+/** Shown when a legacy-format QR is scanned. */
+
+entry\src\main\ets\services\QrPayload.ets:
+/** Small formatting helpers for on-screen display. */
+
+entry\src\main\ets\services\QrPayload.ets:
+/**
+   * Converts an ISO 8601 timestamp into a readable local format.
+   * `2026-08-21T15:05:26.389Z` -> `21.08.2026 18:05`
+   */
+
+entry\src\main\ets\services\QrPayload.ets:
+/**
+   * Turns an ISO birth date into an age in years (as of today, local time).
+   * Accounts for whether the birthday has occurred yet this year, unlike a
+   * plain year subtraction.
+   */
+
+entry\src\main\ets\services\QrPayload.ets:
+/**
+   * Shortens long identifiers so they fit inside their container.
+   * `c54f96d9-5535-415e-bbd4-83e87f18ca30` -> `c54f96d9…8ca30`
+   */
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+/**
+ * Maps the backend's polypharmacy analysis onto the Safety Analysis Card.
+ *
+ * The two models do not line up on their own:
+ *   - the backend answers PER INGREDIENT PAIR, each pair carrying its own organ
+ *     probabilities; the card shows ONE row per organ.
+ *   - the model names organ SYSTEMS ("Hepatobiliary (Liver)"); the card draws
+ *     markers on a body image keyed by short ids ("liver").
+ *   - the model gives probabilities; the card colours by low/medium/high.
+ *
+ * So this file folds pairs into organs (worst pair wins), translates the
+ * system labels, and buckets the probabilities. The probability itself is kept
+ * and shown, because a bucket alone would hide how the colour was chosen.
+ */
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+/**
+ * Display buckets. These are NOT clinical thresholds - the model emits a
+ * probability, and there is no cut-off in the release that says where "high"
+ * begins. They exist to colour the card, and every row still shows the raw
+ * percentage next to them so the number is never hidden behind the colour.
+ */
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+/** How many side effects to name in an organ's detail text. */
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+/**
+ * The model's 15 organ systems (`organ_order` in the release's
+ * meddra_hierarchy.json) mapped onto the card's ids. Matching is by keyword so
+ * a reworded label ("Hepatobiliary" -> "Hepatobiliary (Liver)") still lands.
+ *
+ * Only the first nine have a spot on the body image; the rest are body-wide and
+ * appear in the list below the figure - see `hasBodyPosition` in
+ * SafetyAnalysisCard.
+ */
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+/** Working accumulator while folding pairs together. */
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+/** Model organ-system label -> body-map id. Unknown labels keep a slug. */
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+// Unknown system: keep something stable and let the card fall back to its
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+// default icon. Better than dropping a risk the model did report.
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+/**
+   * Folds every pair's organ risks into one row per organ, keeping the WORST
+   * probability seen for that organ. Taking the worst (rather than an average)
+   * is deliberate: a dangerous interaction between two of five medications must
+   * not be diluted by the harmless pairs around it.
+   */
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+// The side effects shown belong to the pair that set the peak, so
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+// the detail text and the number always describe the same pair.
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+// Worst first, so the rows the patient should read are at the top.
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+/**
+   * Whether the model saw reduced-confidence input for any pair, so the screen
+   * can say so instead of presenting a shaky number as a firm one.
+   */
+
+entry\src\main\ets\services\RiskAnalysis.ets:
+/** Every distinct warning the model attached to any pair. */
+
+entry\src\main\ets\services\SessionStore.ets:
+/**
+ * Persistent store for session state.
+ *
+ * The token used to live only in AppStorage (in memory), so the session was
+ * lost whenever the app closed. Here it is persisted with `preferences`.
+ *
+ * The AppStorage mirror is kept: every write is also reflected into AppStorage
+ * so existing pages can keep reading via AppStorage.get('token').
+ */
+
+entry\src\main\ets\services\SessionStore.ets:
+/**
+ * Phone number -> per-user local profile map.
+ * Offline cache of the account (role + role facts) that the backend owns; see
+ * `AccountRepository`.
+ */
+
+entry\src\main\ets\services\SessionStore.ets:
+/**
+ * The account as cached on this device, per user.
+ *
+ * These fields all live on the server now: `role` is `UserAccount.role` and the
+ * rest are keys inside its free-form `roleFacts`. The device copy exists so a
+ * sign-in with no connection still knows which dashboard to open; the server
+ * wins whenever it answers.
+ */
+
+entry\src\main\ets\services\SessionStore.ets:
+/** Family member email. */
+
+entry\src\main\ets\services\SessionStore.ets:
+/** For partial updates. ArkTS does not support the `Partial<T>` utility type. */
+
+entry\src\main\ets\services\SessionStore.ets:
+/**
+   * Called at app start (EntryAbility.onCreate).
+   * If the persistent store cannot be opened the app does not crash; it keeps
+   * running in memory.
+   */
+
+entry\src\main\ets\services\SessionStore.ets:
+// Keep the in-memory copy fresh even if the store failed to open.
+
+entry\src\main\ets\services\SessionStore.ets:
+/** So existing pages can keep reading through AppStorage. */
+
+entry\src\main\ets\services\SessionStore.ets:
+// --- Reads ------------------------------------------------------------------
+
+entry\src\main\ets\services\SessionStore.ets:
+// Fall back to AppStorage if the store is not open yet.
+
+entry\src\main\ets\services\SessionStore.ets:
+/**
+   * Cached role of the signed-in user. The per-user record wins, since the
+   * global key is only a leftover mirror.
+   *
+   * Reads the DEVICE cache. Anything that needs the authoritative value should
+   * go through `AccountRepository`, and anything writing a role must go through
+   * it - a role written only here would never reach the server.
+   */
+
+entry\src\main\ets\services\SessionStore.ets:
+// --- Writes -----------------------------------------------------------------
+
+entry\src\main\ets\services\SessionStore.ets:
+/**
+   * Persists a freshly obtained session.
+   *
+   * When the incoming session belongs to a DIFFERENT user than the one already
+   * in the store, the device view caches are wiped first. AppStorage lives in
+   * memory for the life of the process and was only ever cleared on sign-out,
+   * so signing in as another account - or registering a new one - while the
+   * previous account's data was still loaded left that data on screen. The
+   * setup form then opened pre-filled with the PREVIOUS patient's birth date,
+   * blood type, chronic conditions and allergies, and saving it wrote them onto
+   * the new patient's profile: wrong data on someone else's emergency card,
+   * not just a cosmetic glitch.
+   *
+   * Signing in again as the same user keeps the caches, so nothing flickers on
+   * an ordinary re-login.
+   */
+
+entry\src\main\ets\services\SessionStore.ets:
+// The in-memory role belongs to the previous account. Without this the
+
+entry\src\main\ets\services\SessionStore.ets:
+// mirror below would write it straight back into AppStorage, undoing part
+
+entry\src\main\ets\services\SessionStore.ets:
+// of the clear.
+
+entry\src\main\ets\services\SessionStore.ets:
+/**
+   * Partially updates the device cache of the account.
+   *
+   * This data used to live only in AppStorage (i.e. IN MEMORY); it was wiped on
+   * sign-out and lost when the app closed, so setup was requested again on
+   * every sign-in even after it had been completed. It is persisted here and
+   * owned by the backend.
+   *
+   * Writing here does NOT reach the server. Call
+   * `AccountRepository.savePatch()` instead; it updates this cache and then
+   * pushes the merged account with `PUT /api/account`.
+   */
+
+entry\src\main\ets\services\SessionStore.ets:
+/** Device-stored profile for a given phone. Empty record if none. */
+
+entry\src\main\ets\services\SessionStore.ets:
+/** Stored role for a given phone number. Empty string if none. */
+
+entry\src\main\ets\services\SessionStore.ets:
+/** Clears the session completely on sign-out or a 401. */
+
+entry\src\main\ets\services\SessionStore.ets:
+// The in-session role is reset; the user->role map is kept so the role is
+
+entry\src\main\ets\services\SessionStore.ets:
+// remembered when the same account signs in again.
+
+entry\src\main\ets\services\SessionStore.ets:
+/**
+   * Wipes the per-account view-model caches that pages mirror into
+   * AppStorage (medications, vitals history, medical profile, contacts, ...).
+   *
+   * These used to survive sign-out entirely. AppStorage lives in memory for
+   * the life of the process, and none of these keys were ever reset on
+   * logout - only a handful (fullName/profilePicture/userRole/userEmail/
+   * medicalProfile) were manually cleared, and only on the ProfilePage
+   * sign-out button specifically, not on a 401. The result: the medications
+   * one account added kept showing up for the NEXT account signed in on the
+   * same device (and the same happened for contacts, vitals history, etc.) -
+   * every one of these is either meaningless without a session or gets
+   * re-fetched from the server on the next page load, so clearing them here
+   * is safe and closes the leak for both sign-out and session-expiry (401).
+   */
+
+entry\src\main\ets\utils\TutorialManager.ets:
+/**
+   * Initializes the tutorial flow for a new user.
+   * Checks persistent preferences to determine if the user has already completed the tutorial.
+   * If not, activates the global tutorial state via AppStorage.
+   * @param context Application or UIAbility context
+   * @returns true if the tutorial was started, false if already completed or on error
+   */
+
+entry\src\main\ets\utils\TutorialManager.ets:
+// Start tutorial flow by setting global application state
+

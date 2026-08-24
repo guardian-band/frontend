@@ -16,10 +16,7 @@ interface ScannedPatientVitals {
   heartRate?: string;
   oxygen?: string;
   /**
-   * Son olcumun ISO zaman damgasi.
-   * Bu alan eskiden `location` adiniydi ve UI'da "Last Location" olarak
-   * gosteriliyordu; ancak icine hep olcum ZAMANI yaziliyordu. Acil tibbi
-   * kartta (EmergencyMedicalCard) konum alani yok, bu yuzden ad duzeltildi.
+   * ISO timestamp of the last recorded measurement.
    */
   recordedAt?: string;
 }
@@ -352,7 +349,6 @@ struct HomePage {
 
   /**
    * POST /api/emergency-access/redeem sonra GET .../medical-card
-   *
    * This used to read plain-text JSON out of the QR and, failing that, show a
    * made-up patient. The data now comes from the server and every access is
    * written to the backend's audit log.
@@ -1103,8 +1099,8 @@ struct HomePage {
               .padding({ top: 12, bottom: 12 })
               .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)' })
 
-              // Son olcum zamani.
-              // ONCEDEN "Last Location" yaziyordu ama icine olcum ZAMANI
+              // ISO timestamp of the last recorded measurement.
+              
               // konuyordu; ekranda ham ISO damgasi gorunuyordu. Acil tibbi
               // kartta konum alani YOK (EmergencyMedicalCard semasinda yok),
               // bu yuzden etiket gercege uygun hale getirildi.
@@ -1220,7 +1216,6 @@ struct PatientDashboardView {
 
   /**
    * GET /api/vitals/{userId}/latest for the signed-in patient.
-   *
    * The simulation used to always restart from the hard-coded 72 bpm / 98%,
    * so every app launch threw away the last reading the server had. The login
    * response carries the patient's own userId (`AuthResponse.userId`), so the
@@ -1254,7 +1249,6 @@ struct PatientDashboardView {
 
   /**
    * The paired band's serial, or '' when none is set.
-   *
    * Read fresh from the profile on every send rather than cached once: the
    * patient can pair a band from the setup screen while this dashboard is
    * alive, and a cached empty value would keep the readings anonymous
@@ -3892,3 +3886,4 @@ struct VitalsGraphModal {
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }
+
