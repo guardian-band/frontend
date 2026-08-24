@@ -2,11 +2,14 @@ import { router, promptAction } from '@kit.ArkUI';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { contact } from '@kit.ContactsKit';
-import { ApiService, PatientProfile, MonitoringInvitation, EmergencyAccessToken, ClinicianPatient } from '../services/ApiService';
+import { pasteboard } from '@kit.BasicServicesKit';
+import { ApiService, PatientProfile, MonitoringInvitation, EmergencyAccessToken, ClinicianPatient,
+  AuditLogEntry } from '../services/ApiService';
 import { QrPayload, DisplayFormat } from '../services/QrPayload';
 import { SessionStore } from '../services/SessionStore';
 import { ContactsRepository, UiEmergencyContact } from '../services/ContactsRepository';
 import { ProfileRepository } from '../services/ProfileRepository';
+import { AccountRepository } from '../services/AccountRepository';
 import { CoachMarkOverlay } from '../components/CoachMarkOverlay';
 import { TutorialManager } from '../utils/TutorialManager';
 
@@ -20,6 +23,8 @@ interface MonitoredFamilyPatient {
   name: string;
   heartRate: number;
   oxygen: number;
+  /** Empty unless the patient consented to share it. */
+  phone: string;
 }
 
 interface MedTime {
@@ -216,19 +221,29 @@ struct ProfilePage {
   @State showRoleSwitcher: boolean = false;
   @State expandedMedId: string = '';
   @State isMyQrModalOpen: boolean = false;
+  /** GET /api/emergency-access/audit-logs - who opened the emergency card. */
+  @State accessLogs: AuditLogEntry[] = [];
+  @State isAccessLogExpanded: boolean = false;
+  @State accessLogLoaded: boolean = false;
   @State linkInvitationToken: string = '';
   @State linkInvitationExpiresAt: string = '';
   @State isGeneratingQr: boolean = false;
   /** 'link' = baglanma daveti, 'emergency' = acil erisim kodu. */
-  @State qrMode: string = 'link';
+  @State qrMode: string = 'emergency';
   /**
    * Who the "Link" QR is for: 'clinician' (Doctor) or 'family' (Family
    * Member). Same QR flow/UI for both - only kind/relationship differ, so the
-   * backend records the relationship correctly (see BACKEND_REQUESTS.md
-   * discussion: reusing one QR for both would mislabel family links as
-   * clinician links).
+   * backend records the relationship correctly - reusing one QR for both would
+   * mislabel family links as clinician links.
    */
   @State linkTargetKind: string = 'clinician';
+  /**
+   * Consent to share the patient's phone number with whoever redeems the link
+   * QR. Off by default and reset on every switch: sharing a phone number is a
+   * decision that must be made deliberately, per invitation, not inherited from
+   * the last time the screen was used.
+   */
+  @State sharePhoneWithMonitor: boolean = false;
 
   // Real linked patients for the "Monitored Member" card (GET /api/monitoring/patients),
   // replacing the old hard-coded "Father"/"Mother" mock - same data source as
@@ -354,6 +369,10 @@ struct ProfilePage {
       kind: this.linkTargetKind === 'family' ? 'family' : 'clinician',
       canMonitor: true,
       isEmergencyContact: this.linkTargetKind === 'family',
+      // The token is minted now, so the consent has to be decided now: the
+      // backend stamps it onto the invitation and it cannot be changed after
+      // the code is scanned.
+      sharePhoneNumber: this.sharePhoneWithMonitor,
       expiresInSeconds: 900
     })
       .then((invitation: MonitoringInvitation) => {
@@ -385,7 +404,23 @@ struct ProfilePage {
       return;
     }
     this.linkTargetKind = target;
+    // A new recipient is a new decision; carrying the previous consent over
+    // would share the number with someone the patient never agreed to.
+    this.sharePhoneWithMonitor = false;
     if (this.qrMode === 'link') {
+      this.generateQrToken();
+    }
+  }
+
+  /** Toggles phone sharing and mints a fresh token carrying the new consent. */
+  toggleSharePhone(share: boolean): void {
+    if (this.sharePhoneWithMonitor === share) {
+      return;
+    }
+    this.sharePhoneWithMonitor = share;
+    if (this.qrMode === 'link') {
+      // The consent lives inside the token, so the old QR still carries the old
+      // answer; it has to be reissued.
       this.generateQrToken();
     }
   }
@@ -407,6 +442,9 @@ struct ProfilePage {
     }
 
     ContactsRepository.refreshQuietly();
+    // Role and the doctor/family details live on the account now, so this page
+    // shows what the server has rather than whatever this device last cached.
+    AccountRepository.refreshQuietly();
     // Restore the FULL profile from the server: name, gender, height, weight,
     // blood type, chronic conditions, allergies, pacemaker, hearing aid.
     // The backend keeps these inside criticalFacts; the mapping lives in one
@@ -448,7 +486,8 @@ struct ProfilePage {
           id: bp.id,
           name: bp.name && bp.name.length > 0 ? bp.name : 'Unnamed Patient',
           heartRate: heart,
-          oxygen: oxy
+          oxygen: oxy,
+          phone: bp.phone !== undefined ? bp.phone : ''
         });
       }
       this.linkedPatients = list;
@@ -460,8 +499,61 @@ struct ProfilePage {
     }
   }
 
+  /**
+   * Loads the emergency-access audit trail.
+   *
+   * Fetched on demand rather than on open: it is a privacy log a patient looks
+   * at deliberately, and it should not be pulled down on every visit to the
+   * profile screen.
+   */
+  async loadAccessLogs(): Promise<void> {
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+    try {
+      this.accessLogs = await ApiService.getEmergencyAccessAuditLogs();
+      this.accessLogLoaded = true;
+      console.info(`[API] GET /api/emergency-access/audit-logs - OK, ${this.accessLogs.length} entries`);
+    } catch (err) {
+      this.accessLogLoaded = true;
+      console.warn(`[API] GET /api/emergency-access/audit-logs - failed: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Access history could not be loaded: ${(err as Error).message}` });
+    }
+  }
+
+  /** Who the responder was, with a readable fallback for an unnamed account. */
+  responderLabel(entry: AuditLogEntry): string {
+    if (entry.responderName !== undefined && entry.responderName.length > 0) {
+      return entry.responderName;
+    }
+    if (entry.responderPhone !== undefined && entry.responderPhone.length > 0) {
+      return entry.responderPhone;
+    }
+    return `Responder ${DisplayFormat.shortId(entry.responderId)}`;
+  }
+
   getSelectedLinkedPatient(): MonitoredFamilyPatient | undefined {
     return this.linkedPatients.find((p: MonitoredFamilyPatient) => p.id === this.selectedPatientId);
+  }
+
+  /**
+   * Puts the patient's number on the clipboard.
+   *
+   * Not a direct dial on purpose: placing a call needs the restricted
+   * `ohos.permission.PLACE_CALL`, which this app does not declare and which is
+   * not something to add quietly from a feature branch. Copying works with no
+   * new permission and still gets the monitor to the number in one tap.
+   */
+  copyPatientPhone(phone: string): void {
+    const data = pasteboard.createData(pasteboard.MIMETYPE_TEXT_PLAIN, phone);
+    pasteboard.getSystemPasteboard().setData(data)
+      .then(() => {
+        promptAction.showToast({ message: `Phone number copied: ${phone}` });
+      })
+      .catch((err: Error) => {
+        console.error(`[Clipboard] Could not copy the number: ${err.message}`);
+        promptAction.showToast({ message: phone });
+      });
   }
 
   // Photo picker function to change profile picture from gallery
@@ -910,7 +1002,89 @@ struct ProfilePage {
             .margin({ bottom: 20 })
             .alignItems(VerticalAlign.Center)
 
+            // 3b. Emergency access history. The QR above hands out a key to
+            // this patient's medical card; this is where they can see who used
+            // it - and who was turned away.
+            Column() {
+              Row() {
+                Image($r('app.media.alert'))
+                  .width(18)
+                  .height(18)
+                  .objectFit(ImageFit.Contain)
+                  .margin({ right: 10 })
+                Column() {
+                  Text('Emergency Card Access History')
+                    .fontSize(15)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#434654')
+                  Text('Who opened your emergency medical card')
+                    .fontSize(12)
+                    .fontColor('#737685')
+                    .margin({ top: 2 })
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+                Text(this.isAccessLogExpanded ? '▲' : '▼')
+                  .fontSize(14)
+                  .fontColor('#8F92A1')
+              }
+              .width('100%')
+              .onClick(() => {
+                this.isAccessLogExpanded = !this.isAccessLogExpanded;
+                if (this.isAccessLogExpanded && !this.accessLogLoaded) {
+                  this.loadAccessLogs();
+                }
+              })
 
+              if (this.isAccessLogExpanded) {
+                Divider().color('#EBECEF').margin({ top: 12, bottom: 12 })
+
+                if (this.accessLogs.length === 0) {
+                  Text(this.accessLogLoaded
+                    ? 'Nobody has opened your emergency card yet.'
+                    : 'Loading...')
+                    .fontSize(13)
+                    .fontColor('#737685')
+                    .width('100%')
+                } else {
+                  Column({ space: 10 }) {
+                    ForEach(this.accessLogs, (entry: AuditLogEntry) => {
+                      Row() {
+                        Image(entry.allowed ? $r('app.media.check') : $r('app.media.cancel'))
+                          .width(16)
+                          .height(16)
+                          .objectFit(ImageFit.Contain)
+                          .margin({ right: 8, top: 2 })
+
+                        Column() {
+                          Text(this.responderLabel(entry))
+                            .fontSize(14)
+                            .fontWeight(FontWeight.Medium)
+                            .fontColor('#191C1D')
+                          Text(entry.allowed
+                            ? DisplayFormat.dateTime(entry.createdAt)
+                            : `${DisplayFormat.dateTime(entry.createdAt)} · refused${entry.reason !== undefined && entry.reason.length > 0 ? ` (${entry.reason})` : ''}`)
+                            .fontSize(12)
+                            .fontColor(entry.allowed ? '#737685' : '#BA1A1A')
+                            .margin({ top: 2 })
+                        }
+                        .alignItems(HorizontalAlign.Start)
+                        .layoutWeight(1)
+                      }
+                      .width('100%')
+                      .alignItems(VerticalAlign.Top)
+                    }, (entry: AuditLogEntry) => entry.id)
+                  }
+                  .width('100%')
+                }
+              }
+            }
+            .width('100%')
+            .padding(14)
+            .backgroundColor(Color.White)
+            .borderRadius(20)
+            .border({ width: 1, color: 'rgba(195, 198, 214, 0.3)', style: BorderStyle.Solid })
+            .margin({ bottom: 20 })
 
             // 4. Physical Info & Devices Card
             Column() {
@@ -1349,6 +1523,26 @@ struct ProfilePage {
                 .padding({ top: 16, bottom: 16 })
                 .border({ width: { bottom: 1 }, color: 'rgba(195, 198, 214, 0.2)', style: BorderStyle.Solid })
 
+                // Shared phone number. Present only when the patient consented
+                // while generating the link QR; nothing is shown otherwise, so
+                // an absent number never looks like a missing feature.
+                if (this.getSelectedLinkedPatient()?.phone) {
+                  Row() {
+                    Image($r('app.media.phone'))
+                      .width(16)
+                      .height(16)
+                      .objectFit(ImageFit.Contain)
+                      .margin({ right: 8 })
+                    Text(this.getSelectedLinkedPatient()?.phone)
+                      .fontSize(14)
+                      .fontWeight(FontWeight.Medium)
+                      .fontColor('#191C1D')
+                      .layoutWeight(1)
+                  }
+                  .width('100%')
+                  .padding({ top: 12, bottom: 4 })
+                }
+
                 // Actions row
                 Row() {
                   Button() {
@@ -1383,7 +1577,7 @@ struct ProfilePage {
                         .height(16)
                         .objectFit(ImageFit.Contain)
                         .margin({ right: 6 })
-                      Text('Call')
+                      Text('Copy No.')
                         .fontSize(12)
                         .fontWeight(FontWeight.Bold)
                         .fontColor('#006E2F')
@@ -1392,10 +1586,16 @@ struct ProfilePage {
                   .backgroundColor('rgba(0, 110, 47, 0.06)')
                   .borderRadius(8)
                   .onClick(() => {
-                    // The monitoring relationship API does not expose the
-                    // patient's phone number (see BACKEND_REQUESTS.md), so
-                    // there is nothing real to dial yet.
-                    promptAction.showToast({ message: 'Calling is not available yet: the patient\'s phone number is not shared with monitors.' });
+                    // The number is only here when the patient ticked "share my
+                    // phone number" while generating the link QR; otherwise the
+                    // backend sends an empty string and there is nothing to dial.
+                    const selected: MonitoredFamilyPatient | undefined = this.getSelectedLinkedPatient();
+                    const phone: string = selected !== undefined ? selected.phone : '';
+                    if (phone.length === 0) {
+                      promptAction.showToast({ message: 'This patient has not shared their phone number with you.' });
+                      return;
+                    }
+                    this.copyPatientPhone(phone);
                   })}.width('100%')
                 .padding({ top: 16 })
               }.width('100%')
@@ -1912,18 +2112,6 @@ struct ProfilePage {
             // QR kind selector. The two flows use different token types; a single
             // QR cannot serve both (a token sent to the wrong endpoint gets a 400).
             Row() {
-              Text('Link')
-                .fontSize(13)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(this.qrMode === 'link' ? Color.White : '#434654')
-                .textAlign(TextAlign.Center)
-                .align(Alignment.Center)
-                .layoutWeight(1)
-                .height(38)
-                .borderRadius(10)
-                .backgroundColor(this.qrMode === 'link' ? '#003D9B' : '#F0F4F8')
-                .onClick(() => { this.switchQrMode('link'); })
-
               Text('Emergency Access')
                 .fontSize(13)
                 .fontWeight(FontWeight.Bold)
@@ -1934,8 +2122,20 @@ struct ProfilePage {
                 .height(38)
                 .borderRadius(10)
                 .backgroundColor(this.qrMode === 'emergency' ? '#BA1A1A' : '#F0F4F8')
-                .margin({ left: 8 })
                 .onClick(() => { this.switchQrMode('emergency'); })
+
+              Text('Link')
+                .fontSize(13)
+                .fontWeight(FontWeight.Bold)
+                .fontColor(this.qrMode === 'link' ? Color.White : '#434654')
+                .textAlign(TextAlign.Center)
+                .align(Alignment.Center)
+                .layoutWeight(1)
+                .height(38)
+                .borderRadius(10)
+                .backgroundColor(this.qrMode === 'link' ? '#003D9B' : '#F0F4F8')
+                .margin({ left: 8 })
+                .onClick(() => { this.switchQrMode('link'); })
             }
             .width('100%')
             .margin({ bottom: 16 })
@@ -1971,6 +2171,34 @@ struct ProfilePage {
                   .onClick(() => { this.switchLinkTarget('family'); })
               }
               .width('100%')
+              .margin({ bottom: 16 })
+
+              // Phone-number consent. Sits with the QR because that is where
+              // the decision takes effect: the flag is baked into the token.
+              Row() {
+                Column() {
+                  Text('Share my phone number')
+                    .fontSize(13)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#191C1D')
+                  Text(this.sharePhoneWithMonitor
+                    ? 'They will be able to see and call your number.'
+                    : 'Your number stays hidden from them.')
+                    .fontSize(11)
+                    .fontColor('#737685')
+                    .margin({ top: 2 })
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+
+                Toggle({ type: ToggleType.Switch, isOn: this.sharePhoneWithMonitor })
+                  .selectedColor('#003D9B')
+                  .onChange((isOn: boolean) => { this.toggleSharePhone(isOn); })
+              }
+              .width('100%')
+              .padding({ left: 12, right: 12, top: 10, bottom: 10 })
+              .backgroundColor('#F8F9FA')
+              .borderRadius(12)
               .margin({ bottom: 16 })
             }
 

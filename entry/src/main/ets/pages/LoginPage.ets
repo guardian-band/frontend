@@ -1,7 +1,7 @@
 import { router, promptAction } from '@kit.ArkUI';
 import { ApiService, ApiError, AuthResult } from '../services/ApiService';
-import { SessionStore, LocalUserProfile } from '../services/SessionStore';
 import { ProfileRepository } from '../services/ProfileRepository';
+import { AccountRepository, AccountLoadResult } from '../services/AccountRepository';
 
 @Entry
 @Component
@@ -9,6 +9,65 @@ struct LoginPage {
   @State identifier: string = '';
   @State password: string = '';
   @State isLoading: boolean = false;
+
+  /**
+   * Decides where a successful sign-in lands.
+   *
+   * The role comes from `GET /api/account` now. It used to be read from a
+   * device-local, phone-number-keyed map, so a user signing in on a new device
+   * was sent through the role picker and the whole setup flow again even though
+   * their account was fully configured. `AccountRepository` also restores the
+   * doctor/family details, which had the same problem.
+   */
+  private async routeAfterLogin(): Promise<void> {
+    // Falls back to the device cache when the server cannot be reached, so an
+    // offline sign-in still opens the right dashboard.
+    const accountResult: AccountLoadResult = await AccountRepository.load();
+    const roleForUser: string = accountResult.account.role;
+
+    // Having a patient profile is a hard prerequisite for a patient: every
+    // patient-scoped table in the backend (SOS, emergency contacts,
+    // medications, invitations) has an FK to patient_profiles(user_id), and
+    // those endpoints return 500/403 without it.
+    //
+    // Load the FULL profile (name, height, weight, gender, conditions). Just
+    // checking for existence was not enough: nothing was written into
+    // AppStorage, so the fields looked empty after signing in.
+    try {
+      await ProfileRepository.load();
+      // Profile exists. Use the account role if there is one; otherwise a
+      // patient profile implies this is a patient.
+      const role: string = roleForUser.length > 0 ? roleForUser : 'patient';
+      AppStorage.setOrCreate('userRole', role);
+      console.info(`[Login] Rol: ${role} -> HomePage`);
+      router.replaceUrl({ url: 'pages/HomePage' });
+      return;
+    } catch (profileErr) {
+      const status: number = profileErr instanceof ApiError ? (profileErr as ApiError).status : -1;
+      if (status !== 404) {
+        // A network/server error does not mean the profile is missing.
+        console.warn(`[API] GET /api/profile check failed (status=${status}): ${(profileErr as Error).message}`);
+        AppStorage.setOrCreate('userRole', roleForUser.length > 0 ? roleForUser : 'patient');
+        router.replaceUrl({ url: 'pages/HomePage' });
+        return;
+      }
+    }
+
+    // No patient profile. A doctor/family account is complete without one, so
+    // it goes straight to its dashboard; anyone with no role yet picks one.
+    if (roleForUser.length > 0) {
+      AppStorage.setOrCreate('userRole', roleForUser);
+      console.info(`[Login] No patient profile, account role is ${roleForUser} -> HomePage`);
+      router.replaceUrl({ url: 'pages/HomePage' });
+    } else {
+      // Neither a profile nor a role. Note whether the account really is empty
+      // (`exists: false` from a 404) or whether the server just could not be
+      // reached and the empty cache is what is being trusted.
+      console.info(`[Login] No role (accountExists=${accountResult.exists}, fromCache=${accountResult.fromCache}) -> SelectRolePage`);
+      promptAction.showToast({ message: 'Complete your setup to continue.' });
+      router.replaceUrl({ url: 'pages/SelectRolePage' });
+    }
+  }
 
   build() {
     Stack() {
@@ -184,91 +243,15 @@ struct LoginPage {
               const normalizedPhone: string = ApiService.normalizePhone(this.identifier);
               ApiService.login(normalizedPhone, this.password)
                 .then((auth: AuthResult) => {
-                  // The token is now persisted by SessionStore.
-                  // userId stays empty until the backend adds it (backend request BT-01).
-                  const uid: string = auth.userId !== undefined ? auth.userId : '(not sent by backend)';
+                  // The token and the userId are now persisted by SessionStore.
+                  const uid: string = auth.userId !== undefined ? auth.userId : '(missing)';
                   console.info(`[API] POST /api/login - OK, userId=${uid}`);
 
                   AppStorage.setOrCreate('userPhone', normalizedPhone)
                   AppStorage.setOrCreate('isJustRegistered', false)
                   promptAction.showToast({ message: 'Signed in successfully.' })
 
-                  // This account's device-stored client-side profile: role,
-                  // family email, doctor details. Kept per user (keyed by phone
-                  // number), so another account's setup on the same device does
-                  // not affect it.
-                  const local: LocalUserProfile = SessionStore.getLocalProfile(normalizedPhone);
-                  const roleForUser: string = local.role;
-
-                  // RESTORE the family/doctor profile. It has no backend home;
-                  // it used to be wiped on every sign-in, so setup was asked again.
-                  //
-                  // Restored whenever the data exists on this account, NOT only
-                  // when 'doctor' happens to be the current primary role: since
-                  // ProfilePage's role switcher lets a patient also configure a
-                  // Doctor profile as a secondary role, gating this on the
-                  // primary role wiped a fully-configured doctor profile back to
-                  // empty on every sign-in for anyone whose primary role wasn't
-                  // doctor - so it kept asking to set it up again. The family
-                  // email restore below never had this bug; it already checks
-                  // whether the data exists, not which role is active.
-                  if (local.doctorEmail.length > 0) {
-                    AppStorage.setOrCreate('doctorProfile', {
-                      hospital: local.doctorHospital,
-                      specialty: local.doctorSpecialty,
-                      email: local.doctorEmail,
-                      isVerified: local.doctorVerified
-                    })
-                  } else {
-                    AppStorage.setOrCreate('doctorProfile',
-                      { hospital: '', specialty: '', email: '', isVerified: false })
-                  }
-                  if (local.email.length > 0) {
-                    AppStorage.setOrCreate('userEmail', local.email)
-                  }
-
-                  // Having a profile is a hard prerequisite: every patient-scoped
-                  // table in the backend (SOS, emergency contacts, medications,
-                  // invitations) has an FK to patient_profiles(user_id). Without a
-                  // profile those endpoints return 500/403.
-                  //
-                  // The backend has no notion of roles, so we use the presence of a
-                  // profile as a role hint:
-                  //   profile FOUND   -> patient, go straight to the home screen
-                  //   profile MISSING -> could be a doctor, or a patient whose setup
-                  //                      was interrupted; let them pick a role
-                  // Load the FULL profile (name, height, weight, gender, conditions).
-                  // Just checking for existence was not enough: nothing was written
-                  // into AppStorage, so the fields looked empty after signing in.
-                  return ProfileRepository.load()
-                    .then(() => {
-                      // Profile exists. Use the stored role if there is one;
-                      // otherwise a patient profile implies this is a patient.
-                      const role: string = roleForUser.length > 0 ? roleForUser : 'patient';
-                      AppStorage.setOrCreate('userRole', role)
-                      console.info(`[Login] Rol: ${role} -> HomePage`);
-                      router.replaceUrl({ url: 'pages/HomePage' })
-                    })
-                    .catch((profileErr: Error) => {
-                      const status: number = profileErr instanceof ApiError ? (profileErr as ApiError).status : -1;
-                      if (status === 404) {
-                        // No patient profile. If a role is stored (doctor/family)
-                        // go straight to that dashboard; otherwise pick a role.
-                        if (roleForUser.length > 0) {
-                          AppStorage.setOrCreate('userRole', roleForUser)
-                          console.info(`[Login] No profile but role is stored: ${roleForUser} -> HomePage`);
-                          router.replaceUrl({ url: 'pages/HomePage' })
-                        } else {
-                          promptAction.showToast({ message: 'Complete your setup to continue.' })
-                          router.replaceUrl({ url: 'pages/SelectRolePage' })
-                        }
-                      } else {
-                        // A network/server error does not mean the profile is missing.
-                        console.warn(`[API] GET /api/profile check failed (status=${status}): ${profileErr.message}`);
-                        AppStorage.setOrCreate('userRole', roleForUser.length > 0 ? roleForUser : 'patient')
-                        router.replaceUrl({ url: 'pages/HomePage' })
-                      }
-                    })
+                  return this.routeAfterLogin();
                 })
                 .catch((err: Error) => {
                   // Log the real status code; a hard-coded 401 was misleading when debugging.

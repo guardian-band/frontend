@@ -27,6 +27,8 @@ export interface UiMedicalProfile {
   allergies: string;
   pacemaker: boolean;
   hearingAid: boolean;
+  /** Serial of the paired band. Empty when no band is paired. */
+  bandIdentifier: string;
 }
 
 const KEY_PROFILE: string = 'medicalProfile';
@@ -37,7 +39,7 @@ export class ProfileRepository {
     return {
       birthDate: '', gender: '', height: '', weight: '', bloodType: '',
       diseases: [], otherChronicDisease: '', allergies: '',
-      pacemaker: false, hearingAid: false
+      pacemaker: false, hearingAid: false, bandIdentifier: ''
     };
   }
 
@@ -62,7 +64,8 @@ export class ProfileRepository {
       // The UI expects a single line; the server array is joined with commas.
       allergies: allergyList.join(', '),
       pacemaker: facts.pacemaker !== undefined ? facts.pacemaker : false,
-      hearingAid: facts.hearingAid !== undefined ? facts.hearingAid : false
+      hearingAid: facts.hearingAid !== undefined ? facts.hearingAid : false,
+      bandIdentifier: profile.bandIdentifier !== undefined ? profile.bandIdentifier : ''
     };
   }
 

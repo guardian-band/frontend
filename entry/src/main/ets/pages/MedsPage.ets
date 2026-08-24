@@ -7,8 +7,11 @@ import { textRecognition } from '@kit.CoreVisionKit';
 import { image } from '@kit.ImageKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
-import { ApiService, MedicationCatalogItem, MedicationResponse, UploadedDocument, TakenResponse } from '../services/ApiService';
+import { ApiService, ApiError, UnsupportedMedicationsError, MedicationCatalogItem, MedicationResponse,
+  UploadedDocument, TakenResponse, MedicationRiskAnalysis, CreateMedicationRequest,
+  DocumentCatalog, MedicationIngredient, UnsupportedMedication } from '../services/ApiService';
 import { SessionStore } from '../services/SessionStore';
+import { RiskAnalysis } from '../services/RiskAnalysis';
 import { CoachMarkOverlay } from '../components/CoachMarkOverlay';
 import { TutorialManager } from '../utils/TutorialManager';
 
@@ -35,6 +38,13 @@ interface MedicationItem {
   id: string;
   /** Backend plan id. Empty means the plan lives on this device only. */
   serverId: string;
+  /**
+   * Catalog entry this plan was created from. Empty for a free-text plan.
+   * Only plans WITH one can take part in the interaction analysis: the backend
+   * reaches a plan's ingredients through this id, and a plan without it makes
+   * the analysis answer 422.
+   */
+  catalogItemId: string;
   name: string;
   totalPills: number; // Stock-based tracking
   durationDays: number; // How many days to use
@@ -61,27 +71,28 @@ struct MedsPage {
 
   @StorageLink('medications') medications: Array<MedicationItem> = [];
   @StorageLink('medicalProfile') medicalProfile: MedicalProfile | undefined = undefined;
-  
+
   @StorageLink('isTutorialActive') isTutorialActive: boolean = false;
   @StorageLink('currentTutorialStep') currentTutorialStep: number = 0;
 
-  // MOCK STATE FOR AI BODY ANALYSIS
-  @State currentAnalysisIndex: number = 0;
-  private mockAnalyses: AnalysisResult[] = [
-    {
-      overallStatus: 'medium',
-      message: 'Moderate risk of stomach irritation detected. Please review the details below.',
-      organs: [
-        { 
-          organId: 'stomach', 
-          riskLevel: 'low',
-          culpritMeds: ['Aspirin', 'Ibuprofen'],
-          detailMessage: 'Taking these two medications together can increase stomach acid and lead to mild irritation. It is strongly advised to take them after a full meal and drink plenty of water.'
-        }
-      ]
-    }
-  ];
-  @State currentAnalysis: AnalysisResult = this.mockAnalyses[0];
+  // --- AI interaction analysis (POST /api/medication-risk-analyses) ----------
+  // This card used to render a hard-coded example: a fixed "Aspirin + Ibuprofen
+  // irritates the stomach" card that appeared no matter which medications the
+  // patient actually took. It now shows what the model returns for THIS
+  // patient's own plans.
+  @State currentAnalysis: AnalysisResult = {
+    overallStatus: 'safe',
+    message: 'Add at least two medications to see an interaction analysis.',
+    organs: []
+  };
+  @State isAnalysing: boolean = false;
+  /**
+   * Why there is no analysis to show, when there is none. Kept separate from
+   * `currentAnalysis.message` so an error is never dressed up as a result -
+   * "no risk found" and "could not be analysed" must not look the same on a
+   * medical screen.
+   */
+  @State analysisNotice: string = '';
 
   aboutToAppear() {
     if (this.userRole !== 'patient') {
@@ -90,7 +101,258 @@ struct MedsPage {
       return;
     }
     this.loadMedicationCatalog();
-    this.loadServerMedications();
+    this.loadServerMedications().then(() => this.runRiskAnalysis());
+  }
+
+  /** GET /api/documents - the patient's archived prescriptions and reports. */
+  async loadDocuments(): Promise<void> {
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+    try {
+      this.documents = await ApiService.getDocuments();
+      this.documentsLoaded = true;
+      console.info(`[API] GET /api/documents - OK, ${this.documents.length} documents`);
+    } catch (err) {
+      this.documentsLoaded = true;
+      console.warn(`[API] GET /api/documents - failed: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Documents could not be loaded: ${(err as Error).message}` });
+    }
+  }
+
+  /**
+   * Downloads a document and opens the preview.
+   *
+   * The content endpoint needs the bearer token, so the file cannot be handed
+   * to a viewer as a URL: it is fetched into the app's cache directory first
+   * and shown from there.
+   */
+  async openDocument(doc: DocumentCatalog): Promise<void> {
+    if (this.isDownloading) {
+      return;
+    }
+    this.isDownloading = true;
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const fileName: string = `${doc.id}${this.extensionFor(doc.contentType)}`;
+      this.previewPath = await ApiService.downloadDocumentContent(doc.id, context.cacheDir, fileName);
+      this.previewTitle = doc.title;
+      this.previewContentType = doc.contentType;
+      this.isPreviewOpen = true;
+      console.info(`[API] GET /api/documents/${doc.id}/content - OK -> ${this.previewPath}`);
+    } catch (err) {
+      console.error(`[API] GET /api/documents/${doc.id}/content - FAILED: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Document could not be opened: ${(err as Error).message}` });
+    } finally {
+      this.isDownloading = false;
+    }
+  }
+
+  /** PUT /api/documents/{id}/content - re-photograph a document in place. */
+  async replaceDocument(doc: DocumentCatalog): Promise<void> {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const pickerProfile: cameraPicker.PickerProfile = {
+        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK
+      };
+      const pickerResult = await cameraPicker.pick(context, [cameraPicker.PickerMediaType.PHOTO], pickerProfile);
+      if (!pickerResult || !pickerResult.resultUri) {
+        return;
+      }
+      await ApiService.updateDocumentContent(doc.id, pickerResult.resultUri);
+      promptAction.showToast({ message: 'Document updated.' });
+      // The catalog row carries updatedAt/currentVersionId, both of which just
+      // changed on the server.
+      await this.loadDocuments();
+      console.info(`[API] PUT /api/documents/${doc.id}/content - OK`);
+    } catch (err) {
+      console.error(`[API] PUT /api/documents/${doc.id}/content - FAILED: ${(err as Error).message}`);
+      promptAction.showToast({ message: `Document could not be updated: ${(err as Error).message}` });
+    }
+  }
+
+  private extensionFor(contentType: string): string {
+    if (contentType.includes('pdf')) {
+      return '.pdf';
+    }
+    if (contentType.includes('png')) {
+      return '.png';
+    }
+    return '.jpg';
+  }
+
+  private isPreviewImage(): boolean {
+    return this.previewContentType.includes('image');
+  }
+
+  /** Catalog entry behind a display name ("Parol 500mg"). */
+  private findCatalogEntry(displayName: string): MedicationCatalogItem | undefined {
+    const exact: MedicationCatalogItem | undefined = this.catalogItems.find((c: MedicationCatalogItem) =>
+      (c.strength && c.strength.length > 0 ? `${c.name} ${c.strength}` : c.name) === displayName);
+    if (exact !== undefined) {
+      return exact;
+    }
+    return this.catalogItems.find((c: MedicationCatalogItem) => displayName.startsWith(c.name));
+  }
+
+  /**
+   * Is this plan something the interaction model can actually reason about?
+   *
+   * Two things have to hold: the plan is linked to a catalog entry, and that
+   * entry has at least one ingredient the model was trained on. The second is
+   * the one that surprises people - Lipitor is a perfectly good catalog entry,
+   * but atorvastatin sits outside the model's drug set, so it can never take
+   * part in an analysis. Filtering here lets the patient see a result for the
+   * rest of their medications instead of a refusal covering all of them.
+   *
+   * Returns true when the catalog is not loaded yet: better to ask the server
+   * and let the 422 handler sort it out than to silently drop a plan.
+   */
+  private isAnalysable(med: MedicationItem): boolean {
+    if (med.serverId.length === 0) {
+      return false;
+    }
+    if (med.catalogItemId.length === 0 || this.catalogItems.length === 0) {
+      return true;
+    }
+    const entry: MedicationCatalogItem | undefined =
+      this.catalogItems.find((c: MedicationCatalogItem) => c.id === med.catalogItemId);
+    if (entry === undefined || entry.ingredients === undefined) {
+      return true;
+    }
+    return entry.ingredients.some((i: MedicationIngredient) => i.aiSupported);
+  }
+
+  private nameForServerId(serverId: string): string {
+    const med: MedicationItem | undefined =
+      this.medications.find((m: MedicationItem) => m.serverId === serverId);
+    return med !== undefined ? med.name : serverId;
+  }
+
+  /** "A", "A and B", "A, B and C" - reads better than a bare comma list. */
+  private list(items: string[]): string {
+    if (items.length === 0) {
+      return '';
+    }
+    if (items.length === 1) {
+      return items[0];
+    }
+    return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+  }
+
+  /**
+   * POST /api/medication-risk-analyses over the patient's synced plans.
+   *
+   * Only plans that reached the server take part: the analysis works on backend
+   * medication ids, so device-only plans are skipped.
+   *
+   * Medications the model does not cover are left OUT rather than turned into
+   * an error. A patient on Lipitor, Parol and Aspirin should still get the
+   * Parol + Aspirin result; refusing the whole analysis over the one uncovered
+   * drug hid information they were entitled to.
+   */
+  async runRiskAnalysis(): Promise<void> {
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+
+    const analysable: MedicationItem[] = this.medications.filter((m: MedicationItem) => this.isAnalysable(m));
+    const skipped: string[] = this.medications
+      .filter((m: MedicationItem) => m.serverId.length > 0 && !this.isAnalysable(m))
+      .map((m: MedicationItem) => m.name);
+
+    if (analysable.length < 2) {
+      this.analysisNotice = '';
+      this.currentAnalysis = {
+        overallStatus: 'safe',
+        message: skipped.length > 0
+          ? `The interaction model does not cover ${this.list(skipped)}, so there are not enough medications left to compare. Two covered medications are needed.`
+          : 'Add at least two medications to see an interaction analysis.',
+        organs: []
+      };
+      return;
+    }
+
+    // The backend refuses more than 10 in one request.
+    const ids: string[] = analysable.map((m: MedicationItem) => m.serverId).slice(0, 10);
+    await this.requestRiskAnalysis(ids, skipped, true);
+  }
+
+  /**
+   * One analysis round trip.
+   *
+   * `mayRetry` allows exactly one second attempt: when the server rejects
+   * medications the client had no catalog information for, they are dropped and
+   * the rest are analysed. Capped at one retry so a disagreement between client
+   * and server can never become a request loop.
+   */
+  private async requestRiskAnalysis(ids: string[], skipped: string[], mayRetry: boolean): Promise<void> {
+    this.isAnalysing = true;
+    this.analysisNotice = '';
+    try {
+      const analysis: MedicationRiskAnalysis = await ApiService.createMedicationRiskAnalysis(ids);
+      this.currentAnalysis = RiskAnalysis.toAnalysisResult(analysis);
+
+      const notes: string[] = [];
+      if (skipped.length > 0) {
+        const one: boolean = skipped.length === 1;
+        notes.push(`${this.list(skipped)} ${one ? 'is' : 'are'} not covered by the interaction model, so ${one ? 'it was' : 'they were'} left out.`);
+      }
+      if (RiskAnalysis.hasReducedConfidence(analysis)) {
+        // The model itself flagged the input as weaker than usual; saying so is
+        // more honest than showing the same confident-looking card.
+        notes.push('The model reported reduced confidence for some pairs. Treat these results as indicative.');
+      }
+      this.analysisNotice = notes.join(' ');
+      console.info(`[API] POST /api/medication-risk-analyses - OK, ${analysis.pairs.length} pairs, ${skipped.length} skipped`);
+    } catch (err) {
+      if (err instanceof UnsupportedMedicationsError) {
+        const rejected: UnsupportedMedication[] = (err as UnsupportedMedicationsError).unsupported;
+        const rejectedIds: string[] = rejected.map((u: UnsupportedMedication) => u.medicationId);
+        const names: string[] = rejected.map((u: UnsupportedMedication) =>
+          u.name !== undefined && u.name.length > 0 ? u.name : this.nameForServerId(u.medicationId));
+        const remaining: string[] = ids.filter((id: string) => !rejectedIds.includes(id));
+
+        if (mayRetry && remaining.length >= 2) {
+          this.isAnalysing = false;
+          await this.requestRiskAnalysis(remaining, skipped.concat(names), false);
+          return;
+        }
+        this.failAnalysis(this.unsupportedMessage(rejected, names));
+      } else {
+        const apiErr: ApiError | null = err instanceof ApiError ? err as ApiError : null;
+        this.failAnalysis(apiErr !== null ? apiErr.message : 'The interaction analysis could not be completed.');
+      }
+      console.warn(`[API] POST /api/medication-risk-analyses - failed: ${(err as Error).message}`);
+    } finally {
+      this.isAnalysing = false;
+    }
+  }
+
+  private failAnalysis(notice: string): void {
+    this.currentAnalysis = { overallStatus: 'safe', message: '', organs: [] };
+    this.analysisNotice = notice;
+  }
+
+  /**
+   * Explains a 422 in terms that are actually true for it.
+   *
+   * The backend answers 422 for two different situations that need opposite
+   * advice. A rejected medication that still carries an `ingredient` IS linked
+   * to the catalog - the model simply does not cover that drug, and re-adding
+   * it would change nothing. Only a rejection with no ingredient at all is a
+   * missing catalog link, which the patient can actually fix.
+   */
+  private unsupportedMessage(rejected: UnsupportedMedication[], names: string[]): string {
+    const unlinked: string[] = rejected
+      .filter((u: UnsupportedMedication) => u.ingredient === undefined || u.ingredient.length === 0)
+      .map((u: UnsupportedMedication) => u.name);
+
+    if (unlinked.length > 0 && unlinked.length === rejected.length) {
+      const one: boolean = unlinked.length === 1;
+      return `${this.list(unlinked)} ${one ? 'is' : 'are'} not linked to a catalog entry, so ${one ? 'it' : 'they'} cannot be analysed. Re-add ${one ? 'it' : 'them'} by picking from the medication list.`;
+    }
+    return `The interaction model does not cover ${this.list(names)}, so there are not enough medications left to compare. This is a limit of the model, not a problem with your list.`;
   }
 
   /** GET /api/medication-catalog - the catalog used to be a hard-coded array. */
@@ -127,6 +389,7 @@ struct MedsPage {
           this.medications.push({
             id: plan.id,
             serverId: plan.id,
+            catalogItemId: plan.catalogItemId !== undefined ? plan.catalogItemId : '',
             name: plan.strength && plan.strength.length > 0 ? `${plan.name} ${plan.strength}` : plan.name,
             totalPills: 0,
             durationDays: 0,
@@ -142,7 +405,11 @@ struct MedsPage {
     }
   }
 
-  /** Maps the backend frequencyHours value onto the UI meal slots. */
+  /**
+   * Maps the backend frequencyHours value onto the UI meal slots.
+   * 24 -> once a day, 12 -> twice, 8 -> three times. 6 (four doses) has no
+   * fourth meal slot in this UI, so it also renders as three.
+   */
   private slotsFromFrequency(frequencyHours: number): Array<MedTime> {
     if (frequencyHours === 24) {
       return [{ slot: 'Morning', specificTime: '', taken: false }];
@@ -163,12 +430,10 @@ struct MedsPage {
   /**
    * Maps the UI meal slots onto the backend frequencyHours value.
    *
-   * CAREFUL - known model mismatch (BLG-007):
-   * The backend accepts only 6, 12 or 24 hours. Once a day -> 24 and twice a day
-   * -> 12 are correct. Three times a day is ~8 hours, which is NOT in the
-   * backend's set. Rounding it to 6 would mean four doses a day - a dosing
-   * error - so it is deliberately not done; the plan is kept on the device only
-   * and the user is warned.
+   * The backend accepts 6, 8, 12 or 24 hours, so all three meal-slot counts map
+   * exactly: once a day -> 24, twice -> 12, three times -> 8. (Three doses a
+   * day used to have no safe mapping and such plans stayed on the device only -
+   * BLG-007; the 8-hour value closes that gap.)
    *
    * @returns the hour value when it can be mapped, otherwise 0
    */
@@ -178,6 +443,9 @@ struct MedsPage {
     }
     if (slotCount === 2) {
       return 12;
+    }
+    if (slotCount === 3) {
+      return 8;
     }
     return 0;
   }
@@ -190,6 +458,19 @@ struct MedsPage {
   @State allMeds: Array<string> = ['Benical Cold', 'Flagyl 500 mg', 'Apranax Forte', 'Piyeloseptyl'];
   @State catalogItems: MedicationCatalogItem[] = [];
   @State lastPrescriptionDocId: string = '';
+
+  // --- Archived prescriptions and reports (GET /api/documents) --------------
+  // Uploads had no way back: a scanned prescription went to S3 and the patient
+  // could never look at it again. These drive the list and the viewer.
+  @State documents: DocumentCatalog[] = [];
+  @State isDocumentListExpanded: boolean = false;
+  @State documentsLoaded: boolean = false;
+  /** Local path of the document being previewed, and its content type. */
+  @State previewPath: string = '';
+  @State previewTitle: string = '';
+  @State previewContentType: string = '';
+  @State isPreviewOpen: boolean = false;
+  @State isDownloading: boolean = false;
   @State selectedMedName: string = 'Benical Cold';
 
   // Duration State (Days)
@@ -249,29 +530,42 @@ struct MedsPage {
   /**
    * Medication deletion.
    *
-   * PLATFORM LIMITATION - there is no `DELETE /api/medications/{id}` on the
-   * backend yet (see BACKEND_REQUESTS.md #2). For a plan that is synced to the
-   * server (`serverId` set), removing it only from this local list used to look
-   * like it worked - until `loadServerMedications()` re-fetched `GET
-   * /api/medications` on the next visit and added it right back, because the
-   * server still has it as `active`. Worse: the plan would also keep showing up
-   * as an active medication on the Emergency Medical Card, even though the
-   * patient believed it was removed - a real safety mismatch, not just a UI
-   * glitch. So a synced plan is left alone until the backend adds real
-   * deletion; only device-only plans (BLG-007: 3-doses-a-day plans that never
-   * reached the server) can be removed today.
+   * A synced plan (`serverId` set) has to go through
+   * `DELETE /api/medications/{id}` first. Removing it only from this local list
+   * used to look like it worked - until `loadServerMedications()` re-fetched
+   * `GET /api/medications` on the next visit and added it right back, and the
+   * plan also kept showing up as an active medication on the Emergency Medical
+   * Card. So the local rows are dropped only after the server confirms.
    */
   deleteMedication(id: string) {
     const target = this.medications.find(med => med.id === id);
-    if (target !== undefined && target.serverId.length > 0) {
-      promptAction.showToast({
-        message: 'Deleting a saved medication is not supported by the server yet. This has been reported to the backend team.'
-      });
+    const serverId: string = target !== undefined ? target.serverId : '';
+
+    if (serverId.length === 0) {
+      // Device-only plan: nothing to delete on the server.
+      this.removeMedicationLocally(id);
+      promptAction.showToast({ message: 'Medication removed successfully' });
       return;
     }
+
+    ApiService.deleteMedicationPlan(serverId)
+      .then(() => {
+        this.removeMedicationLocally(id);
+        console.info(`[API] DELETE /api/medications/${serverId} - OK`);
+        promptAction.showToast({ message: 'Medication removed successfully' });
+        // One fewer medication means a different interaction picture; leaving
+        // the old card up would show risks for a plan that is gone.
+        this.runRiskAnalysis();
+      })
+      .catch((err: Error) => {
+        console.error(`[API] DELETE /api/medications/${serverId} - FAILED: ${err.message}`);
+        promptAction.showToast({ message: `Could not remove the medication: ${err.message}` });
+      });
+  }
+
+  private removeMedicationLocally(id: string) {
     this.medications = this.medications.filter(med => med.id !== id);
     this.dashboardMeds = this.dashboardMeds.filter(med => !med.id.startsWith(id));
-    promptAction.showToast({ message: 'Medication removed successfully' });
   }
 
   // Toggle dose taken status and update stock
@@ -351,6 +645,10 @@ struct MedsPage {
             .then((doc: UploadedDocument) => {
               this.lastPrescriptionDocId = doc.id;
               console.info(`[API] POST /api/documents - OK id=${doc.id}`);
+              if (this.documentsLoaded) {
+                // The list is open behind this flow; keep it in step.
+                this.loadDocuments();
+              }
             })
             .catch((err: Error) => {
               // Do not swallow this: the user must know the prescription was not archived.
@@ -588,7 +886,7 @@ struct MedsPage {
                   .width('100%')
                   .padding(16)
                   .backgroundColor(Color.White)
-                  .borderRadius(16)
+                  .borderRadius(20)
                   .border({ width: 1, color: '#EBECEF' })
                   .margin({ bottom: 12 })
                 })
@@ -597,11 +895,150 @@ struct MedsPage {
             }
 
             // --- Safety (Side Effect Analysis) Section (Now positioned below Medication List) ---
-            SafetyAnalysisCard({ 
-              analysisResult: this.currentAnalysis, 
-              userGender: (this.medicalProfile?.gender || 'Female').toLowerCase() 
-            })
-              .margin({ left: 12, right: 12, top: 4, bottom: 12 })
+            if (this.isAnalysing) {
+              Row() {
+                LoadingProgress()
+                  .width(22)
+                  .height(22)
+                  .color('#003D9B')
+                  .margin({ right: 10 })
+                Text('Analysing medication interactions...')
+                  .fontSize(14)
+                  .fontColor('#434654')
+              }
+              .width('100%')
+              .padding(14)
+              .backgroundColor('#F0F4FF')
+              .borderRadius(20)
+              .border({ width: 1, color: '#D0E0FF' })
+              .margin({ bottom: 12 })
+            }
+
+            // Why there is no result, when there is none. Deliberately NOT
+            // rendered inside the analysis card: a failure must not be mistaken
+            // for an "all clear".
+            if (this.analysisNotice.length > 0) {
+              Row() {
+                Image($r('app.media.alert'))
+                  .width(20)
+                  .height(20)
+                  .objectFit(ImageFit.Contain)
+                  .margin({ right: 10 })
+                Text(this.analysisNotice)
+                  .fontSize(13)
+                  .fontColor('#854E00')
+                  .lineHeight(19)
+                  .layoutWeight(1)
+              }
+              .width('100%')
+              .alignItems(VerticalAlign.Top)
+              .padding(14)
+              .backgroundColor('#FFF4E5')
+              .borderRadius(20)
+              .border({ width: 1, color: '#F0C27A' })
+              .margin({ bottom: 12 })
+            }
+
+            if (!this.isAnalysing && this.currentAnalysis.message.length > 0) {
+              SafetyAnalysisCard({ 
+                analysisResult: this.currentAnalysis, 
+                userGender: (this.medicalProfile?.gender || 'Female').toLowerCase() 
+              })
+                .margin({ bottom: 12 })
+            }
+
+            // --- Archived prescriptions and reports -------------------------
+            Column() {
+              Row() {
+                Image($r('app.media.prescription'))
+                  .width(22)
+                  .height(22)
+                  .objectFit(ImageFit.Contain)
+                  .margin({ right: 10 })
+                Column() {
+                  Text('Prescriptions & Reports')
+                    .fontSize(15)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor('#434654')
+                  Text('Documents you have uploaded')
+                    .fontSize(12)
+                    .fontColor('#737685')
+                    .margin({ top: 2 })
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+                Text(this.isDocumentListExpanded ? '▲' : '▼')
+                  .fontSize(14)
+                  .fontColor('#8F92A1')
+              }
+              .width('100%')
+              .onClick(() => {
+                this.isDocumentListExpanded = !this.isDocumentListExpanded;
+                if (this.isDocumentListExpanded && !this.documentsLoaded) {
+                  this.loadDocuments();
+                }
+              })
+
+              if (this.isDocumentListExpanded) {
+                Divider().color('#EBECEF').margin({ top: 12, bottom: 12 })
+
+                if (this.documents.length === 0) {
+                  Text(this.documentsLoaded
+                    ? 'No documents yet. Scanning a prescription archives it here.'
+                    : 'Loading...')
+                    .fontSize(13)
+                    .fontColor('#737685')
+                    .width('100%')
+                } else {
+                  Column({ space: 10 }) {
+                    ForEach(this.documents, (doc: DocumentCatalog) => {
+                      Row() {
+                        Column() {
+                          Text(doc.title)
+                            .fontSize(14)
+                            .fontWeight(FontWeight.Medium)
+                            .fontColor('#191C1D')
+                          Text(`${doc.kind} · ${doc.contentType}`)
+                            .fontSize(12)
+                            .fontColor('#737685')
+                            .margin({ top: 2 })
+                        }
+                        .alignItems(HorizontalAlign.Start)
+                        .layoutWeight(1)
+
+                        Text('View')
+                          .fontSize(12)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor('#003D9B')
+                          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                          .backgroundColor('#F0F4FF')
+                          .borderRadius(8)
+                          .onClick(() => { this.openDocument(doc); })
+
+                        Text('Replace')
+                          .fontSize(12)
+                          .fontWeight(FontWeight.Bold)
+                          .fontColor('#854E00')
+                          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+                          .backgroundColor('#FFF4E5')
+                          .borderRadius(8)
+                          .margin({ left: 8 })
+                          .onClick(() => { this.replaceDocument(doc); })
+                      }
+                      .width('100%')
+                      .alignItems(VerticalAlign.Center)
+                    }, (doc: DocumentCatalog) => doc.id)
+                  }
+                  .width('100%')
+                }
+              }
+            }
+            .width('100%')
+            .padding(14)
+            .backgroundColor(Color.White)
+            .borderRadius(20)
+            .border({ width: 1, color: '#EBECEF' })
+            .margin({ bottom: 12 })
 
             Blank().height(120)
           }
@@ -1036,9 +1473,16 @@ struct MedsPage {
                       let activeDays = this.weekDays.filter((day, index) => this.selectedDays[index]);
                       let baseId = Date.now().toString();
 
+                      // Resolved up front: the catalog id has to travel with the
+                      // plan both locally and to the server, otherwise the plan
+                      // can never be analysed for interactions.
+                      const catalogEntry: MedicationCatalogItem | undefined =
+                        this.findCatalogEntry(this.selectedMedName);
+
                       const newItem: MedicationItem = {
                         id: baseId,
                         serverId: '',
+                        catalogItemId: catalogEntry !== undefined ? catalogEntry.id : '',
                         name: this.selectedMedName,
                         durationDays: this.durationDays,
                         totalPills: this.totalPills,
@@ -1051,27 +1495,35 @@ struct MedsPage {
                       // POST /api/medications - also write the plan to the backend.
                       const frequencyHours: number = this.frequencyFromSlots(chosenTimes.length);
                       if (frequencyHours === 0) {
-                        // Deliberate: three doses a day cannot be mapped safely onto
-                        // the backend's {6,12,24} set. See BLG-007.
+                        // No meal slot maps onto the backend's {6,8,12,24} set;
+                        // the plan stays on this device only.
                         promptAction.showToast({
-                          message: 'Three doses per day is not supported by the server yet; the plan was saved on this device only.'
+                          message: 'This dose schedule cannot be saved to the server; the plan was saved on this device only.'
                         });
                       } else if (SessionStore.isAuthenticated()) {
-                        const catalogEntry = this.catalogItems.find((c: MedicationCatalogItem) =>
-                          this.selectedMedName.startsWith(c.name));
-                        ApiService.createMedicationPlan({
+                        const request: CreateMedicationRequest = {
+                          // Without this the backend cannot reach the plan's
+                          // ingredients, and every later risk analysis that
+                          // includes this plan comes back 422.
+                          catalogItemId: catalogEntry !== undefined ? catalogEntry.id : undefined,
                           name: catalogEntry !== undefined ? catalogEntry.name : this.selectedMedName,
                           strength: catalogEntry !== undefined ? catalogEntry.strength : '',
                           instructions: this.mealTiming,
                           frequencyHours: frequencyHours,
                           prescriptionDocumentId: this.lastPrescriptionDocId.length > 0
                             ? this.lastPrescriptionDocId : undefined
-                        })
+                        };
+                        ApiService.createMedicationPlan(request)
                           .then((created: MedicationResponse) => {
                             newItem.serverId = created.id;
+                            if (created.catalogItemId !== undefined) {
+                              newItem.catalogItemId = created.catalogItemId;
+                            }
                             this.medications = [...this.medications];
                             this.lastPrescriptionDocId = '';
                             console.info(`[API] POST /api/medications - OK id=${created.id}`);
+                            // A new plan changes the interaction picture.
+                            this.runRiskAnalysis();
                           })
                           .catch((err: Error) => {
                             console.error(`[API] POST /api/medications - FAILED: ${err.message}`);
@@ -1128,6 +1580,82 @@ struct MedsPage {
         .width('100%')
         .height('100%')
         .zIndex(10)
+      }
+
+      // Document preview. Images render in place; anything else (a PDF) is
+      // downloaded and its location reported - the app ships no PDF renderer,
+      // and pretending otherwise would just show a blank frame.
+      if (this.isPreviewOpen) {
+        Column() {
+          Column() {
+            Row() {
+              Text(this.previewTitle)
+                .fontSize(16)
+                .fontWeight(FontWeight.Bold)
+                .fontColor('#191C1D')
+                .layoutWeight(1)
+              Text('✕')
+                .fontSize(18)
+                .fontColor('#737685')
+                .onClick(() => { this.isPreviewOpen = false; })
+            }
+            .width('100%')
+            .margin({ bottom: 16 })
+
+            if (this.isPreviewImage()) {
+              Image(`file://${this.previewPath}`)
+                .width('100%')
+                .height(380)
+                .objectFit(ImageFit.Contain)
+                .borderRadius(12)
+                .backgroundColor('#F3F4F5')
+            } else {
+              Column() {
+                Text('📄')
+                  .fontSize(48)
+                  .margin({ bottom: 12 })
+                Text('This document was downloaded to your device.')
+                  .fontSize(14)
+                  .fontColor('#434654')
+                  .textAlign(TextAlign.Center)
+                Text(this.previewPath)
+                  .fontSize(11)
+                  .fontColor('#737685')
+                  .textAlign(TextAlign.Center)
+                  .margin({ top: 8 })
+              }
+              .width('100%')
+              .padding(24)
+              .backgroundColor('#F3F4F5')
+              .borderRadius(12)
+              .justifyContent(FlexAlign.Center)
+            }
+          }
+          .width('90%')
+          .padding(20)
+          .backgroundColor(Color.White)
+          .borderRadius(24)
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor('rgba(0,0,0,0.45)')
+        .justifyContent(FlexAlign.Center)
+        .alignItems(HorizontalAlign.Center)
+        .zIndex(11)
+      }
+
+      if (this.isDownloading) {
+        Column() {
+          LoadingProgress()
+            .width(48)
+            .height(48)
+            .color(Color.White)
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor('rgba(0,0,0,0.35)')
+        .justifyContent(FlexAlign.Center)
+        .zIndex(12)
       }
 
       BottomNavBar({ activeTab: 'meds' })

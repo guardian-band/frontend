@@ -3,6 +3,7 @@ import { ApiService, PatientProfile, CriticalFacts } from '../services/ApiServic
 import { SessionStore, LocalUserProfile } from '../services/SessionStore';
 import { ApiConfig } from '../services/ApiConfig';
 import { ProfileRepository, UiMedicalProfile } from '../services/ProfileRepository';
+import { AccountRepository } from '../services/AccountRepository';
 
 interface DoctorProfile {
   hospital: string;
@@ -26,6 +27,8 @@ struct ProfileSetupPage {
   @State allergies: string = '';
   @State pacemaker: boolean = false;
   @State hearingAid: boolean = false;
+  /** Serial printed on the band. Empty means no band is paired. */
+  @State bandIdentifier: string = '';
   @State isDiseasesExpanded: boolean = false;
   @State otherChronicDisease: string = '';
   
@@ -87,6 +90,7 @@ struct ProfileSetupPage {
       this.allergies = existing.allergies ? existing.allergies : this.allergies;
       this.pacemaker = existing.pacemaker;
       this.hearingAid = existing.hearingAid;
+      this.bandIdentifier = existing.bandIdentifier ? existing.bandIdentifier : this.bandIdentifier;
     }
 
     const savedEmail = AppStorage.get<string>('userEmail');
@@ -129,6 +133,7 @@ struct ProfileSetupPage {
           this.allergies = fresh.allergies ? fresh.allergies : this.allergies;
           this.pacemaker = fresh.pacemaker;
           this.hearingAid = fresh.hearingAid;
+          this.bandIdentifier = fresh.bandIdentifier ? fresh.bandIdentifier : this.bandIdentifier;
         })
         .catch((err: Error) => {
           // 404 = no profile yet, first-time setup. Expected.
@@ -657,6 +662,37 @@ struct ProfileSetupPage {
                 .alignItems(VerticalAlign.Center)}.width('100%')
               .margin({ bottom: 24 })
 
+              // GuardianBand serial. The backend checks readings against this
+              // value and rejects a mismatch with 403, so the app only stamps a
+              // serial onto readings once the patient has entered one here.
+              Column() {
+                Text('GuardianBand Serial (optional)')
+                  .fontSize(14)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor('#434654')
+                  .alignSelf(ItemAlign.Start)
+                  .margin({ left: 4, bottom: 8 })
+
+                TextInput({ text: this.bandIdentifier, placeholder: 'e.g. GB-12345' })
+                  .width('100%')
+                  .height(52)
+                  .fontSize(16)
+                  .backgroundColor('#F0F4F8')
+                  .borderRadius(12)
+                  .padding({ left: 16, right: 16 })
+                  .onChange((value: string) => {
+                    this.bandIdentifier = value;
+                  })
+
+                Text('Leave empty if you have not paired a band yet.')
+                  .fontSize(12)
+                  .fontColor('#737685')
+                  .alignSelf(ItemAlign.Start)
+                  .margin({ left: 4, top: 6 })
+              }
+              .width('100%')
+              .margin({ bottom: 24 })
+
             } else if (this.role === 'doctor') {
               // DOCTOR FORM FIELDS
 
@@ -943,7 +979,8 @@ struct ProfileSetupPage {
                   otherChronicDisease: this.otherChronicDisease,
                   allergies: this.allergies,
                   pacemaker: this.pacemaker,
-                  hearingAid: this.hearingAid
+                  hearingAid: this.hearingAid,
+                  bandIdentifier: this.bandIdentifier.trim()
                 });
 
                 if (SessionStore.isAuthenticated()) {
@@ -970,7 +1007,10 @@ struct ProfileSetupPage {
                     birthDate: this.birthDate,
                     bloodType: this.bloodType,
                     criticalFacts: facts,
-                    timezone: ApiConfig.deviceTimezone()
+                    timezone: ApiConfig.deviceTimezone(),
+                    // Sent even when empty: PUT is a full replace, so omitting
+                    // it would unpair a band the patient set up earlier.
+                    bandIdentifier: this.bandIdentifier.trim()
                   };
 
                   ApiService.putProfile(profilePayload)
@@ -1047,20 +1087,21 @@ struct ProfileSetupPage {
 
               AppStorage.setOrCreate('userRole', this.role);
 
-              // Persist the role AND the family/doctor profile fields.
-              // These have no backend counterpart; they used to live only in
-              // AppStorage (in memory), so they were lost after sign-out or a
-              // restart and setup was requested all over again.
+              // Persist the role AND the family/doctor profile fields through
+              // `PUT /api/account`, so they survive a reinstall or a sign-in on
+              // another device. They used to be written to the device only,
+              // which meant setup was requested all over again elsewhere.
               //
-              // The persisted `role` is only updated when this is the FIRST,
+              // The saved `role` is only updated when this is the FIRST,
               // primary-role setup reached from SelectRolePage (canGoBack is
               // unset there). When this page is reached from ProfilePage's role
               // switcher (canGoBack: true) to configure an ADDITIONAL role, the
               // account's primary role must not silently change - otherwise
               // trying out "Doctor" once permanently redirected every future
               // login to the doctor dashboard instead of the role picked at
-              // registration.
-              SessionStore.patchLocalProfile({
+              // registration. Leaving `role` out of the patch keeps the stored
+              // one; AccountRepository merges the rest on top of it.
+              AccountRepository.savePatch({
                 role: this.canGoBack ? undefined : this.role,
                 email: this.role === 'family' ? this.email : undefined,
                 doctorHospital: this.role === 'doctor' ? this.doctorHospital : undefined,
@@ -1068,7 +1109,7 @@ struct ProfileSetupPage {
                   ? (this.doctorSpecialty === 'Other' ? this.otherDoctorSpecialty : this.doctorSpecialty)
                   : undefined,
                 doctorEmail: this.role === 'doctor' ? this.doctorEmail : undefined
-              }).catch((err: Error) => console.warn(`[SessionStore] Yerel profil kaydedilemedi: ${err.message}`));
+              }).catch((err: Error) => console.warn(`[AccountRepository] Rol bilgisi kaydedilemedi: ${err.message}`));
 
               promptAction.showToast({ message: 'Profile completed successfully!' });
               router.pushUrl({ url: 'pages/HomePage' });

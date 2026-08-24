@@ -19,6 +19,12 @@ export interface UiEmergencyContact {
   fullName: string;
   phone: string;
   relation: string;
+  /**
+   * Carried through because `PUT /api/emergency-contacts/{id}` is a full
+   * replace: an edit that did not send the current value would silently demote
+   * the primary contact.
+   */
+  isPrimary: boolean;
 }
 
 const STORAGE_KEY: string = 'sosContacts';
@@ -29,7 +35,8 @@ export class ContactsRepository {
       id: contact.id,
       fullName: contact.displayName,
       phone: contact.phone,
-      relation: contact.relationship
+      relation: contact.relationship,
+      isPrimary: contact.isPrimary
     };
   }
 
@@ -82,16 +89,42 @@ export class ContactsRepository {
   }
 
   /**
-   * Editing a contact is currently done as delete + re-create.
+   * Edits a contact in place through `PUT /api/emergency-contacts/{id}`.
    *
-   * Reason: the backend expects `PATCH /api/emergency-contacts/{id}`, but the
-   * HarmonyOS SDK 6.1.1(24) http stack does not support the PATCH method (see
-   * the "PLATFORM LIMITATION" note in ApiService). This path changes the
-   * contact id - fix it once the backend adds a PUT counterpart.
+   * This used to be a delete + re-create, because the backend only offered
+   * PATCH and the HarmonyOS SDK 6.1.1(24) http stack cannot send that method.
+   * The workaround changed the contact id on every edit; the PUT counterpart
+   * keeps it stable.
+   *
+   * PUT replaces the whole record, so `isPrimary` is taken from the cached
+   * contact when the caller does not pass one - otherwise editing a name would
+   * also clear the primary flag.
    */
-  static async update(contactId: string, fullName: string, phone: string, relation: string): Promise<UiEmergencyContact> {
-    await ContactsRepository.remove(contactId);
-    return ContactsRepository.add(fullName, phone, relation);
+  static async update(contactId: string, fullName: string, phone: string, relation: string,
+                      isPrimary?: boolean): Promise<UiEmergencyContact> {
+    const list: UiEmergencyContact[] = ContactsRepository.readFromStorage();
+    const cached: UiEmergencyContact | undefined = list.find((c: UiEmergencyContact) => c.id === contactId);
+    const primary: boolean = isPrimary !== undefined
+      ? isPrimary
+      : (cached !== undefined ? cached.isPrimary : false);
+
+    const input: EmergencyContactInput = {
+      displayName: fullName,
+      phone: phone,
+      relationship: relation,
+      isPrimary: primary
+    };
+    const updated: EmergencyContact = await ApiService.updateEmergencyContact(contactId, input);
+    const ui: UiEmergencyContact = ContactsRepository.toUi(updated);
+
+    const index: number = list.findIndex((c: UiEmergencyContact) => c.id === contactId);
+    if (index !== -1) {
+      list[index] = ui;
+    } else {
+      list.push(ui);
+    }
+    ContactsRepository.writeToStorage([...list]);
+    return ui;
   }
 
   static async remove(contactId: string): Promise<void> {

@@ -19,14 +19,18 @@ const KEY_ROLE: string = 'userRole';
 const KEY_ENDPOINT_ID: string = 'notificationEndpointId';
 /**
  * Phone number -> per-user local profile map.
- * Holds the role and the family/doctor profile fields that have no backend
- * counterpart.
+ * Offline cache of the account (role + role facts) that the backend owns; see
+ * `AccountRepository`.
  */
 const KEY_PROFILE_MAP: string = 'userProfiles';
 
 /**
- * Client-side profile stored on the device, per user.
- * None of these fields exist in the backend schema.
+ * The account as cached on this device, per user.
+ *
+ * These fields all live on the server now: `role` is `UserAccount.role` and the
+ * rest are keys inside its free-form `roleFacts`. The device copy exists so a
+ * sign-in with no connection still knows which dashboard to open; the server
+ * wins whenever it answers.
  */
 export interface LocalUserProfile {
   role: string;
@@ -141,7 +145,14 @@ export class SessionStore {
     return SessionStore.phone;
   }
 
-  /** Role of the signed-in user. Checks the per-user record first. */
+  /**
+   * Cached role of the signed-in user. The per-user record wins, since the
+   * global key is only a leftover mirror.
+   *
+   * Reads the DEVICE cache. Anything that needs the authoritative value should
+   * go through `AccountRepository`, and anything writing a role must go through
+   * it - a role written only here would never reach the server.
+   */
   static getRole(): string {
     const perUser: string = SessionStore.getRoleForPhone(SessionStore.phone);
     if (perUser.length > 0) {
@@ -160,7 +171,35 @@ export class SessionStore {
 
   // --- Writes -----------------------------------------------------------------
 
+  /**
+   * Persists a freshly obtained session.
+   *
+   * When the incoming session belongs to a DIFFERENT user than the one already
+   * in the store, the device view caches are wiped first. AppStorage lives in
+   * memory for the life of the process and was only ever cleared on sign-out,
+   * so signing in as another account - or registering a new one - while the
+   * previous account's data was still loaded left that data on screen. The
+   * setup form then opened pre-filled with the PREVIOUS patient's birth date,
+   * blood type, chronic conditions and allergies, and saving it wrote them onto
+   * the new patient's profile: wrong data on someone else's emergency card,
+   * not just a cosmetic glitch.
+   *
+   * Signing in again as the same user keeps the caches, so nothing flickers on
+   * an ordinary re-login.
+   */
   static async saveSession(token: string, userId: string, phone: string): Promise<void> {
+    const isDifferentUser: boolean = userId.length > 0
+      ? userId !== SessionStore.userId
+      : phone !== SessionStore.phone;
+    if (isDifferentUser) {
+      console.info('[SessionStore] A different account signed in; device caches cleared.');
+      SessionStore.clearDeviceViewCaches();
+      // The in-memory role belongs to the previous account. Without this the
+      // mirror below would write it straight back into AppStorage, undoing part
+      // of the clear.
+      SessionStore.role = '';
+    }
+
     SessionStore.token = token;
     SessionStore.userId = userId;
     SessionStore.phone = phone;
@@ -168,24 +207,6 @@ export class SessionStore {
     await SessionStore.writeString(KEY_TOKEN, token);
     await SessionStore.writeString(KEY_USER_ID, userId);
     await SessionStore.writeString(KEY_PHONE, phone);
-  }
-
-  /**
-   * Stores the role **per user**.
-   *
-   * The backend has no concept of roles; the role is purely a client-side
-   * preference. It used to be kept under a single global key, so once a doctor
-   * had been set up on a device, signing in with a patient account also
-   * restored the 'doctor' role and landed on the wrong dashboard.
-   *
-   * It is now keyed by phone number, so every account remembers its own role.
-   * (Phone number is used because the backend does not return a userId in the
-   * login response - see backend request BT-01.)
-   */
-  static async saveRole(role: string): Promise<void> {
-    SessionStore.role = role;
-    AppStorage.setOrCreate(KEY_ROLE, role);
-    await SessionStore.patchLocalProfile({ role: role });
   }
 
   private static readProfileMap(): Record<string, LocalUserProfile> {
@@ -208,13 +229,16 @@ export class SessionStore {
   }
 
   /**
-   * Partially updates the user's device-stored profile.
+   * Partially updates the device cache of the account.
    *
-   * Family and doctor profiles have **no backend counterpart at all** - the
-   * schema has no email, no hospital, no specialty. This data used to live only
-   * in AppStorage (i.e. IN MEMORY); it was wiped on sign-out and lost when the
-   * app closed. The result: setup was requested again on every sign-in even
-   * after it had been completed.
+   * This data used to live only in AppStorage (i.e. IN MEMORY); it was wiped on
+   * sign-out and lost when the app closed, so setup was requested again on
+   * every sign-in even after it had been completed. It is persisted here and
+   * owned by the backend.
+   *
+   * Writing here does NOT reach the server. Call
+   * `AccountRepository.savePatch()` instead; it updates this cache and then
+   * pushes the merged account with `PUT /api/account`.
    */
   static async patchLocalProfile(patch: LocalUserProfilePatch): Promise<void> {
     const phone: string = SessionStore.phone;
@@ -322,7 +346,7 @@ export class SessionStore {
     AppStorage.setOrCreate('medicalProfile', {
       birthDate: '', gender: '', height: '', weight: '', bloodType: '',
       diseases: [] as string[], otherChronicDisease: '', allergies: '',
-      pacemaker: false, hearingAid: false
+      pacemaker: false, hearingAid: false, bandIdentifier: ''
     });
   }
 

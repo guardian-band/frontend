@@ -1,7 +1,8 @@
 // HomePage.ets
 import { router, promptAction } from '@kit.ArkUI';
-import { ApiService, ApiError, ClinicianPatient, MonitoringRelationship, EmergencyAccessSession, EmergencyMedicalCard, EmergencyMedication } from '../services/ApiService';
+import { ApiService, ApiError, ClinicianPatient, MonitoringRelationship, EmergencyAccessSession, EmergencyMedicalCard, EmergencyMedication, VitalsResponse } from '../services/ApiService';
 import { SessionStore } from '../services/SessionStore';
+import { AccountRepository } from '../services/AccountRepository';
 import { QrPayload, QrKind, QrContent, DisplayFormat } from '../services/QrPayload';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
@@ -35,7 +36,7 @@ interface ScannedPatient {
   vitals?: ScannedPatientVitals;
   /** From criticalFacts.gender - the backend already sends this today. */
   gender?: string;
-  /** Computed from EmergencyMedicalCard.birthDate once the backend sends it. */
+  /** Computed from EmergencyMedicalCard.birthDate. */
   age?: string;
 }
 
@@ -384,11 +385,12 @@ struct HomePage {
         };
       }
 
-      // displayName/birthDate are not sent by the backend yet (BACKEND_REQUESTS.md #1);
-      // they resolve to '' once the backend adds them, with no frontend change needed.
       this.scannedPatientInfo = {
         id: session.sessionId,
-        name: card.displayName !== undefined ? card.displayName : '',
+        // The card carries the patient's identity; the fallback only covers a
+        // profile that was never filled in.
+        name: card.displayName !== undefined && card.displayName.length > 0
+          ? card.displayName : 'Unknown patient',
         email: '',
         bloodType: card.bloodType || 'Unknown',
         allergies: allergyList.length > 0 ? allergyList.join(', ') : 'No known allergies',
@@ -558,15 +560,15 @@ struct HomePage {
                     isVerified: true
                   });
 
-                  // AppStorage lives IN MEMORY; also write the verified flag to
-                  // the persistent store, otherwise the verification modal opens
-                  // again on every sign-in.
-                  SessionStore.patchLocalProfile({
+                  // AppStorage lives IN MEMORY; the verified flag also goes to
+                  // the account (`PUT /api/account`), otherwise the verification
+                  // modal opens again on every sign-in - and on every device.
+                  AccountRepository.savePatch({
                     doctorVerified: true,
                     doctorHospital: this.doctorProfile.hospital,
                     doctorSpecialty: this.doctorProfile.specialty,
                     doctorEmail: this.doctorProfile.email
-                  }).catch((err: Error) => console.warn(`[SessionStore] Could not persist verification: ${err.message}`));
+                  }).catch((err: Error) => console.warn(`[AccountRepository] Could not persist verification: ${err.message}`));
 
                   this.isDoctorVerificationModalOpen = false;
                   promptAction.showToast({ message: 'Doctor portal unlocked successfully!' });
@@ -1212,13 +1214,59 @@ struct PatientDashboardView {
   }
 
   aboutToAppear() {
+    this.seedFromLastReading();
     this.startSensorSimulation();
+  }
+
+  /**
+   * GET /api/vitals/{userId}/latest for the signed-in patient.
+   *
+   * The simulation used to always restart from the hard-coded 72 bpm / 98%,
+   * so every app launch threw away the last reading the server had. The login
+   * response carries the patient's own userId (`AuthResponse.userId`), so the
+   * last stored packet can be read back and used as the starting point.
+   */
+  async seedFromLastReading(): Promise<void> {
+    if (!SessionStore.isAuthenticated()) {
+      return;
+    }
+    try {
+      const latest: VitalsResponse = await ApiService.getMyVitalsLatest();
+      if (latest.heartRate > 0) {
+        this.currentHeartRate = latest.heartRate;
+      }
+      if (latest.bloodOxygen > 0) {
+        this.currentOxygen = latest.bloodOxygen;
+      }
+      console.info(`[API] GET /api/vitals/{userId}/latest - OK, ${latest.heartRate} bpm / ${latest.bloodOxygen}%`);
+    } catch (err) {
+      // 404 = no reading recorded yet. Expected on a new account; the
+      // simulation just starts from its defaults.
+      console.warn(`[API] GET /api/vitals/{userId}/latest - failed: ${(err as Error).message}`);
+    }
   }
 
   aboutToDisappear() {
     if (this.timerId !== -1) {
       clearInterval(this.timerId);
     }
+  }
+
+  /**
+   * The paired band's serial, or '' when none is set.
+   *
+   * Read fresh from the profile on every send rather than cached once: the
+   * patient can pair a band from the setup screen while this dashboard is
+   * alive, and a cached empty value would keep the readings anonymous
+   * afterwards.
+   */
+  private pairedBandSerial(): string {
+    const profile = AppStorage.get<Record<string, Object>>('medicalProfile');
+    if (profile === undefined) {
+      return '';
+    }
+    const serial = profile.bandIdentifier;
+    return typeof serial === 'string' ? serial as string : '';
   }
 
   startSensorSimulation() {
@@ -1248,11 +1296,11 @@ struct PatientDashboardView {
       // started while one is in flight, otherwise the 2s loop piled them up.
       if (SessionStore.isAuthenticated() && !this.vitalsInFlight) {
         this.vitalsInFlight = true;
-        // deviceSn is NOT sent. The backend (vitals.go) compares this field with
-        // the patient's registered band_identifier and returns 403 on a mismatch.
-        // With no paired band the field must stay empty. Once real device
-        // integration lands, the band serial goes here.
-        ApiService.sendVitals(this.currentHeartRate, this.currentOxygen)
+        // deviceSn carries the paired band's serial, or nothing at all.
+        // vitals.go compares it against the patient's registered
+        // band_identifier and answers 403 on a mismatch, so a guessed value
+        // would break the upload outright - see `pairedBandSerial`.
+        ApiService.sendVitals(this.currentHeartRate, this.currentOxygen, this.pairedBandSerial())
           .catch((err: Error) => console.error(`[API] POST /api/vitals - FAILED: ${err.message}`))
           .finally(() => {
             this.vitalsInFlight = false;
@@ -2970,14 +3018,20 @@ struct DoctorDashboardView {
 
       this.doctorWatchPatientInfo = {
         id: session.sessionId,
-        name: 'Emergency Medical Card',
+        // Used to be the fixed label 'Emergency Medical Card', because the card
+        // carried no identity. It does now, so the responder sees who they are
+        // looking at.
+        name: card.displayName !== undefined && card.displayName.length > 0
+          ? card.displayName : 'Unknown patient',
         email: '',
         bloodType: card.bloodType || 'Unknown',
         allergies: allergyList.length > 0 ? allergyList.join(', ') : 'No known allergies',
         diseases: conditionList,
         medications: card.medications.map((m: EmergencyMedication) =>
           `${m.name} ${m.strength} — ${m.instructions}`),
-        vitals: vitalsView
+        vitals: vitalsView,
+        gender: card.criticalFacts.gender !== undefined ? card.criticalFacts.gender : '',
+        age: DisplayFormat.age(card.birthDate)
       };
       this.isDoctorWatchPopupOpen = true;
     } catch (err) {

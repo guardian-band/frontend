@@ -1,8 +1,17 @@
 import { promptAction } from '@kit.ArkUI';
 
 export interface OrganRisk {
+  /** Body-map id, e.g. 'liver'. See `RiskAnalysis.organIdFor`. */
   organId: string;
+  /**
+   * The model's own wording for the organ system, e.g.
+   * "Hepatobiliary (Liver)". Shown as the row title: capitalising the id gave
+   * "Eyeear" for anything the body map does not know about.
+   */
+  label?: string;
   riskLevel: 'low' | 'medium' | 'high';
+  /** 0..1 from the model. Shown next to the level so the colour is explained. */
+  probability?: number;
   culpritMeds?: string[];
   detailMessage?: string;
 }
@@ -11,6 +20,64 @@ export interface AnalysisResult {
   overallStatus: 'safe' | 'medium' | 'high';
   message: string;
   organs: OrganRisk[];
+}
+
+/**
+ * Body-map ids that have a spot on the figure. The model reports 15 organ
+ * SYSTEMS, and several of them ("Dermatologic", "Immune System",
+ * "General Disorders & Systemic") are body-wide - there is no honest single
+ * point to pin them to. Those are left off the figure and appear only in the
+ * list below it, instead of piling up on top of each other at its centre.
+ */
+const LOCATABLE_ORGANS: string[] = [
+  'brain', 'lungs', 'liver', 'stomach', 'kidney', 'intestines', 'vascular', 'breasts', 'joints'
+];
+
+export function hasBodyPosition(organId: string): boolean {
+  return LOCATABLE_ORGANS.includes(organId);
+}
+
+/**
+ * Media resource per organ system. Replaces plain emojis with dedicated icons.
+ */
+export function getOrganResource(organId: string): Resource | null {
+  switch (organId) {
+    case 'vascular': return $r('app.media.med_heart');
+    case 'systemic': return $r('app.media.epilepsy');
+    case 'lungs': return $r('app.media.lungs');
+    case 'endocrine': return $r('app.media.metabolism');
+    case 'stomach':
+    case 'intestines': return $r('app.media.intestine');
+    case 'blood': return $r('app.media.blood');
+    default: return null;
+  }
+}
+
+/**
+ * Icon per organ system fallback.
+ */
+export function organIcon(organId: string): string {
+  switch (organId) {
+    case 'brain': return '🧠';
+    case 'liver': return '🩸';
+    case 'kidney': return '💧';
+    case 'joints': return '🦴';
+    case 'breasts': return '🧬';
+    case 'skin': return '🧴';
+    case 'psychiatric': return '🧩';
+    case 'immune': return '🛡️';
+    case 'eyeEar': return '👁️';
+    case 'infection': return '🦠';
+    default: return '⚠️';
+  }
+}
+
+/** Row title: the model's own wording, falling back to the id. */
+export function organDisplayLabel(organ: OrganRisk): string {
+  if (organ.label !== undefined && organ.label.length > 0) {
+    return organ.label;
+  }
+  return organ.organId.charAt(0).toUpperCase() + organ.organId.slice(1);
 }
 
 export class MarkerPosition {
@@ -57,103 +124,129 @@ struct OrganRiskCard {
   @Prop organ: OrganRisk;
   @State isExpanded: boolean = false;
   
-  getRiskColor(level: string) {
+  getRiskColor(level: string): string {
     if (level === 'high') return '#BA1A1A';
-    if (level === 'medium') return '#FF8C00';
+    if (level === 'medium') return '#B45309';
     return '#006E2F';
   }
   
-  getRiskBgColor(level: string) {
-    if (level === 'high') return 'rgba(186, 26, 26, 0.4)';
-    if (level === 'medium') return 'rgba(255, 140, 0, 0.4)';
-    return 'rgba(0, 110, 47, 0.4)';
+  getRiskIconBg(level: string): string {
+    if (level === 'high') return '#FEE2E2';
+    if (level === 'medium') return '#FEF3C7';
+    return '#DCFCE7';
   }
 
-  getOrganIcon(organId: string): string {
-    switch (organId) {
-      case 'brain': return '🧠';
-      case 'lungs': return '🫁';
-      case 'liver': return '🩸';
-      case 'stomach': return '💊';
-      case 'kidney': return '💧';
-      case 'intestines': return '🦠';
-      case 'joints': return '🦴';
-      case 'vascular': return '❤️';
-      case 'breasts': return '🧬';
-      default: return '⚠️';
-    }
+  getRiskBadgeBg(level: string): string {
+    if (level === 'high') return '#FEF2F2';
+    if (level === 'medium') return '#FFFBEB';
+    return '#F0FDF4';
   }
-  
-  getOrganLabel(organId: string): string {
-    return organId.charAt(0).toUpperCase() + organId.slice(1);
+
+  getRiskBadgeBorder(level: string): string {
+    if (level === 'high') return '#FECACA';
+    if (level === 'medium') return '#FDE68A';
+    return '#BBF7D0';
   }
 
   build() {
     Column() {
       Row() {
+        // Left Icon Container with soft pastel background
         Row() {
-          if (this.organ.organId === 'stomach') {
-            Image($r('app.media.drugs'))
-              .width(22)
-              .height(22)
+          if (getOrganResource(this.organ.organId) !== null) {
+            Image(getOrganResource(this.organ.organId) as Resource)
+              .width(24)
+              .height(24)
               .objectFit(ImageFit.Contain)
           } else {
-            Text(this.getOrganIcon(this.organ.organId))
+            Text(organIcon(this.organ.organId))
               .fontSize(20)
           }
         }
-        .width(40)
-        .height(40)
-        .backgroundColor(this.getRiskBgColor(this.organ.riskLevel))
-        .borderRadius(20)
+        .width(44)
+        .height(44)
+        .backgroundColor(this.getRiskIconBg(this.organ.riskLevel))
+        .borderRadius(12)
         .justifyContent(FlexAlign.Center)
         .margin({ right: 12 })
 
+        // Title and Risk Badge
         Column() {
-          Text(this.getOrganLabel(this.organ.organId))
-            .fontSize(16)
+          Text(organDisplayLabel(this.organ))
+            .fontSize(15)
             .fontWeight(FontWeight.Bold)
             .fontColor('#191C1D')
-          Text(this.organ.riskLevel.toUpperCase() + ' RISK')
-            .fontSize(12)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(this.getRiskColor(this.organ.riskLevel))
+            .lineHeight(20)
+
+          // Modern Pill Badge for Risk & Probability
+          Row() {
+            Circle({ width: 6, height: 6 })
+              .fill(this.getRiskColor(this.organ.riskLevel))
+              .margin({ right: 5 })
+
+            Text(this.organ.probability !== undefined
+              ? `${this.organ.riskLevel.toUpperCase()} RISK · ${Math.round(this.organ.probability * 100)}%`
+              : `${this.organ.riskLevel.toUpperCase()} RISK`)
+              .fontSize(11)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(this.getRiskColor(this.organ.riskLevel))
+          }
+          .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+          .backgroundColor(this.getRiskBadgeBg(this.organ.riskLevel))
+          .borderRadius(6)
+          .border({ width: 1, color: this.getRiskBadgeBorder(this.organ.riskLevel) })
+          .margin({ top: 4 })
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
 
+        // Expand / Collapse Chevron Button
         if (this.organ.detailMessage) {
-          Text(this.isExpanded ? '▲' : '▼')
-            .fontSize(14)
-            .fontColor('#8F92A1')
-            .margin({ right: 8 })
+          Row() {
+            Text(this.isExpanded ? '▲' : '▼')
+              .fontSize(12)
+              .fontColor('#9CA3AF')
+          }
+          .width(28)
+          .height(28)
+          .justifyContent(FlexAlign.Center)
+          .borderRadius(14)
+          .backgroundColor(this.isExpanded ? '#F3F4F6' : Color.Transparent)
         }
       }
       .width('100%')
+      .alignItems(VerticalAlign.Center)
 
+      // Expanded Details
       if (this.isExpanded && this.organ.detailMessage) {
         Column() {
-          Divider().color('#EBECEF').margin({ top: 12, bottom: 12 })
+          Divider().color('#F0F2F5').margin({ top: 12, bottom: 12 })
           
           if (this.organ.culpritMeds && this.organ.culpritMeds.length > 0) {
             Row() {
-              Text('Triggered by: ')
-                .fontSize(13)
+              Text('Triggered by:')
+                .fontSize(12)
                 .fontWeight(FontWeight.Medium)
-                .fontColor('#434654')
+                .fontColor('#6B7280')
+                .margin({ right: 6 })
+
               Text(this.organ.culpritMeds.join(', '))
-                .fontSize(13)
+                .fontSize(12)
                 .fontWeight(FontWeight.Bold)
-                .fontColor('#191C1D')
+                .fontColor('#1E293B')
+                .layoutWeight(1)
             }
             .width('100%')
+            .padding({ left: 10, right: 10, top: 6, bottom: 6 })
+            .backgroundColor('#F1F5F9')
+            .borderRadius(8)
             .margin({ bottom: 8 })
           }
 
           Text(this.organ.detailMessage)
             .fontSize(13)
-            .fontColor('#434654')
-            .lineHeight(20)
+            .fontColor('#4B5563')
+            .lineHeight(19)
             .width('100%')
         }
         .width('100%')
@@ -161,8 +254,9 @@ struct OrganRiskCard {
     }
     .width('100%')
     .padding(12)
-    .backgroundColor('#EDEEEF')
-    .borderRadius(12)
+    .backgroundColor('#F8F9FB')
+    .borderRadius(16)
+    .border({ width: 1, color: '#E8EAED' })
     .onClick(() => {
       if (this.organ.detailMessage) {
         animateTo({ duration: 300, curve: Curve.EaseInOut }, () => {
@@ -210,72 +304,46 @@ export struct SafetyAnalysisCard {
     }
   }
   
-  getOrganIcon(organId: string): string {
-    switch (organId) {
-      case 'brain': return '🧠';
-      case 'lungs': return '🫁';
-      case 'liver': return '🩸';
-      case 'stomach': return '💊';
-      case 'kidney': return '💧';
-      case 'intestines': return '🦠';
-      case 'joints': return '🦴';
-      case 'vascular': return '❤️';
-      case 'breasts': return '🧬';
-      default: return '⚠️';
-    }
-  }
-  
-  getOrganLabel(organId: string): string {
-    return organId.charAt(0).toUpperCase() + organId.slice(1);
-  }
-
   build() {
     Column() {
       // --- COLLAPSIBLE HEADER (Always Visible) ---
       Row() {
-        Row() {
-          Image($r('app.media.stethoscope'))
-            .width(26)
-            .height(26)
-            .objectFit(ImageFit.Contain)
-            .margin({ right: 12 })
-          
-          Column() {
-            Text('AI Side Effect Analysis')
-              .fontSize(16)
-              .fontWeight(FontWeight.Bold)
-              .fontColor(this.analysisResult.overallStatus === 'safe' ? '#006E2F' : '#191C1D')
-            
-            Text(this.isExpanded ? 'Tap to collapse' : 'Tap to view potential side effects')
-              .fontSize(13)
-              .fontColor('#8F92A1')
-              .margin({ top: 2 })
-          }
-          .alignItems(HorizontalAlign.Start)
+        Image($r('app.media.stethoscope'))
+          .width(22)
+          .height(22)
+          .objectFit(ImageFit.Contain)
+          .margin({ right: 10 })
+
+        Column() {
+          Text('AI Side Effect Analysis')
+            .fontSize(15)
+            .fontWeight(FontWeight.Bold)
+            .fontColor('#434654')
+
+          Text(this.isExpanded ? 'Tap to collapse' : 'Tap to view potential side effects')
+            .fontSize(12)
+            .fontColor('#737685')
+            .margin({ top: 2 })
         }
-        
-        Blank()
-        
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
         Text(this.isExpanded ? '▲' : '▼')
           .fontSize(14)
-          .fontColor('#003D9B')
+          .fontColor('#8F92A1')
       }
       .width('100%')
-      .padding(20)
-      .backgroundColor(Color.White)
-      .borderRadius(this.isExpanded ? { topLeft: 24, topRight: 24, bottomLeft: 0, bottomRight: 0 } : 24)
-      .shadow(this.isExpanded ? null : { radius: 4, color: 'rgba(0,0,0,0.05)' })
       .onClick(() => {
         animateTo({ duration: 300, curve: Curve.EaseInOut }, () => {
           this.isExpanded = !this.isExpanded;
         });
       })
-      
+
       // --- EXPANDABLE CONTENT ---
       if (this.isExpanded) {
         Column() {
-          Divider().color('#EBECEF').width('100%')
-          
+          Divider().color('#EBECEF').margin({ top: 12, bottom: 12 })
+
           Column() {
             // Heatmap Image & Markers Container
             Stack({ alignContent: Alignment.TopStart }) {
@@ -283,9 +351,12 @@ export struct SafetyAnalysisCard {
                 .width('100%')
                 .height('100%')
                 .objectFit(ImageFit.Contain)
-              
-              // Dynamic Pulse Markers based on AI Result
-              ForEach(this.analysisResult.organs, (organ: OrganRisk, index: number) => {
+
+              // Dynamic Pulse Markers based on AI Result. Only organs with a
+              // real location are pinned; the body-wide systems would all land
+              // on the same default point in the middle of the figure.
+              ForEach(this.analysisResult.organs.filter((o: OrganRisk) => hasBodyPosition(o.organId)),
+                (organ: OrganRisk, index: number) => {
                 Column() {
                   PulseMarker({ 
                     markerSize: organ.riskLevel === 'high' ? 48 : 32, 
@@ -302,30 +373,30 @@ export struct SafetyAnalysisCard {
             .backgroundColor('#F3F4F5')
             .borderRadius(16)
             .clip(true)
-            .margin({ top: 20, bottom: 24 })
+            .margin({ top: 8, bottom: 16 })
 
             // Dynamic Interactive Legend
             if (this.analysisResult.organs.length > 0) {
-              Column({ space: 12 }) {
+              Column({ space: 10 }) {
                 ForEach(this.analysisResult.organs, (organ: OrganRisk) => {
                   OrganRiskCard({ organ: organ })
                 })
               }
               .width('100%')
-              .margin({ bottom: 24 })
+              .margin({ bottom: 16 })
             } else {
               // Safe State
               Row() {
                 Text('All clear! No major organ risks detected.')
-                  .fontSize(14)
+                  .fontSize(13)
                   .fontColor('#006E2F')
                   .fontWeight(FontWeight.Medium)
               }
               .width('100%')
-              .padding(16)
+              .padding(14)
               .backgroundColor('#E6F9ED')
               .borderRadius(12)
-              .margin({ bottom: 24 })
+              .margin({ bottom: 16 })
             }
 
             // Incompatibility Summary Card (Dynamic AI Message)
@@ -333,43 +404,46 @@ export struct SafetyAnalysisCard {
               Row() {
                 if (this.analysisResult.overallStatus !== 'safe') {
                   Image($r('app.media.alert'))
-                    .width(22)
-                    .height(22)
+                    .width(20)
+                    .height(20)
                     .objectFit(ImageFit.Contain)
                     .margin({ right: 8 })
                 } else {
-                  Text('ℹ️')
-                    .fontSize(20)
+                  Image($r('app.media.information'))
+                    .width(20)
+                    .height(20)
+                    .objectFit(ImageFit.Contain)
                     .margin({ right: 8 })
                 }
                 Text('AI Analysis Summary')
-                  .fontSize(18)
+                  .fontSize(15)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(this.analysisResult.overallStatus === 'safe' ? '#006E2F' : '#410004')
               }
               .width('100%')
-              .margin({ bottom: 12 })
+              .margin({ bottom: 8 })
 
               Text(this.analysisResult.message)
-                .fontSize(15)
+                .fontSize(13)
                 .fontColor('#191C1D')
-                .lineHeight(22)
+                .lineHeight(19)
             }
             .width('100%')
-            .padding(20)
+            .padding(14)
             .backgroundColor(this.analysisResult.overallStatus === 'safe' ? '#E6F9ED' : 'rgba(255, 179, 174, 0.2)')
-            .borderRadius(16)
-            .margin({ bottom: 24 })
+            .borderRadius(12)
+            .margin({ bottom: 4 })
 
           }
-          .padding(20)
+          .width('100%')
         }
         .width('100%')
-        .backgroundColor(Color.White)
-        .borderRadius({ topLeft: 0, topRight: 0, bottomLeft: 24, bottomRight: 24 })
-        .shadow({ radius: 4, color: 'rgba(0,0,0,0.05)', offsetY: 4 })
       }
     }
     .width('100%')
+    .padding(14)
+    .backgroundColor(Color.White)
+    .borderRadius(20)
+    .border({ width: 1, color: '#EBECEF' })
   }
 }

@@ -84,7 +84,16 @@ export class ApiError extends Error {
       return 'This contact has already been added.';
     }
     if (d.includes('invalid frequencyhours')) {
-      return 'Dose frequency must be 6, 12, or 24 hours.';
+      return 'Dose frequency must be 6, 8, 12, or 24 hours.';
+    }
+    if (d.includes('medication risk analysis is unavailable')) {
+      return 'The interaction analysis service is not reachable right now. Please try again later.';
+    }
+    if (d.includes('too many ingredient pairs')) {
+      return 'Too many medications selected for one analysis. Please select fewer.';
+    }
+    if (d.includes('do not produce a distinct ingredient pair')) {
+      return 'These medications share the same active ingredient, so there is no interaction to analyse.';
     }
     if (d.includes('invalid document kind')) {
       return 'Invalid document type.';
@@ -131,6 +140,12 @@ export class ApiError extends Error {
       case 413:
         message = 'File is too large.';
         break;
+      case 422:
+        message = 'These medications cannot be analysed.';
+        break;
+      case 503:
+        message = 'This service is temporarily unavailable. Please try again later.';
+        break;
       default:
         message = status >= 500
           ? 'Server error. This is not your fault; please try again later.'
@@ -149,6 +164,28 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The 422 from `POST /api/medication-risk-analyses`.
+ *
+ * Not a plain failure: it names the medications the model cannot reason about,
+ * which is exactly what the screen has to tell the patient. It is its own type
+ * so a caller can react to it with `instanceof` instead of re-parsing the body.
+ */
+export class UnsupportedMedicationsError extends ApiError {
+  public readonly unsupported: UnsupportedMedication[];
+
+  constructor(detail: string, unsupported: UnsupportedMedication[]) {
+    super(422, detail, 'Some of these medications cannot be analysed.');
+    this.name = 'UnsupportedMedicationsError';
+    this.unsupported = unsupported;
+  }
+
+  /** Names, for a message the patient can act on. */
+  names(): string[] {
+    return this.unsupported.map((u: UnsupportedMedication) => u.name);
+  }
+}
+
 // =============================================================================
 // Data types - aligned one-to-one with the openapi.yaml schemas
 // =============================================================================
@@ -156,15 +193,12 @@ export class ApiError extends Error {
 export interface AuthResult {
   token: string;
   /**
-   * NOT PROVIDED BY THE BACKEND YET.
+   * The signed-in user's UUID. `AuthResponse` in `openapi.yaml` lists it as
+   * required, so the backend always sends it; it is what identifies the user
+   * in path parameters such as `GET /api/vitals/{userId}/latest`.
    *
-   * `AuthResponse` in `openapi.yaml` returns only `token`; the user UUID lives
-   * solely in the JWT `sub` claim and the client does not decode it. This field
-   * fills in automatically once the backend adds it; until then it is undefined.
-   *
-   * Impact: a patient cannot fetch their own latest reading
-   * (`GET /api/vitals/{userId}/latest` takes a UUID path parameter).
-   * See backend request BT-01.
+   * Still optional on the type: an older backend build would omit it, and the
+   * client stays usable in that case (only own-readings lookups are lost).
    */
   userId?: string;
 }
@@ -191,6 +225,32 @@ export interface PatientProfile {
   bloodType: string;
   criticalFacts: CriticalFacts;
   timezone: string;
+  /**
+   * Serial of the paired band. `vitals.go` compares an incoming `deviceSn`
+   * against this value and answers 403 on a mismatch, so readings may only
+   * carry a serial once this is set.
+   */
+  bandIdentifier?: string;
+}
+
+/**
+ * Free-form `roleFacts` object on `UserAccount`. The column is JSONB, so the
+ * backend stores whatever is sent; these are the keys this client uses.
+ */
+export interface RoleFacts {
+  /** Family member's email address. */
+  email?: string;
+  doctorHospital?: string;
+  doctorSpecialty?: string;
+  doctorEmail?: string;
+  doctorVerified?: boolean;
+}
+
+/** `UserAccount` in openapi.yaml - the user's role and its metadata. */
+export interface UserAccount {
+  /** patient | family | doctor */
+  role: string;
+  roleFacts?: RoleFacts;
 }
 
 export interface DocumentCatalog {
@@ -222,6 +282,11 @@ export interface ClinicianPatient {
   relationship: string;
   bloodType: string;
   birthDate: string;
+  /**
+   * Only filled in when the patient consented to share it while creating the
+   * invitation (`sharePhoneNumber`). Empty otherwise - never assume it is set.
+   */
+  phone?: string;
 }
 
 export interface PatientRelationship {
@@ -257,6 +322,12 @@ export interface CreateInvitationRequest {
   kind: string;
   canMonitor: boolean;
   isEmergencyContact?: boolean;
+  /**
+   * Consent to reveal the patient's phone number to whoever redeems this
+   * invitation; it then comes back on `MonitoringPatient.phone`. Defaults to
+   * false on the backend, so leaving it out shares nothing.
+   */
+  sharePhoneNumber?: boolean;
   expiresInSeconds?: number;
 }
 
@@ -269,13 +340,34 @@ export interface VitalsResponse {
   readingId?: string;
 }
 
+/**
+ * One active ingredient of a catalog entry.
+ *
+ * `aiSupported` is what decides whether a medication can take part in a risk
+ * analysis: the model only knows ingredients that carry a DrugBank id it was
+ * trained on. An unsupported one makes the whole analysis return 422.
+ */
+export interface MedicationIngredient {
+  name: string;
+  drugBankId: string;
+  aiSupported: boolean;
+}
+
 export interface MedicationCatalogItem {
   id: string;
   name: string;
   strength: string;
+  ingredients: MedicationIngredient[];
 }
 
 export interface CreateMedicationRequest {
+  /**
+   * Catalog identity. REQUIRED for risk analysis: the backend maps a plan to
+   * its ingredients through this column, and a plan created without it can
+   * never be analysed. The catalog's own name and strength override whatever
+   * the client sends alongside it.
+   */
+  catalogItemId?: string;
   name: string;
   strength: string;
   instructions: string;
@@ -285,12 +377,72 @@ export interface CreateMedicationRequest {
 
 export interface MedicationResponse {
   id: string;
+  /** Arrives as JSON null when unset; normalised to undefined on parse. */
+  catalogItemId?: string;
   name: string;
   strength: string;
   instructions: string;
   frequencyHours: number;
   lastTakenAt?: string;
   nextScheduledFor?: string;
+}
+
+// --- Medication risk analysis (polypharmacy) --------------------------------
+
+export interface MedicationRiskParticipant {
+  medicationId: string;
+  name: string;
+  ingredient: string;
+  drugBankId: string;
+}
+
+export interface PolypharmacyOrganRisk {
+  /**
+   * Organ-system label straight from the model, e.g. "Hepatobiliary (Liver)".
+   * `RiskAnalysis` maps it onto the body-map ids the UI uses.
+   */
+  organ: string;
+  /** 0..1 */
+  probability: number;
+}
+
+export interface PolypharmacySideEffectRisk {
+  label: string;
+  cui: string;
+  probability: number;
+}
+
+export interface MedicationRiskPair {
+  medicationA: MedicationRiskParticipant;
+  medicationB: MedicationRiskParticipant;
+  model: string;
+  /** fused | baseline */
+  mode: string;
+  /** standard | reduced */
+  confidence: string;
+  warnings: string[];
+  organRisks: PolypharmacyOrganRisk[];
+  sideEffectRisks: PolypharmacySideEffectRisk[];
+  inferenceMs: number;
+}
+
+export interface MedicationRiskAnalysis {
+  pairs: MedicationRiskPair[];
+  generatedAt: string;
+  disclaimer: string;
+}
+
+/** One medication the model cannot reason about; part of the 422 body. */
+export interface UnsupportedMedication {
+  medicationId: string;
+  name: string;
+  ingredient?: string;
+  drugBankId?: string;
+}
+
+export interface UnsupportedMedicationsResponse {
+  code: string;
+  unsupported: UnsupportedMedication[];
 }
 
 export interface TakenResponse {
@@ -301,6 +453,8 @@ export interface SOSIncident {
   id: string;
   patientId: string;
   status: string;
+  // The four below arrive as JSON null when no location was captured;
+  // normalised to undefined on parse.
   latitude?: number;
   longitude?: number;
   accuracyMeters?: number;
@@ -360,18 +514,37 @@ export interface EmergencyLatestVitals {
 }
 
 export interface EmergencyMedicalCard {
-  bloodType: string;
-  criticalFacts: CriticalFacts;
-  medications: EmergencyMedication[];
-  latestVitals?: EmergencyLatestVitals;
   /**
-   * NOT PROVIDED BY THE BACKEND YET - see BACKEND_REQUESTS.md #1.
-   * `EmergencyMedicalCard` in `openapi.yaml` has no name/birth date field, so
-   * the emergency card cannot show who the patient is. These stay undefined
-   * until the backend adds them (same field names as `PatientProfile`).
+   * Who the card belongs to. Both are required in `openapi.yaml`, but they are
+   * left optional here: a responder screen must still render if the patient
+   * never filled in their profile and the server sends an empty value.
    */
   displayName?: string;
   birthDate?: string;
+  bloodType: string;
+  criticalFacts: CriticalFacts;
+  medications: EmergencyMedication[];
+  /** Arrives as JSON null for a patient with no readings; normalised on parse. */
+  latestVitals?: EmergencyLatestVitals;
+}
+
+/**
+ * One emergency-card access attempt, from the patient's point of view.
+ *
+ * `allowed: false` rows matter as much as the successful ones: they are the
+ * refused attempts, which is exactly what a patient checking "who looked at my
+ * medical card" needs to see.
+ */
+export interface AuditLogEntry {
+  id: string;
+  patientId: string;
+  responderId: string;
+  responderName?: string;
+  responderPhone?: string;
+  sessionId?: string;
+  allowed: boolean;
+  reason?: string;
+  createdAt: string;
 }
 
 export interface NotificationEndpoint {
@@ -514,6 +687,38 @@ export class ApiService {
   }
 
   // ---------------------------------------------------------------------------
+  // null -> undefined normalisation
+  //
+  // Go marshals a nil pointer WITHOUT `omitempty` as an explicit JSON `null`,
+  // and `JSON.parse` hands that straight through. So a field declared here as
+  // `latestVitals?: EmergencyLatestVitals` can actually hold `null` at runtime,
+  // and the natural `if (x !== undefined)` guard passes - the next property
+  // access then crashes.
+  //
+  // That is not hypothetical: the emergency medical card sends
+  // `"latestVitals": null` for a patient with no readings, which took down the
+  // responder's screen at the exact moment it is needed.
+  //
+  // These helpers run once at the parse boundary so the declared optional types
+  // are true for every caller, instead of asking each of them to remember.
+  // ---------------------------------------------------------------------------
+
+  private static blankIfNull(value?: string): string | undefined {
+    return value === null || value === undefined ? undefined : value;
+  }
+
+  private static numberIfNull(value?: number): number | undefined {
+    return value === null || value === undefined ? undefined : value;
+  }
+
+  private static normalizeMedication(plan: MedicationResponse): MedicationResponse {
+    plan.catalogItemId = ApiService.blankIfNull(plan.catalogItemId);
+    plan.lastTakenAt = ApiService.blankIfNull(plan.lastTakenAt);
+    plan.nextScheduledFor = ApiService.blankIfNull(plan.nextScheduledFor);
+    return plan;
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
@@ -617,10 +822,10 @@ export class ApiService {
     });
 
     const auth = ApiService.parse<AuthResult>(result.body);
-    // The backend does not send userId today; this code works unchanged once it does.
     const userId: string = auth.userId !== undefined ? auth.userId : '';
     if (userId.length === 0) {
-      console.warn('[ApiService] No userId in the login response - fetching your own readings is disabled (backend request BT-01).');
+      // Should not happen: openapi.yaml marks AuthResponse.userId as required.
+      console.warn('[ApiService] Login response carries no userId - own-readings lookups stay disabled.');
     }
     await SessionStore.saveSession(auth.token, userId, phone);
     return auth;
@@ -656,22 +861,69 @@ export class ApiService {
   /** GET /api/profile */
   static async getProfile(): Promise<PatientProfile> {
     const result = await ApiService.send('/api/profile', http.RequestMethod.GET, { auth: true });
-    return ApiService.parse<PatientProfile>(result.body);
+    const profile = ApiService.parse<PatientProfile>(result.body);
+    profile.bandIdentifier = ApiService.blankIfNull(profile.bandIdentifier);
+    return profile;
   }
 
-  /** PUT /api/profile */
+  /**
+   * PUT /api/profile - full replace.
+   *
+   * Every field the profile should keep has to be in the payload; a field left
+   * out is cleared server-side. `bandIdentifier` is the easy one to forget, and
+   * dropping it would unpair the band on any unrelated profile edit.
+   */
   static async putProfile(profile: PatientProfile): Promise<void> {
     const payload: PatientProfile = {
       displayName: profile.displayName,
       birthDate: profile.birthDate,
       bloodType: ApiService.normalizeBloodType(profile.bloodType),
       criticalFacts: profile.criticalFacts,
-      timezone: profile.timezone
+      timezone: profile.timezone,
+      bandIdentifier: profile.bandIdentifier
     };
     await ApiService.send('/api/profile', http.RequestMethod.PUT, {
       auth: true,
       body: JSON.stringify(payload)
     });
+  }
+
+  // ===========================================================================
+  // Account (role)
+  // ===========================================================================
+
+  /**
+   * GET /api/account - the user's role and role facts.
+   *
+   * Throws a 404 `ApiError` when the account has no role yet, i.e. the user
+   * never finished the role picker. Callers must treat that as "not set up",
+   * not as a failure.
+   */
+  static async getAccount(): Promise<UserAccount> {
+    const result = await ApiService.send('/api/account', http.RequestMethod.GET, { auth: true });
+    return ApiService.parse<UserAccount>(result.body);
+  }
+
+  /**
+   * PUT /api/account - creates or replaces the account.
+   *
+   * Both fields are replaced wholesale, so `roleFacts` has to carry every key
+   * that should survive: sending only the changed one would drop the rest.
+   * `AccountRepository` does that merge; prefer it over calling this directly.
+   */
+  static async putAccount(account: UserAccount): Promise<UserAccount> {
+    if (account.role !== 'patient' && account.role !== 'family' && account.role !== 'doctor') {
+      throw new ApiError(400, 'invalid role', 'Role must be patient, family, or doctor.');
+    }
+    const payload: UserAccount = {
+      role: account.role,
+      roleFacts: account.roleFacts !== undefined ? account.roleFacts : {} as RoleFacts
+    };
+    const result = await ApiService.send('/api/account', http.RequestMethod.PUT, {
+      auth: true,
+      body: JSON.stringify(payload)
+    });
+    return ApiService.parse<UserAccount>(result.body);
   }
 
   // ===========================================================================
@@ -701,18 +953,16 @@ export class ApiService {
   }
 
   /**
-   * The signed-in user's own latest reading.
-   *
-   * Unusable until the backend returns `userId` in the `POST /api/login`
-   * response - we do not know which UUID to ask for. See backend request BT-01.
+   * The signed-in user's own latest reading. Uses the userId persisted at
+   * login (`AuthResponse.userId`).
    */
   static async getMyVitalsLatest(): Promise<VitalsResponse> {
     const userId: string = SessionStore.getUserId();
     if (userId.length === 0) {
       throw new ApiError(
-        501,
-        'login response has no userId',
-        'Your own readings cannot be shown: the server does not return a user id in the login response.'
+        401,
+        'no userId in session',
+        'Your own readings cannot be shown: please sign in again.'
       );
     }
     return ApiService.getVitalsLatest(userId);
@@ -804,6 +1054,135 @@ export class ApiService {
     }
   }
 
+  /**
+   * GET /api/documents/{documentId}/content - downloads the file and writes it
+   * into the app's own cache directory.
+   *
+   * Returns a local path rather than the bytes: the caller wants to show or
+   * share a PDF/image, and every viewer on the platform takes a file. The
+   * download is authenticated, so it cannot be handed to a plain URL viewer.
+   *
+   * @param cacheDir the ability's `context.cacheDir`
+   * @returns absolute path of the written file
+   */
+  static async downloadDocumentContent(documentId: string, cacheDir: string, fileName: string): Promise<string> {
+    const token: string = SessionStore.getToken();
+    if (token.length === 0) {
+      throw new ApiError(401, 'no token', 'No active session. Please sign in.');
+    }
+
+    const request = http.createHttp();
+    try {
+      const response = await request.request(ApiConfig.url(`/api/documents/${documentId}/content`), {
+        method: http.RequestMethod.GET,
+        header: { 'Authorization': `Bearer ${token}` } as Record<string, string>,
+        // The body is a PDF or an image, so it must NOT be decoded as text.
+        expectDataType: http.HttpDataType.ARRAY_BUFFER,
+        connectTimeout: ApiConfig.CONNECT_TIMEOUT_MS,
+        readTimeout: ApiConfig.UPLOAD_TIMEOUT_MS
+      });
+
+      const code: number = response.responseCode;
+      if (code < 200 || code >= 300) {
+        // An error body is text even though the success body is binary.
+        const apiError = ApiError.fromStatus(code, '', true);
+        if (apiError.isUnauthorized()) {
+          await ApiService.handleUnauthorized();
+        }
+        throw apiError;
+      }
+      if (!(response.result instanceof ArrayBuffer)) {
+        throw new ApiError(500, 'unexpected body', 'The document could not be read.');
+      }
+
+      const path: string = `${cacheDir}/${fileName}`;
+      const file = fileIo.openSync(path, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
+      try {
+        fileIo.writeSync(file.fd, response.result as ArrayBuffer);
+      } finally {
+        fileIo.closeSync(file);
+      }
+      return path;
+    } catch (err) {
+      if (err instanceof ApiError) {
+        throw err;
+      }
+      throw ApiError.network((err as Error).message);
+    } finally {
+      request.destroy();
+    }
+  }
+
+  /**
+   * PUT /api/documents/{documentId}/content - replaces the file behind an
+   * existing catalog entry, keeping its id, title and kind.
+   */
+  static async updateDocumentContent(documentId: string, fileUri: string): Promise<void> {
+    const token: string = SessionStore.getToken();
+    if (token.length === 0) {
+      throw new ApiError(401, 'no token', 'No active session. Please sign in.');
+    }
+
+    const fileName: string = ApiService.fileNameFromUri(fileUri);
+    const contentType: string = ApiService.contentTypeFromName(fileName);
+    const buffer: ArrayBuffer = ApiService.readFileForUpload(fileUri);
+
+    const request = http.createHttp();
+    try {
+      const response = await request.request(ApiConfig.url(`/api/documents/${documentId}/content`), {
+        method: http.RequestMethod.PUT,
+        header: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        } as Record<string, string>,
+        expectDataType: http.HttpDataType.STRING,
+        connectTimeout: ApiConfig.CONNECT_TIMEOUT_MS,
+        readTimeout: ApiConfig.UPLOAD_TIMEOUT_MS,
+        multiFormDataList: [
+          { name: 'file', contentType: contentType, data: buffer, remoteFileName: fileName }
+        ]
+      });
+
+      const code: number = response.responseCode;
+      const body: string = response.result !== undefined ? response.result as string : '';
+      if (code < 200 || code >= 300) {
+        const apiError = ApiError.fromStatus(code, body, true);
+        if (apiError.isUnauthorized()) {
+          await ApiService.handleUnauthorized();
+        }
+        throw apiError;
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        throw err;
+      }
+      throw ApiError.network((err as Error).message);
+    } finally {
+      request.destroy();
+    }
+  }
+
+  /** Reads a local file into memory, enforcing the backend's 10 MB limit. */
+  private static readFileForUpload(fileUri: string): ArrayBuffer {
+    try {
+      const file = fileIo.openSync(fileUri, fileIo.OpenMode.READ_ONLY);
+      const stat = fileIo.statSync(file.fd);
+      if (stat.size > ApiConfig.MAX_UPLOAD_BYTES) {
+        fileIo.closeSync(file);
+        throw new ApiError(413, 'file too large', 'File exceeds the 10 MB limit.');
+      }
+      const buffer = new ArrayBuffer(stat.size);
+      fileIo.readSync(file.fd, buffer);
+      fileIo.closeSync(file);
+      return buffer;
+    } catch (err) {
+      if (err instanceof ApiError) {
+        throw err;
+      }
+      throw new ApiError(400, (err as Error).message, 'Could not read the file.');
+    }
+  }
+
   private static fileNameFromUri(uri: string): string {
     const parts: string[] = uri.split('/');
     const last: string = parts.length > 0 ? parts[parts.length - 1] : '';
@@ -844,25 +1223,98 @@ export class ApiService {
   /** GET /api/medications */
   static async getMedications(): Promise<MedicationResponse[]> {
     const result = await ApiService.send('/api/medications', http.RequestMethod.GET, { auth: true });
-    return ApiService.parse<MedicationResponse[]>(result.body);
+    const plans = ApiService.parse<MedicationResponse[]>(result.body);
+    return plans.map((plan: MedicationResponse) => ApiService.normalizeMedication(plan));
   }
 
   /** POST /api/medications */
   static async createMedicationPlan(medData: CreateMedicationRequest): Promise<MedicationResponse> {
-    if (medData.frequencyHours !== 6 && medData.frequencyHours !== 12 && medData.frequencyHours !== 24) {
-      throw new ApiError(400, 'invalid frequencyHours', 'Dose frequency must be 6, 12, or 24 hours.');
+    // `CreateMedicationRequest.frequencyHours` in openapi.yaml: enum [6, 8, 12, 24].
+    const hours: number = medData.frequencyHours;
+    if (hours !== 6 && hours !== 8 && hours !== 12 && hours !== 24) {
+      throw new ApiError(400, 'invalid frequencyHours', 'Dose frequency must be 6, 8, 12, or 24 hours.');
     }
     const result = await ApiService.send('/api/medications', http.RequestMethod.POST, {
       auth: true,
       body: JSON.stringify(medData)
     });
-    return ApiService.parse<MedicationResponse>(result.body);
+    return ApiService.normalizeMedication(ApiService.parse<MedicationResponse>(result.body));
+  }
+
+  /**
+   * DELETE /api/medications/{medicationId} - soft-delete on the server; the
+   * plan stops being active and drops off the emergency medical card.
+   */
+  static async deleteMedicationPlan(medicationId: string): Promise<void> {
+    await ApiService.send(`/api/medications/${medicationId}`, http.RequestMethod.DELETE, { auth: true });
   }
 
   /** POST /api/medications/{medicationId}/taken */
   static async takeMedicationDose(medicationId: string): Promise<TakenResponse> {
     const result = await ApiService.send(`/api/medications/${medicationId}/taken`, http.RequestMethod.POST, { auth: true });
     return ApiService.parse<TakenResponse>(result.body);
+  }
+
+  /**
+   * POST /api/medication-risk-analyses - interaction analysis over the
+   * patient's own active plans.
+   *
+   * Takes 2..10 medication ids and analyses every distinct ingredient pair, so
+   * the cost grows quadratically; the backend refuses more than 100 pairs.
+   *
+   * Throws `UnsupportedMedicationsError` on 422, i.e. at least one plan has no
+   * AI-supported ingredient behind it - almost always a plan that was saved
+   * without a `catalogItemId`. A 503 means the model service itself is down.
+   */
+  static async createMedicationRiskAnalysis(medicationIds: string[], topK: number = 5): Promise<MedicationRiskAnalysis> {
+    if (medicationIds.length < 2) {
+      throw new ApiError(400, 'need two medications',
+        'At least two medications are needed for an interaction analysis.');
+    }
+    if (medicationIds.length > 10) {
+      throw new ApiError(400, 'too many medications',
+        'At most 10 medications can be analysed at once.');
+    }
+
+    const payload: Record<string, string[] | number> = {
+      'medicationIds': medicationIds,
+      'topK': topK
+    };
+
+    try {
+      const result = await ApiService.send('/api/medication-risk-analyses', http.RequestMethod.POST, {
+        auth: true,
+        body: JSON.stringify(payload),
+        // Every pair is a separate model inference; the backend caps the whole
+        // analysis at 15s, so the client has to wait longer than the default.
+        timeoutMs: 20000
+      });
+      return ApiService.parse<MedicationRiskAnalysis>(result.body);
+    } catch (err) {
+      const apiErr: ApiError | null = err instanceof ApiError ? err as ApiError : null;
+      if (apiErr !== null && apiErr.status === 422) {
+        throw ApiService.toUnsupportedError(apiErr);
+      }
+      throw err as Error;
+    }
+  }
+
+  /**
+   * Rebuilds the 422 body into a typed error. The endpoint answers 422 in two
+   * shapes: the JSON `unsupported_medication` payload, and a plain-text "no
+   * distinct ingredient pair". Only the first parses, and the plain-text one
+   * keeps the message ApiError already produced.
+   */
+  private static toUnsupportedError(apiErr: ApiError): ApiError {
+    try {
+      const body = ApiService.parse<UnsupportedMedicationsResponse>(apiErr.detail);
+      if (body.unsupported !== undefined && body.unsupported.length > 0) {
+        return new UnsupportedMedicationsError(apiErr.detail, body.unsupported);
+      }
+    } catch (parseErr) {
+      // Not the JSON shape; fall through to the original error.
+    }
+    return apiErr;
   }
 
   // ===========================================================================
@@ -882,7 +1334,13 @@ export class ApiService {
       body: JSON.stringify(payload),
       retries: ApiConfig.MAX_RETRY
     });
-    return ApiService.parse<SOSIncident>(result.body);
+    const incident = ApiService.parse<SOSIncident>(result.body);
+    // The backend echoes coordinates it never received as null.
+    incident.latitude = ApiService.numberIfNull(incident.latitude);
+    incident.longitude = ApiService.numberIfNull(incident.longitude);
+    incident.accuracyMeters = ApiService.numberIfNull(incident.accuracyMeters);
+    incident.address = ApiService.blankIfNull(incident.address);
+    return incident;
   }
 
   /** POST /api/sos/incidents/{incidentId}/all-clear */
@@ -891,7 +1349,9 @@ export class ApiService {
       auth: true,
       retries: ApiConfig.MAX_RETRY
     });
-    return ApiService.parse<SOSAllClear>(result.body);
+    const allClear = ApiService.parse<SOSAllClear>(result.body);
+    allClear.allClearAt = ApiService.blankIfNull(allClear.allClearAt);
+    return allClear;
   }
 
   // ===========================================================================
@@ -920,23 +1380,29 @@ export class ApiService {
     return ApiService.parse<EmergencyContact>(result.body);
   }
 
-  /*
-   * PLATFORM LIMITATION - PATCH /api/emergency-contacts/{contactId} cannot be wired.
+  /**
+   * PUT /api/emergency-contacts/{contactId} - full replace.
    *
-   * The `http.RequestMethod` enum in HarmonyOS SDK 6.1.1(24) defines only
-   * OPTIONS, GET, HEAD, POST, PUT, DELETE, TRACE and CONNECT. There is no PATCH,
-   * and forcing a string into the enum is rejected by the ArkTS
-   * `arkts-no-any-unknown` rule. So this backend endpoint is unreachable from
-   * this client.
-   *
-   * Options (needs a backend decision):
-   *   1. Add a `PUT /api/emergency-contacts/{contactId}` counterpart.
-   *   2. Move the client onto Remote Communication Kit (rcp) - it supports
-   *      custom HTTP methods, but that means rewriting the whole network layer.
-   *
-   * Until then, editing a contact is done as delete + re-create (the contact id
-   * changes).
+   * PATCH is still unreachable from this client (the `http.RequestMethod` enum
+   * in HarmonyOS SDK 6.1.1(24) has no PATCH, and forcing a string into the enum
+   * trips the ArkTS `arkts-no-any-unknown` rule), so the PUT counterpart is
+   * used. Being a full replace it takes every field: anything left out would be
+   * cleared on the server, so callers must pass the current values too.
    */
+  static async updateEmergencyContact(contactId: string, contact: EmergencyContactInput): Promise<EmergencyContact> {
+    const phone: string = ApiService.normalizePhone(contact.phone);
+    const payload: Record<string, string | boolean> = {
+      'displayName': contact.displayName,
+      'phone': phone,
+      'relationship': contact.relationship,
+      'isPrimary': contact.isPrimary !== undefined ? contact.isPrimary : false
+    };
+    const result = await ApiService.send(`/api/emergency-contacts/${contactId}`, http.RequestMethod.PUT, {
+      auth: true,
+      body: JSON.stringify(payload)
+    });
+    return ApiService.parse<EmergencyContact>(result.body);
+  }
 
   /** DELETE /api/emergency-contacts/{contactId} */
   static async deleteEmergencyContact(contactId: string): Promise<void> {
@@ -956,7 +1422,8 @@ export class ApiService {
       'relationship': request.relationship,
       'kind': request.kind,
       'canMonitor': request.canMonitor,
-      'isEmergencyContact': request.isEmergencyContact !== undefined ? request.isEmergencyContact : false
+      'isEmergencyContact': request.isEmergencyContact !== undefined ? request.isEmergencyContact : false,
+      'sharePhoneNumber': request.sharePhoneNumber !== undefined ? request.sharePhoneNumber : false
     };
     if (request.expiresInSeconds !== undefined) {
       payload['expiresInSeconds'] = request.expiresInSeconds;
@@ -1036,7 +1503,23 @@ export class ApiService {
       http.RequestMethod.GET,
       { auth: true }
     );
-    return ApiService.parse<EmergencyMedicalCard>(result.body);
+    const card = ApiService.parse<EmergencyMedicalCard>(result.body);
+    // Sent as an explicit null for a patient with no readings.
+    if (card.latestVitals === null) {
+      card.latestVitals = undefined;
+    }
+    card.displayName = ApiService.blankIfNull(card.displayName);
+    card.birthDate = ApiService.blankIfNull(card.birthDate);
+    return card;
+  }
+
+  /**
+   * GET /api/emergency-access/audit-logs - who opened this patient's emergency
+   * medical card, and who was refused.
+   */
+  static async getEmergencyAccessAuditLogs(): Promise<AuditLogEntry[]> {
+    const result = await ApiService.send('/api/emergency-access/audit-logs', http.RequestMethod.GET, { auth: true });
+    return ApiService.parse<AuditLogEntry[]>(result.body);
   }
 
   /** DELETE /api/emergency-access/sessions/{sessionId} */
