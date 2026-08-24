@@ -72,7 +72,7 @@ struct ProfileSetupPage {
   }
 
   /**
-   * Mevcut profili forma doldurur.
+   * Fills the form with the existing profile.
    *
    * This screen is used for both first-time setup and editing. Opening it to
    * edit used to show every field blank, so pressing save OVERWROTE the server
@@ -1109,7 +1109,7 @@ struct ProfileSetupPage {
                   ? (this.doctorSpecialty === 'Other' ? this.otherDoctorSpecialty : this.doctorSpecialty)
                   : undefined,
                 doctorEmail: this.role === 'doctor' ? this.doctorEmail : undefined
-              }).catch((err: Error) => console.warn(`[AccountRepository] Rol bilgisi kaydedilemedi: ${err.message}`));
+              }).catch((err: Error) => console.warn(`[AccountRepository] Could not save the account role: ${err.message}`));
 
               promptAction.showToast({ message: 'Profile completed successfully!' });
               router.pushUrl({ url: 'pages/HomePage' });

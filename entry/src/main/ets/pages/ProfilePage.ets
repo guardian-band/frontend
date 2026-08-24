@@ -11,7 +11,6 @@ import { ContactsRepository, UiEmergencyContact } from '../services/ContactsRepo
 import { ProfileRepository } from '../services/ProfileRepository';
 import { AccountRepository } from '../services/AccountRepository';
 import { CoachMarkOverlay } from '../components/CoachMarkOverlay';
-import { TutorialManager } from '../utils/TutorialManager';
 
 interface ContactWithDisplayName {
   displayName: string;
@@ -228,7 +227,7 @@ struct ProfilePage {
   @State linkInvitationToken: string = '';
   @State linkInvitationExpiresAt: string = '';
   @State isGeneratingQr: boolean = false;
-  /** 'link' = baglanma daveti, 'emergency' = acil erisim kodu. */
+  /** 'link' = monitoring invitation, 'emergency' = emergency access code. */
   @State qrMode: string = 'emergency';
   /**
    * Who the "Link" QR is for: 'clinician' (Doctor) or 'family' (Family
@@ -314,7 +313,7 @@ struct ProfilePage {
    */
   getQrCodeValue(): string {
     if (this.linkInvitationToken.length === 0) {
-      return 'GB-TOKEN-BEKLENIYOR';
+      return 'Generating code...';
     }
     // The payload is printed with a type tag so the scanner knows which endpoint
     // to call. An untagged token produced a 400 in both flows.
@@ -994,7 +993,9 @@ struct ProfilePage {
                   this.generateQrToken();
                 })
                 .id('btn_show_qr')
-              }.width('100%')
+            }
+            .id('card_patient_qr')
+            .width('100%')
             .padding(14)
             .backgroundColor(Color.White)
             .borderRadius(20)
@@ -1798,40 +1799,6 @@ struct ProfilePage {
           // Sign Out Button
           Button() {
             Row() {
-              Image($r('app.media.idea'))
-                .width(20)
-                .height(20)
-                .margin({ right: 8 })
-                .objectFit(ImageFit.Contain)
-                .fillColor('#003D9B')
-              Text('Restart Tutorial (Coach Marks)')
-                .fontSize(16)
-                .fontWeight(FontWeight.Bold)
-                .fontColor('#003D9B')
-            }
-            .width('100%')
-            .height('100%')
-            .justifyContent(FlexAlign.Center)
-            .alignItems(VerticalAlign.Center)
-          }
-          .width('100%')
-          .height(56)
-          .backgroundColor('rgba(0, 61, 155, 0.08)')
-          .borderRadius(16)
-          .margin({ top: 24, bottom: 8 })
-          .onClick(async () => {
-             // Reset preference and manually trigger tutorial
-             await TutorialManager.resetTutorial(getContext(this));
-             
-             AppStorage.setOrCreate('isTutorialActive', true);
-             AppStorage.setOrCreate('currentTutorialStep', 1);
-             
-             promptAction.showToast({ message: 'Tutorial reset. Go to Home to start.' });
-             router.pushUrl({ url: 'pages/HomePage' });
-          })
-
-          Button() {
-            Row() {
               Image($r('app.media.logout'))
                 .width(20)
                 .height(20)
@@ -1885,7 +1852,7 @@ struct ProfilePage {
 
       if (this.isTutorialActive && this.currentTutorialStep === 3) {
         CoachMarkOverlay({
-          targetId: 'btn_show_qr',
+          targetId: 'card_patient_qr',
           title: 'Quick QR Connection',
           description: 'Share your QR code with your doctor or family member to link accounts securely.',
           stepIndex: 3,

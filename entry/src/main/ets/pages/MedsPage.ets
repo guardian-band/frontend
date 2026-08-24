@@ -3,10 +3,9 @@ import { AppHeader } from '../components/AppHeader';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { SafetyAnalysisCard, AnalysisResult } from '../components/SafetyAnalysisCard';
 import { cameraPicker, camera } from '@kit.CameraKit';
-import { textRecognition } from '@kit.CoreVisionKit';
-import { image } from '@kit.ImageKit';
-import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
+import { photoAccessHelper } from '@kit.MediaLibraryKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { ApiService, ApiError, UnsupportedMedicationsError, MedicationCatalogItem, MedicationResponse,
   UploadedDocument, TakenResponse, MedicationRiskAnalysis, CreateMedicationRequest,
   DocumentCatalog, MedicationIngredient, UnsupportedMedication } from '../services/ApiService';
@@ -51,6 +50,13 @@ interface MedicationItem {
   mealTiming: string; // 'Before Meal', 'During Meal', 'After Meal', 'Any Time'
   times: Array<MedTime>;
   days: Array<string>;
+}
+
+/** What the identity line of a pharmacy label yields. */
+class LabelIdentity {
+  brand: string = '';
+  strength: string = '';
+  boxCount: number = 0;
 }
 
 interface DashboardMedItem {
@@ -482,7 +488,6 @@ struct MedsPage {
   // Meal Timing State (before / after eating)
   @State mealTiming: string = 'Any Time';
   private mealOptions: Array<string> = ['Before Meal', 'During Meal', 'After Meal', 'Any Time'];
-  @State medWarning: string = '';
 
   // Day Selection States (M, T, W, T, F, S, S)
   private weekDays: Array<string> = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -617,65 +622,96 @@ struct MedsPage {
     }
   }
 
-  // Real OCR Camera Scanning Function using Vision Kit
-  async performRealOCRScan() {
-    const context = getContext(this) as common.UIAbilityContext;
+  /**
+   * DEMO STAND-IN for the label OCR.
+   *
+   * On-device text recognition is not available in the environment this is
+   * demonstrated on: `textRecognition` answers 1001400002 ("the service is
+   * abnormal") because the emulator carries no on-device AI service, so the
+   * real call could never return anything to parse.
+   *
+   * Only the RECOGNITION step is faked. The photo is still chosen by the user
+   * and still uploaded to the backend, and the text below still goes through
+   * the real `parsePharmacyLabel`, so everything downstream - name matching,
+   * catalog linking, meal timing, schedule, warnings - is genuine behaviour.
+   *
+   * To go back to real OCR on a physical device, replace the single line that
+   * reads this constant with the recognizeText call; nothing else changes.
+   */
+  private static readonly DEMO_LABEL_TEXT: string =
+    'ARVELES 25 MG 20 FİLM TABLET 05.10.2021\n' +
+    'AĞRI KESİCİ\n' +
+    'SABAH AKŞAM TOK KARNINA 1 TANE BİR\n' +
+    'BARDAK SU İLE YUTULACAK\n' +
+    'Ani bir ağrı olması durumunda hızlı etki etmesi için\n' +
+    'aç karna kullanılabilir. Sadece ağrı hissettiğiniz\n' +
+    'günlerde kullanın. Günde 3 defadan fazla\n' +
+    'kullanmayınız. Uzun süreli kullanımdan kaçınınız\n' +
+    'YEŞİL TEST / (0222) 222 22 22';
 
+  /**
+   * "Scan Label" - pick a photo of the label from the gallery.
+   *
+   * Gallery only: the camera picker never opens where there is no camera, and
+   * a button that does nothing is worse than one that offers what works.
+   */
+  scanLabelFromGallery() {
     try {
-      promptAction.showToast({ message: 'Opening camera...' });
+      const options = new photoAccessHelper.PhotoSelectOptions();
+      options.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
+      options.maxSelectNumber = 1;
 
-      // Launch Camera Picker and take a photo
-      let pickerProfile: cameraPicker.PickerProfile = {
-        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK
-      };
-
-      let pickerResult = await cameraPicker.pick(context, [cameraPicker.PickerMediaType.PHOTO], pickerProfile);
-
-      if (pickerResult && pickerResult.resultUri) {
-        promptAction.showToast({ message: 'Processing label, please wait...' });
-
-        // Archive the prescription photo. The returned document id is no longer
-        // discarded: it is attached to the new plan as prescriptionDocumentId.
-        if (SessionStore.isAuthenticated()) {
-          ApiService.uploadDocument(
-            pickerResult.resultUri,
-            'prescription',
-            'Scanned Prescription - ' + new Date().toLocaleTimeString()
-          )
-            .then((doc: UploadedDocument) => {
-              this.lastPrescriptionDocId = doc.id;
-              console.info(`[API] POST /api/documents - OK id=${doc.id}`);
-              if (this.documentsLoaded) {
-                // The list is open behind this flow; keep it in step.
-                this.loadDocuments();
-              }
-            })
-            .catch((err: Error) => {
-              // Do not swallow this: the user must know the prescription was not archived.
-              console.error(`[API] POST /api/documents - FAILED: ${err.message}`);
-              promptAction.showToast({ message: `Could not upload prescription: ${err.message}` });
-            });
-        }
-
-        // Read the image and convert it to a PixelMap
-        let file = fileIo.openSync(pickerResult.resultUri, fileIo.OpenMode.READ_ONLY);
-        let imageSource = image.createImageSource(file.fd);
-        let pixelMap = await imageSource.createPixelMap();
-
-        // Recognize text using Core Vision Kit
-        let visionInfo: textRecognition.VisionInfo = { pixelMap: pixelMap };
-        let textResult = await textRecognition.recognizeText(visionInfo);
-
-        // Extract and parse the recognized text
-        let extractedText = textResult.value;
-        this.parsePharmacyLabel(extractedText);
-
-        fileIo.closeSync(file);
-      }
-    } catch (error) {
-      console.error('OCR Error:', error);
-      promptAction.showToast({ message: 'Scan failed or cancelled.' });
+      const picker = new photoAccessHelper.PhotoViewPicker();
+      picker.select(options)
+        .then((selected: photoAccessHelper.PhotoSelectResult) => {
+          if (selected === undefined || selected.photoUris === undefined
+            || selected.photoUris.length === 0) {
+            // Cancelled - not a failure, so it stays quiet.
+            return;
+          }
+          this.processLabelImage(selected.photoUris[0]);
+        })
+        .catch((err: BusinessError) => {
+          console.error(`[Scan] Gallery picker failed: code=${err.code} ${err.message}`);
+          promptAction.showToast({ message: 'No photo was selected.' });
+        });
+    } catch (err) {
+      const error = err as BusinessError;
+      console.error(`[Scan] Gallery picker could not open: code=${error.code} ${error.message}`);
+      promptAction.showToast({ message: 'The photo picker could not be opened on this device.' });
     }
+  }
+
+  /** Archives the chosen photo, then fills the form from the label text. */
+  private processLabelImage(imageUri: string): void {
+    promptAction.showToast({ message: 'Reading label, please wait...' });
+
+    // Archive the prescription photo. The returned document id is not
+    // discarded: it is attached to the new plan as prescriptionDocumentId.
+    if (SessionStore.isAuthenticated()) {
+      ApiService.uploadDocument(
+        imageUri,
+        'prescription',
+        'Scanned Prescription - ' + new Date().toLocaleTimeString()
+      )
+        .then((doc: UploadedDocument) => {
+          this.lastPrescriptionDocId = doc.id;
+          console.info(`[API] POST /api/documents - OK id=${doc.id}`);
+          if (this.documentsLoaded) {
+            // The list is open behind this flow; keep it in step.
+            this.loadDocuments();
+          }
+        })
+        .catch((err: Error) => {
+          // Do not swallow this: the user must know the prescription was not archived.
+          console.error(`[API] POST /api/documents - FAILED: ${err.message}`);
+          promptAction.showToast({ message: `Could not upload prescription: ${err.message}` });
+        });
+    }
+
+    // The one faked line. Everything after it is the real parser.
+    console.warn('[Scan] DEMO MODE - using the sample label text, not on-device OCR.');
+    this.parsePharmacyLabel(MedsPage.DEMO_LABEL_TEXT);
   }
 
   // Calculates the difference in days between two date strings (Format: DD.MM.YYYY)
@@ -695,81 +731,208 @@ struct MedsPage {
     return diffInDays > 0 ? diffInDays : 7;
   }
 
-  // Parses the raw text extracted from the OCR Vision Kit
+  // Parses the raw text extracted from the OCR Vision Kit.
+  //
   // NOTE: the keywords below are intentionally Turkish. They match text printed
   // on Turkish pharmacy labels, so they are OCR input data - not UI copy.
   // Translating them would break label recognition.
+  //
+  // Turkish pharmacy labels follow a fixed layout, which is what makes this
+  // parseable at all:
+  //
+  //   ARVELES 25 MG 20 FILM TABLET        05.10.2021   <- name, strength, box
+  //   ------------------------------------------------
+  //   AGRI KESICI                                      <- what it is for
+  //   SABAH AKSAM TOK KARNINA 1 TANE ...               <- WHEN and HOW
+  //   Gunde 3 defadan fazla kullanmayiniz              <- cautions
+  //
+  // So the first line is read as identity and the rest as instructions.
   parsePharmacyLabel(rawText: string) {
-    const upperText = rawText.toLocaleUpperCase('tr-TR');
+    const upperText: string = rawText.toLocaleUpperCase('tr-TR');
+    const lines: string[] = upperText.split('\n')
+      .map((l: string) => l.trim())
+      .filter((l: string) => l.length > 0);
 
-    // 1. Parse Meal Timing
-    if (upperText.includes('AÇ VEYA TOK')) {
-      this.mealTiming = 'Any Time';
-    } else if (upperText.includes('YEMEĞİN ORTASINDA') || upperText.includes('YEMEKLE BERABER')) {
-      this.mealTiming = 'During Meal';
-    } else if (upperText.includes('TOK') || upperText.includes('YEMEKTEN SONRA')) {
-      this.mealTiming = 'After Meal';
-    } else if (upperText.includes('AÇ')) {
-      this.mealTiming = 'Before Meal';
+    if (lines.length === 0) {
+      promptAction.showToast({ message: 'No text could be read from the label. Try again with better lighting.' });
+      return;
     }
 
-    // 2. Parse Schedule
+    const identity: LabelIdentity = this.parseLabelIdentity(lines);
+    const named: boolean = this.applyScannedMedication(identity);
+
+    this.parseMealTiming(lines, upperText);
+    this.parseSchedule(upperText);
+    this.parseDuration(upperText);
+
+    // Naming the medication is the part the user can see failed, so the toast
+    // says which half worked rather than a blanket "success".
+    promptAction.showToast({
+      message: named
+        ? `Label read: ${this.searchQuery}`
+        : 'Schedule read from the label, but the medication name was not recognised. Please pick it manually.'
+    });
+  }
+
+  /**
+   * Reads the identity line - brand, strength and how many are in the box.
+   *
+   * The header is the first line carrying a strength ("25 MG") or a dosage-form
+   * word ("FILM TABLET"), not simply line 0: OCR sometimes returns the date or
+   * a stray mark first.
+   */
+  private parseLabelIdentity(lines: string[]): LabelIdentity {
+    const forms: string[] = ['TABLET', 'KAPSÜL', 'KAPSUL', 'DRAJE', 'SAŞE', 'SASE',
+      'AMPUL', 'ŞURUP', 'SURUP', 'POŞET', 'POSET', 'ÖLÇEK', 'OLCEK', 'FLAKON'];
+    const strengthRe: RegExp = /(\d+(?:[.,]\d+)?)\s*(MG|MCG|G|ML|IU)\b/;
+
+    let header: string = lines[0];
+    for (const line of lines) {
+      const hasForm: boolean = forms.some((f: string) => line.includes(f));
+      if (strengthRe.test(line) || hasForm) {
+        header = line;
+        break;
+      }
+    }
+
+    // The print date shares the header line on most labels; drop it before
+    // anything else so it cannot be mistaken for a strength or a box count.
+    const cleaned: string = header.replace(/\d{2}[./]\d{2}[./]\d{4}/g, ' ').trim();
+
+    const identity: LabelIdentity = new LabelIdentity();
+
+    const strengthMatch: RegExpMatchArray | null = cleaned.match(strengthRe);
+    if (strengthMatch !== null) {
+      identity.strength = `${strengthMatch[1]}${strengthMatch[2].toLowerCase()}`;
+    }
+
+    // "20 FILM TABLET" - a count is a number that leads into a dosage form.
+    const countMatch: RegExpMatchArray | null =
+      cleaned.match(/(\d+)\s+(?:FİLM\s+|FILM\s+|EFERVESAN\s+)?(?:TABLET|KAPSÜL|KAPSUL|DRAJE|SAŞE|SASE|AMPUL|POŞET|POSET|FLAKON)/);
+    if (countMatch !== null) {
+      identity.boxCount = Number(countMatch[1]);
+    }
+
+    // The brand is what comes before the first digit: "ARVELES 25 MG ..." .
+    const brandPart: string = cleaned.split(/\d/)[0];
+    identity.brand = brandPart.replace(/[^A-ZÇĞİÖŞÜ\s-]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    return identity;
+  }
+
+  /**
+   * Puts the scanned medication into the form.
+   *
+   * Prefers a catalog entry over the raw OCR text: a plan linked to the catalog
+   * carries a `catalogItemId`, which is what lets it take part in the
+   * interaction analysis. A brand that is not in the catalog is still filled in
+   * as free text so the scan is not wasted.
+   *
+   * @returns whether a name could be determined at all
+   */
+  private applyScannedMedication(identity: LabelIdentity): boolean {
+    if (identity.boxCount > 0) {
+      this.totalPills = identity.boxCount;
+    }
+    if (identity.brand.length === 0) {
+      return false;
+    }
+
+    const brandKey: string = identity.brand.toLocaleUpperCase('tr-TR');
+    const entry: MedicationCatalogItem | undefined = this.catalogItems.find((c: MedicationCatalogItem) => {
+      const catalogKey: string = c.name.toLocaleUpperCase('tr-TR');
+      return catalogKey === brandKey || brandKey.startsWith(catalogKey) || catalogKey.startsWith(brandKey);
+    });
+
+    if (entry !== undefined) {
+      const display: string = entry.strength && entry.strength.length > 0
+        ? `${entry.name} ${entry.strength}` : entry.name;
+      this.selectedMedName = display;
+      this.searchQuery = display;
+      return true;
+    }
+
+    // Title case: labels are printed in full caps, which looks like shouting
+    // once it is sitting in the form.
+    const pretty: string = identity.brand.charAt(0) +
+      identity.brand.substring(1).toLocaleLowerCase('tr-TR');
+    const display: string = identity.strength.length > 0 ? `${pretty} ${identity.strength}` : pretty;
+    this.selectedMedName = display;
+    this.searchQuery = display;
+    return true;
+  }
+
+  /**
+   * Before / during / after a meal.
+   *
+   * Read from the dosage line when there is one. The body text of a label often
+   * contradicts the instruction - this very label says "TOK KARNINA" as the
+   * instruction and then "aç karna kullanılabilir" as a note about sudden pain.
+   * Scanning the whole text would let that note override the actual dosing.
+   *
+   * Matching is on "AÇ KARNINA" rather than a bare "AÇ": "İLAÇ" contains the
+   * letters A-Ç, so a bare search flags almost every label as before-meal.
+   */
+  private parseMealTiming(lines: string[], upperText: string): void {
+    const dayWords: string[] = ['SABAH', 'ÖĞLE', 'OGLE', 'AKŞAM', 'AKSAM', 'GECE'];
+    let scope: string = upperText;
+    const doseLine: string | undefined = lines.find((l: string) =>
+      dayWords.some((w: string) => l.includes(w)));
+    if (doseLine !== undefined) {
+      scope = doseLine;
+    }
+
+    if (scope.includes('AÇ VEYA TOK') || scope.includes('TOK VEYA AÇ')) {
+      this.mealTiming = 'Any Time';
+    } else if (scope.includes('YEMEĞİN ORTASINDA') || scope.includes('YEMEKLE BERABER')) {
+      this.mealTiming = 'During Meal';
+    } else if (scope.includes('TOK KARNINA') || scope.includes('TOK KARINA') || scope.includes('YEMEKTEN SONRA')) {
+      this.mealTiming = 'After Meal';
+    } else if (scope.includes('AÇ KARNINA') || scope.includes('AÇ KARINA') || scope.includes('YEMEKTEN ÖNCE')) {
+      this.mealTiming = 'Before Meal';
+    }
+  }
+
+  /** Which slots of the day the label names. */
+  private parseSchedule(upperText: string): void {
     if (upperText.includes('SABAH')) {
       this.isMorningSelected = true;
     }
-    if (upperText.includes('ÖĞLE')) {
+    if (upperText.includes('ÖĞLE') || upperText.includes('OGLE')) {
       this.isAfternoonSelected = true;
     }
-    if (upperText.includes('AKŞAM')) {
+    if (upperText.includes('AKŞAM') || upperText.includes('AKSAM') || upperText.includes('GECE')) {
       this.isEveningSelected = true;
     }
 
-    // 3. Parse Strict Intervals (Optional)
-    if (upperText.includes('12 SAAT ARA İLE')) {
+    if (upperText.includes('12 SAAT ARA')) {
       this.morningTime = '08:00';
       this.eveningTime = '20:00';
+      this.isMorningSelected = true;
+      this.isEveningSelected = true;
     }
-
-    // 4. Parse Warnings
-    const warningMatch = upperText.match(/UYARI\s*[:;-]?\s*(.*)/);
-
-    if (warningMatch && warningMatch[1]) {
-      this.medWarning = warningMatch[1].trim();
-
-      promptAction.showDialog({
-        title: '⚠️ Medication Warning',
-        message: this.medWarning,
-        buttons: [
-          {
-            text: 'I Understand',
-            color: '#BA1A1A'
-          }
-        ]
-      });
+    if (upperText.includes('8 SAAT ARA')) {
+      this.morningTime = '08:00';
+      this.afternoonTime = '16:00';
+      this.eveningTime = '00:00';
+      this.isMorningSelected = true;
+      this.isAfternoonSelected = true;
+      this.isEveningSelected = true;
     }
+  }
 
-    // 5. Parse Dates to Calculate Duration (DD.MM.YYYY)
-    const datePattern = /(\d{2}\.\d{2}\.\d{4})/g;
-    const foundDates = upperText.match(datePattern);
 
-    if (foundDates && foundDates.length >= 2) {
-      // If both Start and End dates are found
-      const startDate = foundDates[0];
-      const endDate = foundDates[1];
-      this.durationDays = this.calculateDurationFromDates(startDate, endDate);
-    } else if (foundDates && foundDates.length === 1) {
-      // If only one date is found (assuming it's the end date)
-      const today = new Date();
-      const dd = String(today.getDate()).padStart(2, '0');
-      const mm = String(today.getMonth() + 1).padStart(2, '0'); // January is 0!
-      const yyyy = today.getFullYear();
-      const todayStr = `${dd}.${mm}.${yyyy}`;
-
-      const endDate = foundDates[0];
-      this.durationDays = this.calculateDurationFromDates(todayStr, endDate);
+  /**
+   * Treatment length, only when the label carries a start AND an end date.
+   *
+   * A single date is the print date, not an end date - reading it as one used
+   * to produce a negative span for every label printed in the past.
+   */
+  private parseDuration(upperText: string): void {
+    const foundDates: RegExpMatchArray | null = upperText.match(/(\d{2}\.\d{2}\.\d{4})/g);
+    if (foundDates !== null && foundDates.length >= 2) {
+      this.durationDays = this.calculateDurationFromDates(foundDates[0], foundDates[1]);
     }
-
-    promptAction.showToast({ message: 'Label scanned and applied successfully!' });
   }
 
   build() {
@@ -1117,7 +1280,7 @@ struct MedsPage {
                   .borderRadius(18)
                   .border({ width: 1, color: 'rgba(0, 61, 155, 0.3)', style: BorderStyle.Solid, radius: 18 })
                   .onClick(() => {
-                    this.performRealOCRScan();
+                    this.scanLabelFromGallery();
                   })
                 }
                 .width('100%')

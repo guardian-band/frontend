@@ -4,7 +4,7 @@ import { ApiConfig } from './ApiConfig';
 import { SessionStore } from './SessionStore';
 
 // =============================================================================
-// Hata tipi
+// Error type
 // =============================================================================
 
 /**
@@ -555,7 +555,7 @@ export interface NotificationEndpoint {
   updatedAt: string;
 }
 
-// --- Dahili istek tipleri ----------------------------------------------------
+// --- Internal request types --------------------------------------------------
 
 interface HttpResult {
   code: number;
@@ -666,7 +666,7 @@ export class ApiService {
       await ApiService.delay(300 * Math.pow(2, attempt - 1));
     }
 
-    throw lastError !== null ? lastError : ApiError.network('bilinmeyen hata');
+    throw lastError !== null ? lastError : ApiError.network('unknown error');
   }
 
   private static delay(ms: number): Promise<void> {
@@ -837,7 +837,7 @@ export class ApiService {
       try {
         await ApiService.deleteNotificationEndpoint(endpointId);
       } catch (err) {
-        console.warn(`[ApiService] Bildirim ucu silinemedi: ${(err as Error).message}`);
+        console.warn(`[ApiService] Could not remove the notification endpoint: ${(err as Error).message}`);
       }
     }
     await SessionStore.clear();
@@ -1449,7 +1449,7 @@ export class ApiService {
     return ApiService.parse<MonitoringRelationship>(result.body);
   }
 
-  /** GET /api/monitoring/patients — izlenen hastalar. */
+  /** GET /api/monitoring/patients - the patients this member may monitor. */
   static async getMonitoredPatients(): Promise<ClinicianPatient[]> {
     const result = await ApiService.send('/api/monitoring/patients', http.RequestMethod.GET, { auth: true });
     const list = ApiService.parse<ClinicianPatient[]>(result.body);
@@ -1462,13 +1462,13 @@ export class ApiService {
     return list;
   }
 
-  /** GET /api/patient-relationships — "beni kim izliyor". */
+  /** GET /api/patient-relationships - "who is monitoring me". */
   static async getPatientRelationships(): Promise<PatientRelationship[]> {
     const result = await ApiService.send('/api/patient-relationships', http.RequestMethod.GET, { auth: true });
     return ApiService.parse<PatientRelationship[]>(result.body);
   }
 
-  /** DELETE /api/patient-relationships/{relationshipId} — izni geri al. */
+  /** DELETE /api/patient-relationships/{relationshipId} - revoke the permission. */
   static async revokeRelationship(relationshipId: string): Promise<void> {
     await ApiService.send(`/api/patient-relationships/${relationshipId}`, http.RequestMethod.DELETE, { auth: true });
   }

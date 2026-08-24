@@ -328,7 +328,7 @@ struct HomePage {
 
       if (parsed.kind === QrKind.LINK) {
         AppStorage.setOrCreate('doctorIsWatchScan', false);
-        AppStorage.setOrCreate('scannedPatientLinkRequest', parsed.token);
+        this.redeemScannedInvitation(parsed.token);
         return;
       }
       if (parsed.kind === QrKind.EMERGENCY) {
@@ -339,7 +339,7 @@ struct HomePage {
 
       // Untagged code: an old QR or manual entry. Decide from the scan context.
       if (this.userRole === 'doctor' && !isWatchScan) {
-        AppStorage.setOrCreate('scannedPatientLinkRequest', parsed.token);
+        this.redeemScannedInvitation(parsed.token);
       } else {
         AppStorage.setOrCreate('doctorIsWatchScan', false);
         this.loadEmergencyMedicalCard(parsed.token);
@@ -353,6 +353,48 @@ struct HomePage {
    * made-up patient. The data now comes from the server and every access is
    * written to the backend's audit log.
    */
+  /**
+   * Redeems a scanned monitoring invitation.
+   *
+   * Deliberately lives on the page itself, next to `loadEmergencyMedicalCard`.
+   * It used to hand the token to `AppStorage` and rely on a `@Watch` inside
+   * FamilyDashboardView / DoctorDashboardView to pick it up - which only works
+   * while one of those child views happens to be mounted. When the role was not
+   * family or doctor, no watcher existed and the scan silently did nothing,
+   * while the emergency QR kept working because it was handled right here.
+   *
+   * Refreshing the roster afterwards is signalled through a counter the
+   * dashboards watch; that write happens after an awaited request, by which
+   * point the view is certainly mounted.
+   */
+  async redeemScannedInvitation(invitationToken: string): Promise<void> {
+    if (!SessionStore.isAuthenticated()) {
+      promptAction.showToast({ message: 'No active session. Please sign in.' });
+      return;
+    }
+    promptAction.showToast({ message: 'Verifying invitation code...' });
+
+    try {
+      const relationship: MonitoringRelationship = await ApiService.redeemLinkInvitation(invitationToken);
+      console.info(`[API] POST /api/patient-link-invitations/redeem - OK, patientId=${relationship.patientId}`);
+      promptAction.showToast({ message: 'Patient added to your list.' });
+
+      const tick: number = AppStorage.get<number>('monitoredPatientsRefresh') !== undefined
+        ? AppStorage.get<number>('monitoredPatientsRefresh') as number : 0;
+      AppStorage.setOrCreate('monitoredPatientsRefresh', tick + 1);
+    } catch (e) {
+      const status: number = e instanceof ApiError ? (e as ApiError).status : -1;
+      console.error(`[API] Could not redeem invitation (status=${status}): ${(e as Error).message}`);
+      if (status >= 500) {
+        promptAction.showToast({
+          message: 'Server error: patient linking is currently unavailable. The code is valid; the problem is on the server.'
+        });
+      } else {
+        promptAction.showToast({ message: `Could not link: ${(e as Error).message}` });
+      }
+    }
+  }
+
   async loadEmergencyMedicalCard(accessToken: string): Promise<void> {
     if (!SessionStore.isAuthenticated()) {
       promptAction.showToast({ message: 'You need to sign in to use emergency access.' });
@@ -1938,7 +1980,9 @@ struct FamilyDashboardView {
   // Stores the parsed content of a scanned QR code used to establish a new monitoring relationship.
   
   
-  @StorageLink('scannedPatientLinkRequest') @Watch('onLinkRequestChanged') scannedPatientLinkRequest: string = '';
+  // Bumped by HomePage after a scanned invitation is redeemed, so the roster
+  // re-reads itself. The token itself is no longer routed through here.
+  @StorageLink('monitoredPatientsRefresh') @Watch('onPatientsRefresh') monitoredPatientsRefresh: number = 0;
   @State isLinkModalOpen: boolean = false;
   @State linkPatientInvitationToken: string = '';
 
@@ -1952,44 +1996,12 @@ struct FamilyDashboardView {
   }
 
   /** POST /api/patient-link-invitations/redeem - the same flow doctors use. */
-  async onLinkRequestChanged() {
-    if (!this.scannedPatientLinkRequest) return;
-    let scanned = this.scannedPatientLinkRequest;
-    AppStorage.setOrCreate('scannedPatientLinkRequest', '');
-
+  /** Reloads the roster after a link was made elsewhere on the page. */
+  async onPatientsRefresh() {
     if (!SessionStore.isAuthenticated()) {
-      promptAction.showToast({ message: 'No active session. Please sign in.' });
       return;
     }
-
-    const parsed: QrContent = QrPayload.decode(scanned);
-    if (parsed.kind === QrKind.EMERGENCY) {
-      promptAction.showToast({ message: QrPayload.wrongKindMessage(QrKind.LINK) });
-      return;
-    }
-    if (parsed.kind === QrKind.LEGACY_JSON) {
-      promptAction.showToast({ message: QrPayload.legacyMessage() });
-      return;
-    }
-
-    promptAction.showToast({ message: 'Verifying invitation code...' });
-
-    try {
-      const relationship: MonitoringRelationship = await ApiService.redeemLinkInvitation(parsed.token);
-      console.info(`[API] POST /api/patient-link-invitations/redeem - OK, patientId=${relationship.patientId}`);
-      promptAction.showToast({ message: 'Patient added to your list.' });
-      await this.loadFamilyPatients();
-    } catch (e) {
-      const status: number = e instanceof ApiError ? (e as ApiError).status : -1;
-      console.error(`[API] Could not redeem invitation (status=${status}): ${(e as Error).message}`);
-      if (status >= 500) {
-        promptAction.showToast({
-          message: 'Server error: patient linking is currently unavailable. The code is valid; the problem is on the server.'
-        });
-      } else {
-        promptAction.showToast({ message: `Could not link: ${(e as Error).message}` });
-      }
-    }
+    await this.loadFamilyPatients();
   }
 
   /**
@@ -2848,6 +2860,10 @@ struct FamilyDashboardView {
                   promptAction.showToast({ message: 'Patient added to your list.' });
                   this.isLinkModalOpen = false;
                   this.linkPatientInvitationToken = '';
+                  // The link succeeded on the server but the roster was never
+                  // re-read, so the screen stayed empty and the whole thing
+                  // looked like it had failed.
+                  await this.loadFamilyPatients();
                 } catch (e) {
                   promptAction.showToast({ message: `Could not link: ${(e as Error).message}` });
                 }
@@ -2894,7 +2910,9 @@ struct DoctorDashboardView {
   @State isInspectorOpen: boolean = false;
   onQrScanClick: () => void = () => {};
   @StorageLink('profilePicture') profilePicture: string = '';
-  @StorageLink('scannedPatientLinkRequest') @Watch('onLinkRequestChanged') scannedPatientLinkRequest: string = '';
+  // Bumped by HomePage after a scanned invitation is redeemed, so the roster
+  // re-reads itself. The token itself is no longer routed through here.
+  @StorageLink('monitoredPatientsRefresh') @Watch('onPatientsRefresh') monitoredPatientsRefresh: number = 0;
   @StorageLink('doctorWatchScanResult') @Watch('onWatchScanResultChanged') doctorWatchScanResult: string = '';
 
   @State isLinkModalOpen: boolean = false;
@@ -3034,47 +3052,12 @@ struct DoctorDashboardView {
     }
   }
 
-  async onLinkRequestChanged() {
-    if (!this.scannedPatientLinkRequest) return;
-    
-    let scanned = this.scannedPatientLinkRequest;
-    AppStorage.setOrCreate('scannedPatientLinkRequest', '');
-
+  /** Reloads the roster after a link was made elsewhere on the page. */
+  async onPatientsRefresh() {
     if (!SessionStore.isAuthenticated()) {
-      promptAction.showToast({ message: 'No active session. Please sign in.' });
       return;
     }
-
-    const parsed: QrContent = QrPayload.decode(scanned);
-    if (parsed.kind === QrKind.EMERGENCY) {
-      promptAction.showToast({ message: QrPayload.wrongKindMessage(QrKind.LINK) });
-      return;
-    }
-    if (parsed.kind === QrKind.LEGACY_JSON) {
-      promptAction.showToast({ message: QrPayload.legacyMessage() });
-      return;
-    }
-
-    promptAction.showToast({ message: 'Verifying invitation code...' });
-
-    try {
-      const relationship: MonitoringRelationship = await ApiService.redeemLinkInvitation(parsed.token);
-      console.info(`[API] POST /api/patient-link-invitations/redeem - OK, patientId=${relationship.patientId}`);
-      await this.loadDoctorPatients();
-      promptAction.showToast({ message: 'Hasta listenize eklendi.' });
-    } catch (e) {
-      const status: number = e instanceof ApiError ? (e as ApiError).status : -1;
-      console.error(`[API] Could not redeem invitation (status=${status}): ${(e as Error).message}`);
-      if (status >= 500) {
-        // Note: The redeem query may fail on certain backend database configurations
-        // that do not support ON CONFLICT clauses.
-        promptAction.showToast({
-          message: 'Server error: patient linking is currently unavailable. The code is valid; the problem is on the server.'
-        });
-      } else {
-        promptAction.showToast({ message: `Could not link: ${(e as Error).message}` });
-      }
-    }
+    await this.loadDoctorPatients();
   }
 
   async scanWatchQr() {
@@ -3520,7 +3503,7 @@ struct DoctorDashboardView {
                   }
                   try {
                     await ApiService.redeemLinkInvitation(QrPayload.decode(this.linkPatientInvitationToken).token);
-                    promptAction.showToast({ message: 'Hasta listenize eklendi.' });
+                    promptAction.showToast({ message: 'Patient added to your list.' });
                     this.isLinkModalOpen = false;
                     this.linkPatientInvitationToken = '';
                     await this.loadDoctorPatients();

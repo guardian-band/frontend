@@ -184,8 +184,25 @@ export class AccountRepository {
     } catch (err) {
       const status: number = err instanceof ApiError ? (err as ApiError).status : -1;
       if (status === 404) {
+        // No account row on the server. For anyone who picked their role before
+        // the role moved server-side, the answer is not "no role" - it is "the
+        // role is still only on this device". Without this migration such a
+        // user silently became a patient on the next sign-in, losing the
+        // doctor/family dashboard (and with it the QR linking that lives there).
+        const local: UiAccount = AccountRepository.cached();
+        if (local.role.length > 0) {
+          console.info(`[API] GET /api/account - 404; migrating the device role '${local.role}' to the server.`);
+          const migrated: UiAccount | undefined = await AccountRepository.push(local);
+          if (migrated !== undefined) {
+            await AccountRepository.mirror(migrated, applyRole);
+            return { exists: true, fromCache: false, account: migrated };
+          }
+          // The push failed (offline, server down). The device still knows the
+          // role, so the session is not downgraded over it.
+          return { exists: false, fromCache: true, account: local };
+        }
         console.info('[API] GET /api/account - 404, no role picked yet.');
-        return { exists: false, fromCache: false, account: AccountRepository.cached() };
+        return { exists: false, fromCache: false, account: local };
       }
       console.warn(`[API] GET /api/account - failed (status=${status}): ${(err as Error).message}`);
       return { exists: false, fromCache: true, account: AccountRepository.cached() };
@@ -215,16 +232,29 @@ export class AccountRepository {
       return undefined;
     }
 
+    const saved: UiAccount | undefined = await AccountRepository.push(merged);
+    if (saved === undefined) {
+      return undefined;
+    }
+
+    // Only a patch that deliberately carries a role may move the active one.
+    // A patch WITHOUT a role (configuring a secondary role, confirming doctor
+    // verification) still writes the stored primary role to the server, and
+    // applying it here would flip the screen the user is standing on back to
+    // that primary role.
+    const rolePatched: boolean = patch.role !== undefined && patch.role.length > 0;
+    await AccountRepository.mirror(saved, rolePatched);
+    return saved;
+  }
+
+  /**
+   * PUT /api/account. Returns undefined when it could not be written, leaving
+   * the caller to decide what that means for its own flow.
+   */
+  private static async push(account: UiAccount): Promise<UiAccount | undefined> {
     try {
       const saved: UiAccount = AccountRepository.toUi(
-        await ApiService.putAccount(AccountRepository.toWire(merged)));
-      // Only a patch that deliberately carries a role may move the active one.
-      // A patch WITHOUT a role (configuring a secondary role, confirming doctor
-      // verification) still writes the stored primary role to the server, and
-      // applying it here would flip the screen the user is standing on back to
-      // that primary role.
-      const rolePatched: boolean = patch.role !== undefined && patch.role.length > 0;
-      await AccountRepository.mirror(saved, rolePatched);
+        await ApiService.putAccount(AccountRepository.toWire(account)));
       console.info(`[API] PUT /api/account - OK, role=${saved.role}`);
       return saved;
     } catch (err) {
