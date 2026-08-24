@@ -3533,13 +3533,17 @@ struct VitalsGraphModal {
   @StorageLink('isGraphModalOpen') isGraphModalOpen: boolean = false;
   @StorageLink('selectedMetric') selectedMetric: string = 'Heart Rate';
   @StorageLink('selectedValue') selectedValue: number = 72;
-  @StorageLink('heartRateHistory') heartRateHistory: number[] = [70, 72, 71, 73, 72, 70, 72];
-  @StorageLink('oxygenHistory') oxygenHistory: number[] = [97, 98, 98, 97, 99, 98, 98];
+  @StorageLink('heartRateHistory') @Watch('onDataUpdate') heartRateHistory: number[] = [70, 72, 71, 73, 72, 70, 72];
+  @StorageLink('oxygenHistory') @Watch('onDataUpdate') oxygenHistory: number[] = [97, 98, 98, 97, 99, 98, 98];
 
   private chartCanvasController: CanvasRenderingContext2D = new CanvasRenderingContext2D(new RenderingContextSettings(true));
 
   @State chartWidth: number = 300;
   @State chartHeight: number = 160;
+
+  onDataUpdate() {
+    this.drawMinimalistLineChart();
+  }
 
   getVitalsStatusText(): string {
     let val = Number(this.selectedValue);
@@ -3879,4 +3883,7 @@ struct VitalsGraphModal {
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }
+
+
+
 
