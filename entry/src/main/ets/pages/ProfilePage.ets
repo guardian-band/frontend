@@ -228,7 +228,7 @@ struct ProfilePage {
   @State linkInvitationExpiresAt: string = '';
   @State isGeneratingQr: boolean = false;
   /** 'link' = monitoring invitation, 'emergency' = emergency access code. */
-  @State qrMode: string = 'link';
+  @State qrMode: string = 'emergency';
   /**
    * Who the "Link" QR is for: 'clinician' (Doctor) or 'family' (Family
    * Member). Same QR flow/UI for both - only kind/relationship differ, so the
@@ -371,7 +371,14 @@ struct ProfilePage {
       // The token is minted now, so the consent has to be decided now: the
       // backend stamps it onto the invitation and it cannot be changed after
       // the code is scanned.
-      sharePhoneNumber: this.sharePhoneWithMonitor,
+      // TEMPORARY - forced on to work around a backend defect.
+      // `GET /api/monitoring/patients` scans this column into a plain string,
+      // and openGauss returns NULL (not '') for the false branch of its CASE
+      // expression, so a single not-sharing relationship makes the whole
+      // roster request answer 500 and the patient list never loads.
+      // See BACKEND_REQUESTS.md #5. Once that is fixed, restore
+      // `this.sharePhoneWithMonitor` here and bring the consent toggle back.
+      sharePhoneNumber: true,
       expiresInSeconds: 900
     })
       .then((invitation: MonitoringInvitation) => {
@@ -465,7 +472,10 @@ struct ProfilePage {
       return;
     }
     try {
-      const backendPatients: ClinicianPatient[] = await ApiService.getMonitoredPatients();
+      // Everything that is not a clinical relationship. Unknown labels stay
+      // here rather than vanishing from both dashboards.
+      const backendPatients: ClinicianPatient[] = (await ApiService.getMonitoredPatients())
+        .filter((p: ClinicianPatient) => !ApiService.isClinicianRelationship(p));
       const list: MonitoredFamilyPatient[] = [];
       for (const bp of backendPatients) {
         let heart: number = 0;
@@ -993,7 +1003,7 @@ struct ProfilePage {
                 .borderRadius(8)
                 .height(30)
                 .onClick(() => {
-                  this.qrMode = 'link';
+                  this.qrMode = 'emergency';
                   this.isMyQrModalOpen = true;
                   this.generateQrToken();
                 })
@@ -2143,34 +2153,6 @@ struct ProfilePage {
                   .onClick(() => { this.switchLinkTarget('family'); })
               }
               .width('100%')
-              .margin({ bottom: 16 })
-
-              // Phone-number consent. Sits with the QR because that is where
-              // the decision takes effect: the flag is baked into the token.
-              Row() {
-                Column() {
-                  Text('Share my phone number')
-                    .fontSize(13)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor('#191C1D')
-                  Text(this.sharePhoneWithMonitor
-                    ? 'They will be able to see and call your number.'
-                    : 'Your number stays hidden from them.')
-                    .fontSize(11)
-                    .fontColor('#737685')
-                    .margin({ top: 2 })
-                }
-                .alignItems(HorizontalAlign.Start)
-                .layoutWeight(1)
-
-                Toggle({ type: ToggleType.Switch, isOn: this.sharePhoneWithMonitor })
-                  .selectedColor('#003D9B')
-                  .onChange((isOn: boolean) => { this.toggleSharePhone(isOn); })
-              }
-              .width('100%')
-              .padding({ left: 12, right: 12, top: 10, bottom: 10 })
-              .backgroundColor('#F8F9FA')
-              .borderRadius(12)
               .margin({ bottom: 16 })
             }
 

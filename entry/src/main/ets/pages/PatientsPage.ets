@@ -130,7 +130,10 @@ struct PatientsPage {
       return;
     }
     try {
-      const backendPatients: ClinicianPatient[] = await ApiService.getMonitoredPatients();
+      // Only the clinical relationships. One account can also be a family
+      // member for someone else, and the endpoint returns both kinds together.
+      const backendPatients: ClinicianPatient[] = (await ApiService.getMonitoredPatients())
+        .filter((p: ClinicianPatient) => ApiService.isClinicianRelationship(p));
       console.info(`[API] GET /api/monitoring/patients - OK, ${backendPatients.length} hasta`);
 
       const list: MonitoredPatient[] = [];

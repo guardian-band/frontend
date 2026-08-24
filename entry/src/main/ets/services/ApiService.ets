@@ -1449,6 +1449,24 @@ export class ApiService {
     return ApiService.parse<MonitoringRelationship>(result.body);
   }
 
+  /**
+   * Is this monitoring relationship a clinical one?
+   *
+   * One account can hold BOTH kinds at once - the same person may be a family
+   * member for one patient and a physician for another - and
+   * `/api/monitoring/patients` returns them all in a single list. Without this
+   * split, a patient linked as family also appeared on the doctor dashboard.
+   *
+   * The backend stores a proper `kind` (family | clinician | other) but does
+   * not return it on MonitoringPatient, so the relationship label this app
+   * writes at invitation time is what is available. See BACKEND_REQUESTS.md #6.
+   */
+  static isClinicianRelationship(patient: ClinicianPatient): boolean {
+    const label: string = patient.relationship !== undefined
+      ? patient.relationship.trim().toLowerCase() : '';
+    return label === 'physician' || label === 'doctor';
+  }
+
   /** GET /api/monitoring/patients - the patients this member may monitor. */
   static async getMonitoredPatients(): Promise<ClinicianPatient[]> {
     const result = await ApiService.send('/api/monitoring/patients', http.RequestMethod.GET, { auth: true });
