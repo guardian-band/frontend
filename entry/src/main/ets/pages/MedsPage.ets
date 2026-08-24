@@ -9,6 +9,8 @@ import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { ApiService, MedicationCatalogItem, MedicationResponse, UploadedDocument, TakenResponse } from '../services/ApiService';
 import { SessionStore } from '../services/SessionStore';
+import { CoachMarkOverlay } from '../components/CoachMarkOverlay';
+import { TutorialManager } from '../utils/TutorialManager';
 
 export interface MedicalProfile {
   gender?: string;
@@ -59,6 +61,10 @@ struct MedsPage {
 
   @StorageLink('medications') medications: Array<MedicationItem> = [];
   @StorageLink('medicalProfile') medicalProfile: MedicalProfile | undefined = undefined;
+  
+  @StorageLink('isTutorialActive') isTutorialActive: boolean = false;
+  @StorageLink('currentTutorialStep') currentTutorialStep: number = 0;
+
   // MOCK STATE FOR AI BODY ANALYSIS
   @State currentAnalysisIndex: number = 0;
   private mockAnalyses: AnalysisResult[] = [
@@ -624,6 +630,7 @@ struct MedsPage {
       .shadow({ radius: 8, color: 'rgba(0, 61, 155, 0.2)', offsetY: 4 })
       .position({ x: '78%', y: '78%' })
       .zIndex(2)
+      .id('btn_add_med')
       .onClick(() => {
         this.isModalOpen = true;
       })
@@ -666,6 +673,7 @@ struct MedsPage {
                         .fontColor('#003D9B')
                     }
                   }
+                  .id('btn_scan_label')
                   .backgroundColor('#E8EEFF')
                   .height(36)
                   .padding({ left: 14, right: 14 })
@@ -1124,6 +1132,16 @@ struct MedsPage {
 
       BottomNavBar({ activeTab: 'meds' })
         .zIndex(1)
+
+      if (this.isTutorialActive && this.currentTutorialStep === 2) {
+        CoachMarkOverlay({
+          targetId: 'btn_add_med',
+          title: 'Add New Medication',
+          description: 'Tap the + button to manually add medications or scan your prescription using AI camera.',
+          stepIndex: 2,
+          totalSteps: 4
+        })
+      }
     }
     .width('100%')
     .height('100%')

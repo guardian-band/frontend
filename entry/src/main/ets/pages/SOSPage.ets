@@ -7,6 +7,8 @@ import { abilityAccessCtrl, common } from '@kit.AbilityKit';
 import { ApiService, SOSIncident } from '../services/ApiService';
 import { SessionStore } from '../services/SessionStore';
 import { ContactsRepository } from '../services/ContactsRepository';
+import { CoachMarkOverlay } from '../components/CoachMarkOverlay';
+import { TutorialManager } from '../utils/TutorialManager';
 
 interface ContactWithDisplayName {
   displayName: string;
@@ -140,6 +142,9 @@ struct SOSPage {
   @StorageLink('fullName') fullName: string = 'User';
   @StorageLink('isResponderVerified') isResponderVerified: boolean = false;
 
+  @StorageLink('isTutorialActive') isTutorialActive: boolean = false;
+  @StorageLink('currentTutorialStep') currentTutorialStep: number = 0;
+
   private scroller: Scroller = new Scroller();
 
   build() {
@@ -190,7 +195,18 @@ struct SOSPage {
       .height('100%')
 
       BottomNavBar({ activeTab: 'sos' })
-        .zIndex(1)}.width('100%')
+        .zIndex(1)
+
+      if (this.isTutorialActive && this.currentTutorialStep === 4) {
+        CoachMarkOverlay({
+          targetId: 'btn_sos',
+          title: 'Emergency SOS Alert',
+          description: 'In case of emergency, tap this button to instantly send an alert with your live location to your emergency contacts.',
+          stepIndex: 4,
+          totalSteps: 4
+        })
+      }
+    }.width('100%')
     .height('100%')
     .backgroundColor('#F8F9FA')
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
@@ -426,7 +442,9 @@ struct PatientSOSView {
             }}.justifyContent(FlexAlign.Center)
           .alignItems(HorizontalAlign.Center)
           .width('100%')
-          .height('100%')}.width(180)
+          .height('100%')}
+        .id('btn_sos')
+        .width(180)
         .height(180)
         .borderRadius(90)
         .backgroundColor(this.sosSent ? '#006E2F' : '#BA1A1A')

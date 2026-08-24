@@ -8,6 +8,8 @@ import { BottomNavBar } from '../components/BottomNavBar';
 import { camera, cameraPicker } from '@kit.CameraKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { CoachMarkOverlay } from '../components/CoachMarkOverlay';
+import { TutorialManager } from '../utils/TutorialManager';
 
 interface ScannedPatientVitals {
   heartRate?: string;
@@ -240,6 +242,26 @@ struct HomePage {
   @State scanProgress: number = 0;
   private scanIntervalId: number = -1;
 
+  @StorageLink('isTutorialActive') isTutorialActive: boolean = false;
+  @StorageLink('currentTutorialStep') currentTutorialStep: number = 0;
+
+  async aboutToAppear() {
+    if (this.userRole === 'patient') {
+      const isJustRegistered = AppStorage.get<boolean>('isJustRegistered') || false;
+      if (isJustRegistered) {
+        TutorialManager.initializeTutorial(getContext(this));
+        AppStorage.setOrCreate('isJustRegistered', false);
+      }
+    }
+    
+    if (this.userRole === 'doctor' && !this.doctorProfile.isVerified) {
+      setTimeout(() => {
+        this.isDoctorVerificationModalOpen = true;
+        promptAction.showToast({ message: 'Verification code automatically sent to your professional email address!' });
+      }, 500);
+    }
+  }
+
   async startQrScanner() {
     try {
       router.pushUrl({ url: 'pages/CameraPage' });
@@ -384,14 +406,6 @@ struct HomePage {
     }
   }
 
-  aboutToAppear() {
-    if (this.userRole === 'doctor' && !this.doctorProfile.isVerified) {
-      setTimeout(() => {
-        this.isDoctorVerificationModalOpen = true;
-        promptAction.showToast({ message: 'Verification code automatically sent to your professional email address!' });
-      }, 500);
-    }
-  }
 
   private scroller: Scroller = new Scroller();
 
@@ -446,6 +460,16 @@ struct HomePage {
 
       BottomNavBar({ activeTab: 'home' })
         .zIndex(1)
+
+      if (this.isTutorialActive && this.currentTutorialStep === 1) {
+        CoachMarkOverlay({
+          targetId: 'tab_meds',
+          title: 'Manage Your Medications',
+          description: 'Tap the Meds tab to manage your daily medications, set reminders, and track your health routine.',
+          stepIndex: 1,
+          totalSteps: 4
+        })
+      }
 
       // Full-Screen Vitals Graph Modal (zIndex 200 - covers ENTIRE screen including status bar & navbar)
       if (this.isGraphModalOpen) {

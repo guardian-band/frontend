@@ -190,6 +190,7 @@ struct LoginPage {
                   console.info(`[API] POST /api/login - OK, userId=${uid}`);
 
                   AppStorage.setOrCreate('userPhone', normalizedPhone)
+                  AppStorage.setOrCreate('isJustRegistered', false)
                   promptAction.showToast({ message: 'Signed in successfully.' })
 
                   // This account's device-stored client-side profile: role,

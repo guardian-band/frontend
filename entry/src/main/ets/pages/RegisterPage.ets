@@ -260,6 +260,7 @@ struct RegisterPage {
 
                     AppStorage.setOrCreate('fullName', this.fullName);
                     AppStorage.setOrCreate('userPhone', normalizedPhone);
+                    AppStorage.setOrCreate('isJustRegistered', true);
                     AppStorage.setOrCreate('doctorProfile', { hospital: '', specialty: '', email: '', isVerified: false });
                     // The role is NOT fixed here. The next step is SelectRolePage;
                     // whatever the user picks there is written by ProfileSetupPage

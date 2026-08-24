@@ -48,6 +48,7 @@ export struct BottomNavBar {
             .fontWeight(this.activeTab === 'meds' ? FontWeight.Bold : FontWeight.Normal)
             .fontColor(this.activeTab === 'meds' ? '#003D9B' : '#737685')
         }
+        .id('tab_meds')
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
         .backgroundColor(this.activeTab === 'meds' ? '#E8EEFF' : Color.Transparent)
